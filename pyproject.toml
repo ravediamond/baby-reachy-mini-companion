@@ -9,7 +9,9 @@ authors = [{ name = "Pollen Robotics", email = "contact@pollen-robotics.com" }]
 description = ""
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = []
+dependencies = [
+    "reachy_mini@git+ssh://git@github.com/pollen-robotics/reachy_mini@develop",
+]
 
 
 [project.optional-dependencies]
