@@ -100,7 +100,9 @@ elif HEAD_TRACKING and SIM:
 else:
     logger.warning("Head tracking disabled")
 
-movement_manager = MovementManager(current_robot=current_robot, head_tracker=head_tracker, camera=camera)
+movement_manager = MovementManager(
+    current_robot=current_robot, head_tracker=head_tracker, camera=camera
+)
 robot_is_speaking = asyncio.Event()
 speaking_queue = asyncio.Queue()
 
@@ -410,7 +412,7 @@ async def control_mic_loop():
             audio_sync.on_response_completed()
             await asyncio.sleep(0)
             continue
-    
+
         await asyncio.sleep(block_time)
 
 
@@ -423,7 +425,7 @@ async def main():
     recorder.record()
     player = GstPlayer()
     player.play()
-    
+
     movement_manager.set_neutral()
     logger.info("Starting main audio loop. You can start to speak")
 
@@ -432,12 +434,16 @@ async def main():
         asyncio.create_task(emit_loop(player, openai), name="emit"),
         asyncio.create_task(receive_loop(recorder, openai), name="recv"),
         asyncio.create_task(control_mic_loop(), name="mic-mute"),
-        asyncio.create_task(movement_manager.enable(stop_event=stop_event), name="move"),        
+        asyncio.create_task(
+            movement_manager.enable(stop_event=stop_event), name="move"
+        ),
     ]
 
     if vision_manager:
         tasks.append(
-            asyncio.create_task(vision_manager.enable(stop_event=stop_event), name="vision"),
+            asyncio.create_task(
+                vision_manager.enable(stop_event=stop_event), name="vision"
+            ),
         )
 
     try:
@@ -445,7 +451,7 @@ async def main():
     except asyncio.CancelledError:
         logger.info("Shutting down")
         stop_event.set()
-    
+
     if camera:
         camera.release()
 
@@ -453,9 +459,10 @@ async def main():
     movement_manager.set_neutral()
     recorder.stop()
     player.stop()
-    
+
     current_robot.client.disconnect()
     logger.info("Stopped, robot disconected")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -15,7 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 class MovementManager:
-    def __init__(self, current_robot: ReachyMini, head_tracker: HeadTracker | None, camera: cv2.VideoCapture| None):
+    def __init__(
+        self,
+        current_robot: ReachyMini,
+        head_tracker: HeadTracker | None,
+        camera: cv2.VideoCapture | None,
+    ):
         self.current_robot = current_robot
         self.head_tracker = head_tracker
         self.camera = camera
@@ -25,21 +30,20 @@ class MovementManager:
         self.moving_start = time.monotonic()
         self.moving_for = 0.0
         self.speech_head_offsets = [0.0] * 6
-        self.movement_loop_sleep = 0.05 # seconds 
+        self.movement_loop_sleep = 0.05  # seconds
 
     def set_offsets(self, offsets: list[float]) -> None:
         """Used by AudioSync callback to update speech offsets"""
         self.speech_head_offsets = list(offsets)
 
     def set_neutral(self) -> None:
-        """Set neutral robot position """
+        """Set neutral robot position"""
         self.speech_head_offsets = [0.0] * 6
         self.current_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
         self.current_robot.set_target(head=self.current_head_pose, antennas=(0.0, 0.0))
 
     def reset_head_pose(self) -> None:
         self.current_head_pose = np.eye(4)
-    
 
     async def enable(self, stop_event: threading.Event) -> None:
         logger.info("Starting head movement loop")
@@ -56,7 +60,9 @@ class MovementManager:
                         logger.warning("Camera read failed")
                         last_log_ts = current_time
                 else:
-                    eye_center, _ = self.head_tracker.get_head_position(im)  # as [-1, 1]
+                    eye_center, _ = self.head_tracker.get_head_position(
+                        im
+                    )  # as [-1, 1]
 
                     if eye_center is not None:
                         # Rescale target position into IMAGE_SIZE coordinates
@@ -68,22 +74,20 @@ class MovementManager:
                         # Bounds checking
                         eye_center = np.clip(eye_center, [0, 0], [w - 1, h - 1])
 
-                        current_head_pose = (
-                            self.current_robot.look_at_image(
-                                *eye_center, duration=0.0, apply=False
-                            )
+                        current_head_pose = self.current_robot.look_at_image(
+                            *eye_center, duration=0.0, apply=False
                         )
 
                         self.current_head_pose = current_head_pose
             # Pose calculation
             try:
-                current_x, current_y, current_z = self.current_head_pose[
-                    :3, 3
-                ]
+                current_x, current_y, current_z = self.current_head_pose[:3, 3]
 
-                current_roll, current_pitch, current_yaw = scipy.spatial.transform.Rotation.from_matrix(
-                    self.current_head_pose[:3, :3]
-                ).as_euler("xyz", degrees=False)
+                current_roll, current_pitch, current_yaw = (
+                    scipy.spatial.transform.Rotation.from_matrix(
+                        self.current_head_pose[:3, :3]
+                    ).as_euler("xyz", degrees=False)
+                )
 
                 if debug_frame_count % 50 == 0:
                     logger.debug(
@@ -102,15 +106,11 @@ class MovementManager:
             except Exception as e:
                 logger.exception("Invalid pose; resetting")
                 self.reset_head_pose()
-                current_x, current_y, current_z = self.current_head_pose[
-                    :3, 3
-                ]
+                current_x, current_y, current_z = self.current_head_pose[:3, 3]
                 current_roll = current_pitch = current_yaw = 0.0
 
             # Movement check
-            is_moving = (
-                time.monotonic() - self.moving_start < self.moving_for
-            )
+            is_moving = time.monotonic() - self.moving_start < self.moving_for
 
             if debug_frame_count % 50 == 0:
                 logger.debug(f"Robot moving: {is_moving}")
@@ -133,9 +133,7 @@ class MovementManager:
                         logger.debug(
                             "Final head pose with offsets: %s", head_pose[:3, 3]
                         )
-                        logger.debug(
-                            "Speech offsets: %s", self.speech_head_offsets
-                        )
+                        logger.debug("Speech offsets: %s", self.speech_head_offsets)
 
                     self.current_robot.set_target(head=head_pose, antennas=(0.0, 0.0))
 
@@ -146,5 +144,5 @@ class MovementManager:
                     logger.debug("Failed to set robot target: %s", e)
 
             await asyncio.sleep(self.movement_loop_sleep)
-        
+
         logger.info("Exited head movement loop")

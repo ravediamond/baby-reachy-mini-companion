@@ -239,9 +239,10 @@ class VisionManager:
                 if current_time - self._last_processed_time >= self.vision_interval:
                     success, frame = await asyncio.to_thread(self.camera.read)
                     if success and frame is not None:
-                        
-                        description = await asyncio.to_thread(lambda: self.processor.process_image(
-                            frame, "Briefly describe what you see in one sentence.")
+                        description = await asyncio.to_thread(
+                            lambda: self.processor.process_image(
+                                frame, "Briefly describe what you see in one sentence."
+                            )
                         )
 
                         # Only update if we got a valid response
@@ -259,7 +260,7 @@ class VisionManager:
 
             except Exception as e:
                 logger.exception("Vision processing loop error")
-                await asyncio.sleep(5.0) # Longer sleep on error
+                await asyncio.sleep(5.0)  # Longer sleep on error
 
         logger.info(f"Vision loop finished")
 
@@ -275,8 +276,10 @@ class VisionManager:
             success, frame = self.camera.read()
             if not success or frame is None:
                 return {"error": "Failed to capture image from camera"}
-            
-            description =  await asyncio.to_thread(lambda: self.processor.process_image(frame, prompt))
+
+            description = await asyncio.to_thread(
+                lambda: self.processor.process_image(frame, prompt)
+            )
 
             return {
                 "description": description,
@@ -287,8 +290,7 @@ class VisionManager:
         except Exception as e:
             logger.exception("Failed to process current frame")
             return {"error": f"Frame processing failed: {str(e)}"}
-        
-        
+
     async def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status information"""
         return {
@@ -303,18 +305,14 @@ class VisionManager:
         }
 
 
-
-def init_camera(camera_index = 0, simulation=True):
-    
+def init_camera(camera_index=0, simulation=True):
     api_preference = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else 0
 
     if simulation:
         # Default build-in camera in SIM
         # TODO: please, test on Linux and Windows
         # TODO simulation in find_camera
-        camera = cv2.VideoCapture(
-            0, api_preference
-        )
+        camera = cv2.VideoCapture(0, api_preference)
     else:
         # TODO handle macos in find_camera
         if sys.platform == "darwin":
@@ -327,7 +325,6 @@ def init_camera(camera_index = 0, simulation=True):
 
 def init_vision(camera: cv2.VideoCapture) -> VisionManager:
     model_id = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
-
 
     cache_dir = os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface"))
 
@@ -362,7 +359,7 @@ def init_vision(camera: cv2.VideoCapture) -> VisionManager:
 
     device_info = vision_manager.processor.get_model_info()
     logger.info(
-        f"Vision processing enabled: {device_info["model_path"]} on {device_info["device"]} memory: {device_info.get("gpu_memory", "N/A")}",
+        f"Vision processing enabled: {device_info['model_path']} on {device_info['device']} memory: {device_info.get('gpu_memory', 'N/A')}",
     )
 
     return vision_manager

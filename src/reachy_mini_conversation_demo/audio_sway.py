@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 import numpy as np
