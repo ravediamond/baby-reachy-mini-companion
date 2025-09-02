@@ -9,10 +9,7 @@ import sys
 import time
 import warnings
 import threading
-from threading import Thread
 
-import cv2
-import gradio as gr
 import numpy as np
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -20,11 +17,8 @@ from openai import AsyncOpenAI
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
 from websockets import ConnectionClosedError, ConnectionClosedOK
 
-from reachy_mini.reachy_mini import IMAGE_SIZE
 from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
-from reachy_mini.utils.camera import find_camera
-from scipy.spatial.transform import Rotation
 
 from reachy_mini_conversation_demo.head_tracker import HeadTracker
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
@@ -33,10 +27,10 @@ from reachy_mini_conversation_demo.tools import (
     TOOL_SPECS,
     dispatch_tool_call,
 )
-from reachy_mini_conversation_demo.audio import AudioSync, AudioConfig, pcm_to_b64
+from reachy_mini_conversation_demo.audio_sway import AudioSync, AudioConfig, pcm_to_b64
 from reachy_mini_conversation_demo.movement import MovementManager
 from reachy_mini_conversation_demo.gstreamer import GstPlayer, GstRecorder
-from reachy_mini_conversation_demo.vision import VisionManager, VisionConfig
+from reachy_mini_conversation_demo.vision import VisionManager, init_vision, init_camera
 
 # env + logging
 load_dotenv()
@@ -83,118 +77,19 @@ if not API_KEY:
 masked = (API_KEY[:6] + "..." + API_KEY[-4:]) if len(API_KEY) >= 12 else "<short>"
 logger.info("OPENAI_API_KEY loaded (prefix): %s", masked)
 
-# HF cache setup (persist between restarts)
-HF_CACHE_DIR = os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface"))
-try:
-    os.makedirs(HF_CACHE_DIR, exist_ok=True)
-    os.environ["HF_HOME"] = HF_CACHE_DIR
-    logger.info("HF_HOME set to %s", HF_CACHE_DIR)
-except Exception as e:
-    logger.warning("Failed to prepare HF cache dir %s: %s", HF_CACHE_DIR, e)
-
 # init camera
 CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", "0"))
-
-if SIM:
-    # Default build-in camera in SIM
-    # TODO: please, test on Linux and Windows
-    camera = cv2.VideoCapture(
-        0, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else 0
-    )
-else:
-    if sys.platform == "darwin":
-        camera = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_AVFOUNDATION)
-        if not camera or not camera.isOpened():
-            logger.warning(
-                "Camera %d failed with AVFoundation; trying default backend",
-                CAMERA_INDEX,
-            )
-            camera = cv2.VideoCapture(CAMERA_INDEX)
-    else:
-        camera = find_camera()
+camera = init_camera(camera_index=CAMERA_INDEX, simulation=SIM)
 
 # Vision manager initialization with proper error handling
 vision_manager: VisionManager | None = None
 
-if not camera or not camera.isOpened():
-    logger.error("Camera failed to open (index=%s)", 0 if SIM else CAMERA_INDEX)
-    VISION_ENABLED = False  # Disable vision if no camera
-else:
-    logger.info(
-        "Camera ready (index=%s)%s", 0 if SIM else CAMERA_INDEX, " [SIM]" if SIM else ""
-    )
-
-    # Prefetch SmolVLM2 repo into HF cache (idempotent, fast if already cached)
-    try:
-        from huggingface_hub import snapshot_download
-        model_id = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
-        snapshot_download(
-            repo_id=model_id,
-            repo_type="model",
-            cache_dir=os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface")),
-        )
-        logger.info("Prefetched %s into HF cache (%s)", model_id, os.getenv("HF_HOME"))
-    except Exception as e:
-        logger.warning("Model prefetch skipped/failed (will load normally): %s", e)
-
-    # Initialize vision manager if enabled
-    if VISION_ENABLED:
-        try:
-            # Prefetch SmolVLM2 repo into HF cache (idempotent, fast if cached)
-            try:
-                from huggingface_hub import snapshot_download
-                model_id = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
-                snapshot_download(
-                    repo_id=model_id,
-                    repo_type="model",
-                    cache_dir=os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface")),
-                )
-                logger.info("Prefetched %s into HF cache (%s)", model_id, os.getenv("HF_HUB_CACHE"))
-            except Exception as e:
-                logger.warning("Model prefetch skipped/failed (will load normally): %s", e)
-
-            # Configure LLM processing
-            vision_config = VisionConfig(
-                model_path="HuggingFaceTB/SmolVLM2-2.2B-Instruct",
-                vision_interval=5.0,
-                max_new_tokens=64,
-                temperature=0.7,
-                jpeg_quality=85,
-                max_retries=3,
-                retry_delay=1.0,
-                device_preference="auto",
-            )
-
-            logger.info("Initializing SmolVLM2 vision processor (HF_HOME=%s)", os.getenv("HF_HOME"))
-            vision_manager = VisionManager(camera, vision_config)
-
-            device_info = vision_manager.processor.get_model_info()
-            logger.info(
-                "Vision processing enabled: %s on %s (GPU: %s)",
-                device_info["model_path"], device_info["device"], device_info.get("gpu_memory", "N/A"),
-            )
-
-        except Exception as e:
-            logger.error("Failed to initialize vision manager: %s", e)
-            logger.error("Vision processing will be disabled")
-            vision_manager = None
-            VISION_ENABLED = False
-
-# Log final vision status
-if VISION_ENABLED and vision_manager:
-    logger.info("Vision system ready - local SmolVLM2 processing enabled")
-else:
-    logger.warning(
-        "Vision system disabled - robot will operate without visual understanding"
-    )
-
-
-# Constants
-BACKOFF_START_S = 1.0
-BACKOFF_MAX_S = 30.0
+if camera and camera.isOpened() and VISION_ENABLED:
+    vision_manager = init_vision(camera=camera)
 
 # hardware / IO
 current_robot = ReachyMini()
+
 head_tracker: HeadTracker = None
 
 if HEAD_TRACKING and not SIM:
@@ -239,6 +134,10 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         self._started_audio = False
         self._connection_ready = False
         self._speech_start_time = 0.0
+        # backoff managment for retry
+        self._backoff_start = 1.0
+        self._backoff_max = 16.0
+        self._backoff = self._backoff_start
 
     def copy(self):
         return OpenAIRealtimeHandler()
@@ -252,7 +151,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             logger.info("Realtime start_up: creating AsyncOpenAI client...")
             self.client = AsyncOpenAI(api_key=API_KEY)
 
-        backoff = BACKOFF_START_S
+        self._backoff = self._backoff_start
         while not self._stop:
             try:
                 async with self.client.beta.realtime.connect(
@@ -308,7 +207,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                     )
 
                     logger.info("Realtime event loop started with improved VAD")
-                    backoff = BACKOFF_START_S
+                    self._backoff = self._backoff_start
 
                     async for event in rt_connection:
                         event_type = getattr(event, "type", None)
@@ -426,10 +325,10 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                 self._connection_ready = False
 
             # Exponential backoff
-            delay = min(backoff, BACKOFF_MAX_S) + random.uniform(0, 0.5)
+            delay = min(self._backoff, self._backoff_max) + random.uniform(0, 0.5)
             logger.info("Reconnect in %.1fs…", delay)
             await asyncio.sleep(delay)
-            backoff = min(backoff * 2.0, BACKOFF_MAX_S)
+            self._backoff = min(self._backoff * 2.0, self._backoff_max)
 
     async def receive(self, frame: bytes) -> None:
         """Mic frames from fastrtc."""
