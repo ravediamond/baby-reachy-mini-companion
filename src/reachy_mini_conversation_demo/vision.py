@@ -1,0 +1,302 @@
+import base64
+import logging
+import os
+import time
+import asyncio
+from typing import Dict, Any
+import threading
+from dataclasses import dataclass
+
+import cv2
+import numpy as np
+import torch
+from transformers import AutoModelForImageTextToText, AutoProcessor
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class VisionConfig:
+    """Configuration for vision processing"""
+
+    model_path: str = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
+    vision_interval: float = 5.0
+    max_new_tokens: int = 64
+    temperature: float = 0.7
+    jpeg_quality: int = 85
+    max_retries: int = 3
+    retry_delay: float = 1.0
+    device_preference: str = "auto"  # "auto", "cuda", "cpu"
+
+
+class VisionProcessor:
+    """Handles SmolVLM2 model loading and inference"""
+
+    def __init__(self, config: VisionConfig = None):
+        self.config = config or VisionConfig()
+        self.model_path = self.config.model_path
+        self.device = self._determine_device()
+        self.processor = None
+        self.model = None
+        self._initialized = False
+
+    def _determine_device(self) -> str:
+        pref = self.config.device_preference
+        if pref == "cpu":
+            return "cpu"
+        if pref == "cuda":
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        if pref == "mps":
+            return "mps" if torch.backends.mps.is_available() else "cpu"
+        # auto: prefer mps on Apple, then cuda, else cpu
+        if torch.backends.mps.is_available():
+            return "mps"
+        return "cuda" if torch.cuda.is_available() else "cpu"
+
+    def initialize(self) -> bool:
+        try:
+            logger.info(
+                f"Loading SmolVLM2 model on {self.device} (HF_HOME={os.getenv('HF_HOME')})"
+            )
+            self.processor = AutoProcessor.from_pretrained(self.model_path)
+
+            # Select dtype depending on device
+            if self.device == "cuda":
+                dtype = torch.bfloat16
+            elif self.device == "mps":
+                dtype = torch.float16  # best for MPS
+            else:
+                dtype = torch.float32
+
+            model_kwargs = {"torch_dtype": dtype}
+
+            # flash_attention_2 is CUDA-only; skip on MPS/CPU
+            if self.device == "cuda":
+                model_kwargs["_attn_implementation"] = "flash_attention_2"
+
+            # Load model weights
+            self.model = AutoModelForImageTextToText.from_pretrained(
+                self.model_path, **model_kwargs
+            ).to(self.device)
+
+            self.model.eval()
+            self._initialized = True
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to initialize vision model: {e}")
+            return False
+
+    def process_image(
+        self,
+        cv2_image: np.ndarray,
+        prompt: str = "Briefly describe what you see in one sentence.",
+    ) -> str:
+        """Process CV2 image and return description with retry logic"""
+        if not self._initialized:
+            return "Vision model not initialized"
+
+        for attempt in range(self.config.max_retries):
+            try:
+                # Convert CV2 BGR to RGB
+                rgb_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
+
+                # Convert to JPEG bytes
+                success, jpeg_buffer = cv2.imencode(
+                    ".jpg",
+                    rgb_image,
+                    [cv2.IMWRITE_JPEG_QUALITY, self.config.jpeg_quality],
+                )
+                if not success:
+                    return "Failed to encode image"
+
+                # Convert to base64
+                image_base64 = base64.b64encode(jpeg_buffer.tobytes()).decode("utf-8")
+
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "url": f"data:image/jpeg;base64,{image_base64}",
+                            },
+                            {"type": "text", "text": prompt},
+                        ],
+                    },
+                ]
+
+                inputs = self.processor.apply_chat_template(
+                    messages,
+                    add_generation_prompt=True,
+                    tokenize=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                )
+
+                # move to device with proper dtype
+                if self.device == "cuda":
+                    inputs = inputs.to(self.device, dtype=torch.bfloat16)
+                elif self.device == "mps":
+                    inputs = inputs.to(self.device, dtype=torch.float16)
+                else:
+                    inputs = inputs.to(self.device, dtype=torch.float32)
+
+                with torch.no_grad():
+                    generated_ids = self.model.generate(
+                        **inputs,
+                        do_sample=True if self.config.temperature > 0 else False,
+                        max_new_tokens=self.config.max_new_tokens,
+                        temperature=self.config.temperature,
+                        pad_token_id=self.processor.tokenizer.eos_token_id,
+                    )
+
+                generated_texts = self.processor.batch_decode(
+                    generated_ids,
+                    skip_special_tokens=True,
+                )
+
+                # Extract just the response part
+                full_text = generated_texts[0]
+                response = self._extract_response(full_text)
+
+                # Clean up GPU memory if using CUDA
+                if self.device == "cuda":
+                    torch.cuda.empty_cache()
+                elif self.device == "mps":
+                    torch.mps.empty_cache()
+
+                return response.replace(chr(10), " ").strip()
+
+            except torch.cuda.OutOfMemoryError as e:
+                logger.error(f"CUDA OOM on attempt {attempt + 1}: {e}")
+                if self.device == "cuda":
+                    torch.cuda.empty_cache()
+                if attempt < self.config.max_retries - 1:
+                    time.sleep(self.config.retry_delay * (attempt + 1))
+                else:
+                    return "GPU out of memory - vision processing failed"
+
+            except Exception as e:
+                logger.error(f"Vision processing failed (attempt {attempt + 1}): {e}")
+                if attempt < self.config.max_retries - 1:
+                    time.sleep(self.config.retry_delay)
+                else:
+                    return f"Vision processing error after {self.config.max_retries} attempts"
+
+    def _extract_response(self, full_text: str) -> str:
+        """Extract the assistant's response from the full generated text"""
+        # Handle different response formats
+        markers = ["assistant\n", "Assistant:", "Response:", "\n\n"]
+
+        for marker in markers:
+            if marker in full_text:
+                response = full_text.split(marker)[-1].strip()
+                if response:  # Ensure we got a meaningful response
+                    return response
+
+        # Fallback: return the full text cleaned up
+        return full_text.strip()
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the loaded model"""
+        return {
+            "initialized": self._initialized,
+            "device": self.device,
+            "model_path": self.model_path,
+            "cuda_available": torch.cuda.is_available(),
+            "gpu_memory": torch.cuda.get_device_properties(0).total_memory // (1024**3)
+            if torch.cuda.is_available()
+            else "N/A",
+        }
+
+
+class VisionManager:
+    """Manages periodic vision processing and scene understanding"""
+
+    def __init__(self, camera, config: VisionConfig = None):
+        self.camera = camera
+        self.config = config or VisionConfig()
+        self.vision_interval = self.config.vision_interval
+        self.processor = VisionProcessor(self.config)
+
+        self._current_description = ""
+        self._last_processed_time = 0
+
+        # Initialize processor
+        if not self.processor.initialize():
+            logger.error("Failed to initialize vision processor")
+            raise RuntimeError("Vision processor initialization failed")
+
+    async def enable(self, stop_event: threading.Event):
+        """Main vision processing loop (runs in separate thread)"""
+        while not stop_event.is_set():
+            try:
+                current_time = time.time()
+
+                if current_time - self._last_processed_time >= self.vision_interval:
+                    success, frame = await asyncio.to_thread(self.camera.read)
+                    if success and frame is not None:
+                        
+                        description = await asyncio.to_thread(lambda: self.processor.process_image(
+                            frame, "Briefly describe what you see in one sentence.")
+                        )
+
+                        # Only update if we got a valid response
+                        if description and not description.startswith(
+                            ("Vision", "Failed", "Error")
+                        ):
+                            self._current_description = description
+                            self._last_processed_time = current_time
+
+                            logger.info(f"Vision update: {description}")
+                        else:
+                            logger.warning(f"Invalid vision response: {description}")
+
+                await asyncio.sleep(1.0)  # Check every second
+
+            except Exception as e:
+                logger.exception("Vision processing loop error")
+                await asyncio.sleep(5.0) # Longer sleep on error
+
+        logger.info(f"Vision loop finished")
+
+    async def get_current_description(self) -> str:
+        """Get the most recent scene description (thread-safe)"""
+        return self._current_description
+
+    async def process_current_frame(
+        self, prompt: str = "Describe what you see in detail."
+    ) -> Dict[str, Any]:
+        """Process current camera frame with custom prompt"""
+        try:
+            success, frame = self.camera.read()
+            if not success or frame is None:
+                return {"error": "Failed to capture image from camera"}
+            
+            description =  await asyncio.to_thread(lambda: self.processor.process_image(frame, prompt))
+
+            return {
+                "description": description,
+                "timestamp": time.time(),
+                "prompt": prompt,
+            }
+
+        except Exception as e:
+            logger.exception("Failed to process current frame")
+            return {"error": f"Frame processing failed: {str(e)}"}
+        
+        
+    async def get_status(self) -> Dict[str, Any]:
+        """Get comprehensive status information"""
+        return {
+            "running": self._running,
+            "last_processed": self._last_processed_time,
+            "processor_info": self.processor.get_model_info(),
+            "config": {
+                "interval": self.vision_interval,
+                "model_path": self.config.model_path,
+                "device": self.processor.device,
+            },
+        }

@@ -10,7 +10,17 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "reachy_mini@git+ssh://git@github.com/pollen-robotics/reachy_mini@develop",
+    "reachy_mini@git+ssh://git@github.com/pollen-robotics/reachy_mini@reachy_talk",
+    "openai",
+    "fastrtc",
+    "onnxruntime",
+    "PyGObject>=3.42.2, <=3.46.0",
+    "torch",
+    "transformers",
+    "num2words",
+    "dotenv",
+    "ultralytics",
+    "supervision",
 ]
 
 
