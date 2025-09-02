@@ -2,6 +2,7 @@ import base64
 import logging
 import os
 import time
+import sys
 import asyncio
 from typing import Dict, Any
 import threading
@@ -11,7 +12,7 @@ import cv2
 import numpy as np
 import torch
 from transformers import AutoModelForImageTextToText, AutoProcessor
-
+from huggingface_hub import snapshot_download
 
 logger = logging.getLogger(__name__)
 
@@ -300,3 +301,68 @@ class VisionManager:
                 "device": self.processor.device,
             },
         }
+
+
+
+def init_camera(camera_index = 0, simulation=True):
+    
+    api_preference = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else 0
+
+    if simulation:
+        # Default build-in camera in SIM
+        # TODO: please, test on Linux and Windows
+        # TODO simulation in find_camera
+        camera = cv2.VideoCapture(
+            0, api_preference
+        )
+    else:
+        # TODO handle macos in find_camera
+        if sys.platform == "darwin":
+            camera = cv2.VideoCapture(camera_index, cv2.CAP_AVFOUNDATION)
+        else:
+            camera = find_camera()
+
+    return camera
+
+
+def init_vision(camera: cv2.VideoCapture) -> VisionManager:
+    model_id = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
+
+
+    cache_dir = os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface"))
+
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        os.environ["HF_HOME"] = cache_dir
+        logger.info("HF_HOME set to %s", cache_dir)
+    except Exception as e:
+        logger.warning("Failed to prepare HF cache dir %s: %s", cache_dir, e)
+        return
+
+    snapshot_download(
+        repo_id=model_id,
+        repo_type="model",
+        cache_dir=cache_dir,
+    )
+    logger.info(f"Prefetched model_id={model_id} into cache_dir={cache_dir}")
+
+    # Configure VLLM processing
+    vision_config = VisionConfig(
+        model_path=model_id,
+        vision_interval=5.0,
+        max_new_tokens=64,
+        temperature=0.7,
+        jpeg_quality=85,
+        max_retries=3,
+        retry_delay=1.0,
+        device_preference="auto",
+    )
+
+    vision_manager = VisionManager(camera, vision_config)
+
+    device_info = vision_manager.processor.get_model_info()
+    logger.info(
+        f"Vision processing enabled: {device_info["model_path"]} on {device_info["device"]} memory: {device_info.get("gpu_memory", "N/A")}",
+    )
+
+    return vision_manager
