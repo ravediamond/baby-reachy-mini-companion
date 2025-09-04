@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import random
 import sys
 import time
@@ -11,7 +10,6 @@ import warnings
 import threading
 
 import numpy as np
-from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
@@ -20,6 +18,7 @@ from websockets import ConnectionClosedError, ConnectionClosedOK
 from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
 
+from reachy_mini_conversation_demo.config import config
 from reachy_mini_conversation_demo.head_tracker import HeadTracker
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
 from reachy_mini_conversation_demo.tools import (
@@ -32,10 +31,8 @@ from reachy_mini_conversation_demo.movement import MovementManager
 from reachy_mini_conversation_demo.gstreamer import GstPlayer, GstRecorder
 from reachy_mini_conversation_demo.vision import VisionManager, init_vision, init_camera
 
-# env + logging
-load_dotenv()
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+# logging
+LOG_LEVEL = config.LOG_LEVEL
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s:%(lineno)d | %(message)s",
@@ -51,47 +48,30 @@ logging.getLogger("aiortc").setLevel(logging.ERROR)
 logging.getLogger("fastrtc").setLevel(logging.ERROR)
 logging.getLogger("aioice").setLevel(logging.WARNING)
 
+# Config values
+SAMPLE_RATE = config.SAMPLE_RATE
+SIM = config.SIM
+VISION_ENABLED = config.VISION_ENABLED
+MODEL_NAME = config.MODEL_NAME
+HEAD_TRACKING = config.HEAD_TRACKING
+API_KEY = config.OPENAI_API_KEY
 
-# Read from .env
-SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "24000"))
-SIM = os.getenv("SIM", "false").lower() in ("true", "1", "yes", "on")
-VISION_ENABLED = os.getenv("VISION_ENABLED", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-realtime-preview")
-
-HEAD_TRACKING = os.getenv("HEAD_TRACKING", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
-
-API_KEY = os.getenv("OPENAI_API_KEY")
-if not API_KEY:
-    logger.error("OPENAI_API_KEY not set! Please add it to your .env file.")
-    raise RuntimeError("OPENAI_API_KEY missing")
+# Key preview in logs
 masked = (API_KEY[:6] + "..." + API_KEY[-4:]) if len(API_KEY) >= 12 else "<short>"
 logger.info("OPENAI_API_KEY loaded (prefix): %s", masked)
 
 # init camera
-CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", "0"))
-camera = init_camera(camera_index=CAMERA_INDEX, simulation=SIM)
+camera = init_camera(camera_index=0, simulation=SIM)
 
 # Vision manager initialization with proper error handling
 vision_manager: VisionManager | None = None
-
 if camera and camera.isOpened() and VISION_ENABLED:
     vision_manager = init_vision(camera=camera)
 
 # hardware / IO
 current_robot = ReachyMini()
 
-head_tracker: HeadTracker = None
-
+head_tracker: HeadTracker | None = None
 if HEAD_TRACKING and not SIM:
     head_tracker = HeadTracker()
     logger.info("Head tracking enabled")
@@ -105,7 +85,6 @@ movement_manager = MovementManager(
 )
 robot_is_speaking = asyncio.Event()
 speaking_queue = asyncio.Queue()
-
 
 # tool deps
 deps = Deps(
@@ -421,9 +400,9 @@ stop_event = threading.Event()
 
 async def main():
     openai = OpenAIRealtimeHandler()
-    recorder = GstRecorder()
+    recorder = GstRecorder(sample_rate=SAMPLE_RATE)
     recorder.record()
-    player = GstPlayer()
+    player = GstPlayer(sample_rate=SAMPLE_RATE)
     player.play()
 
     movement_manager.set_neutral()
