@@ -11,7 +11,7 @@ from gi.repository import GLib, Gst, GstApp
 
 
 class GstPlayer:
-    def __init__(self):
+    def __init__(self, sample_rate: int = 24000, device_name: Optional[str] = None):
         self._logger = logging.getLogger(__name__)
         Gst.init(None)
         self._loop = GLib.MainLoop()
@@ -19,15 +19,12 @@ class GstPlayer:
 
         self.pipeline = Gst.Pipeline.new("audio_player")
 
-        # Optional device name from env (substring match)
-        audio_out = os.getenv("AUDIO_OUT")
-
         # Create elements
         self.appsrc = Gst.ElementFactory.make("appsrc", None)
         self.appsrc.set_property("format", Gst.Format.TIME)
         self.appsrc.set_property("is-live", True)
         caps = Gst.Caps.from_string(
-            "audio/x-raw,format=S16LE,channels=1,rate=24000,layout=interleaved"
+            f"audio/x-raw,format=S16LE,channels=1,rate={sample_rate},layout=interleaved"
         )
         self.appsrc.set_property("caps", caps)
         queue = Gst.ElementFactory.make("queue")
@@ -36,7 +33,7 @@ class GstPlayer:
 
         # Try to pin specific output device; fallback to autoaudiosink
         audiosink = _create_device_element(
-            direction="sink", name_substr=audio_out
+            direction="sink", name_substr=device_name
         ) or Gst.ElementFactory.make("autoaudiosink")
 
         self.pipeline.add(self.appsrc)
@@ -82,15 +79,15 @@ class GstPlayer:
 
     def stop(self):
         logger = logging.getLogger(__name__)
-    
         self._loop.quit()
         self.pipeline.set_state(Gst.State.NULL)
-        self._thread_bus_calls.join()
+        if self._thread_bus_calls is not None:
+            self._thread_bus_calls.join()
         logger.info("Stopped Player")
 
 
 class GstRecorder:
-    def __init__(self):
+    def __init__(self, sample_rate: int = 24000, device_name: Optional[str] = None):
         self._logger = logging.getLogger(__name__)
         Gst.init(None)
         self._loop = GLib.MainLoop()
@@ -98,11 +95,9 @@ class GstRecorder:
 
         self.pipeline = Gst.Pipeline.new("audio_recorder")
 
-        audio_in = os.getenv("AUDIO_IN")
-
         # Create elements: try specific mic; fallback to default
         autoaudiosrc = _create_device_element(
-            direction="source", name_substr=audio_in
+            direction="source", name_substr=device_name
         ) or Gst.ElementFactory.make("autoaudiosrc", None)
 
         queue = Gst.ElementFactory.make("queue", None)
@@ -114,7 +109,7 @@ class GstRecorder:
             raise RuntimeError("Failed to create GStreamer elements")
 
         # Force mono/S16LE at 24000; resample handles device SR (e.g., 16000 → 24000)
-        caps = Gst.Caps.from_string("audio/x-raw,channels=1,rate=24000,format=S16LE")
+        caps = Gst.Caps.from_string(f"audio/x-raw,channels=1,rate={sample_rate},format=S16LE")
         self.appsink.set_property("caps", caps)
 
         # Build pipeline
@@ -168,12 +163,11 @@ class GstRecorder:
 
     def stop(self):
         logger = logging.getLogger(__name__)
-        
         self._loop.quit()
         self.pipeline.set_state(Gst.State.NULL)
-        self._thread_bus_calls.join()
+        if self._thread_bus_calls is not None:
+            self._thread_bus_calls.join()
         logger.info("Stopped Recorder")
-
 
 def _create_device_element(
     direction: str, name_substr: Optional[str]
