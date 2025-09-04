@@ -7,7 +7,6 @@ import random
 import argparse
 import time
 import warnings
-import threading
 
 import numpy as np
 from openai import AsyncOpenAI
@@ -21,9 +20,10 @@ from reachy_mini.utils import create_head_pose
 from reachy_mini_conversation_demo.config import config
 from reachy_mini_conversation_demo.head_tracker import HeadTracker
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
+# from reachy_mini_conversation_demo.robot_skills import (
 from reachy_mini_conversation_demo.tools import (
-    Deps,
-    TOOL_SPECS,
+    ToolDependencies,
+    ALL_TOOL_SPECS,
     dispatch_tool_call,
 )
 from reachy_mini_conversation_demo.audio_sway import AudioSync, AudioConfig, pcm_to_b64
@@ -86,7 +86,7 @@ logger.info("OPENAI_API_KEY loaded (prefix): %s", masked)
 class OpenAIRealtimeHandler(AsyncStreamHandler):
     def __init__(
         self,
-        deps: Deps,
+        deps: ToolDependencies,
         audio_sync: AudioSync,
         robot_is_speaking: asyncio.Event,
         speaking_queue: asyncio.Queue,
@@ -150,7 +150,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                                 "model": "whisper-1",
                                 "language": "en",
                             },
-                            "tools": TOOL_SPECS,
+                            "tools": ALL_TOOL_SPECS,
                             "tool_choice": "auto",
                             "temperature": 0.7,
                         }
@@ -177,7 +177,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
 
                     logger.info(
                         "Session updated: tools=%d, voice=%s, vad=improved",
-                        len(TOOL_SPECS),
+                        len(ALL_TOOL_SPECS),
                         "ballad",
                     )
 
@@ -246,6 +246,9 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                                 tool_result = await dispatch_tool_call(
                                     tool_name, args_json_str, self.deps
                                 )
+
+                                logger.info(f"Tool result {tool_result}")
+
                             except Exception as e:
                                 logger.exception("Tool %s failed", tool_name)
                                 tool_result = {"error": str(e)}
@@ -426,9 +429,10 @@ async def loop():
     robot_is_speaking = asyncio.Event()
     speaking_queue = asyncio.Queue()
 
-    deps = Deps(
+    deps = ToolDependencies(
         reachy_mini=current_robot,
         create_head_pose=create_head_pose,
+        movement_manager=movement_manager,
         camera=camera,
         vision_manager=vision_manager,
     )
@@ -475,6 +479,7 @@ async def loop():
 
     if camera:
         camera.release()
+
     await openai.shutdown()
     movement_manager.set_neutral()
     recorder.stop()
