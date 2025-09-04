@@ -8,7 +8,7 @@ version = "0.1.0"
 authors = [{ name = "Pollen Robotics", email = "contact@pollen-robotics.com" }]
 description = ""
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "reachy_mini@git+ssh://git@github.com/pollen-robotics/reachy_mini@develop",
     "openai",

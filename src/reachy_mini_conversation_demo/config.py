@@ -20,10 +20,7 @@ class Config:
 
     # Optional
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-realtime-preview")
-    SIM = getenv_bool("SIM", False)
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-    SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "24000"))
-    VISION_ENABLED = getenv_bool("VISION_ENABLED", False)
-    HEAD_TRACKING = getenv_bool("HEAD_TRACKING", False)
+    HF_HOME = os.getenv("HF_HOME", "./cache")
+
 
 config = Config()

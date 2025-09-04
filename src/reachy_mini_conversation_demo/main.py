@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import random
-import sys
+import argparse
 import time
 import warnings
 import threading
@@ -31,30 +31,47 @@ from reachy_mini_conversation_demo.movement import MovementManager
 from reachy_mini_conversation_demo.gstreamer import GstPlayer, GstRecorder
 from reachy_mini_conversation_demo.vision import VisionManager, init_vision, init_camera
 
+# Command-line arguments
+parser = argparse.ArgumentParser(description="Reachy Mini Conversation Demo")
+parser.add_argument("--sim", action="store_true", help="Run in simulation mode")
+parser.add_argument("--vision", action="store_true", help="Enable vision")
+parser.add_argument("--head-tracking", action="store_true", help="Enable head tracking")
+parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+args = parser.parse_args()
+
+# Config values
+SAMPLE_RATE = 24000 # TODO: hardcoded, should it stay like this?
+MODEL_NAME = config.MODEL_NAME
+API_KEY = config.OPENAI_API_KEY
+
+# Defaults are all False unless CLI flags are passed
+SIM = args.sim
+VISION_ENABLED = args.vision
+HEAD_TRACKING = args.head_tracking
+LOG_LEVEL = "DEBUG" if args.debug else "INFO"
+
 # logging
-LOG_LEVEL = config.LOG_LEVEL
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s:%(lineno)d | %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info("Runtime toggles: SIM=%s VISION_ENABLED=%s HEAD_TRACKING=%s LOG_LEVEL=%s",
+            SIM, VISION_ENABLED, HEAD_TRACKING, LOG_LEVEL)
 
 # Suppress WebRTC warnings
 warnings.filterwarnings("ignore", message=".*AVCaptureDeviceTypeExternal.*")
 warnings.filterwarnings("ignore", category=UserWarning, module="aiortc")
 
-# Reduce logging noise
-logging.getLogger("aiortc").setLevel(logging.ERROR)
-logging.getLogger("fastrtc").setLevel(logging.ERROR)
-logging.getLogger("aioice").setLevel(logging.WARNING)
-
-# Config values
-SAMPLE_RATE = config.SAMPLE_RATE
-SIM = config.SIM
-VISION_ENABLED = config.VISION_ENABLED
-MODEL_NAME = config.MODEL_NAME
-HEAD_TRACKING = config.HEAD_TRACKING
-API_KEY = config.OPENAI_API_KEY
+# Tame third-party noise (looser in DEBUG)
+if LOG_LEVEL == "DEBUG":
+    logging.getLogger("aiortc").setLevel(logging.INFO)
+    logging.getLogger("fastrtc").setLevel(logging.INFO)
+    logging.getLogger("aioice").setLevel(logging.INFO)
+else:
+    logging.getLogger("aiortc").setLevel(logging.ERROR)
+    logging.getLogger("fastrtc").setLevel(logging.ERROR)
+    logging.getLogger("aioice").setLevel(logging.WARNING)
 
 # Key preview in logs
 masked = (API_KEY[:6] + "..." + API_KEY[-4:]) if len(API_KEY) >= 12 else "<short>"
@@ -395,10 +412,10 @@ async def control_mic_loop():
         await asyncio.sleep(block_time)
 
 
-stop_event = threading.Event()
+# stop_event = threading.Event()
+stop_event = asyncio.Event()
 
-
-async def main():
+async def loop():
     openai = OpenAIRealtimeHandler()
     recorder = GstRecorder(sample_rate=SAMPLE_RATE)
     recorder.record()
@@ -443,5 +460,9 @@ async def main():
     logger.info("Stopped, robot disconected")
 
 
+def main():
+    asyncio.run(loop())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
