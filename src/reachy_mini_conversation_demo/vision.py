@@ -359,7 +359,7 @@ def init_vision(camera: cv2.VideoCapture) -> VisionManager:
 
     device_info = vision_manager.processor.get_model_info()
     logger.info(
-        f"Vision processing enabled: {device_info['model_path']} on {device_info['device']} memory: {device_info.get('gpu_memory', 'N/A')}",
+        f"Vision processing enabled: {device_info['model_path']} on {device_info['device']}",
     )
 
     return vision_manager
