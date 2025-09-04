@@ -20,7 +20,6 @@ from reachy_mini.utils import create_head_pose
 from reachy_mini_conversation_demo.config import config
 from reachy_mini_conversation_demo.head_tracker import HeadTracker
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
-# from reachy_mini_conversation_demo.robot_skills import (
 from reachy_mini_conversation_demo.tools import (
     ToolDependencies,
     ALL_TOOL_SPECS,
