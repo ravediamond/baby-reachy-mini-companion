@@ -40,7 +40,7 @@ parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
 
 # Config values
-SAMPLE_RATE = 24000 # TODO: hardcoded, should it stay like this?
+SAMPLE_RATE = 24000  # TODO: hardcoded, should it stay like this?
 MODEL_NAME = config.MODEL_NAME
 API_KEY = config.OPENAI_API_KEY
 
@@ -56,8 +56,13 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s:%(lineno)d | %(message)s",
 )
 logger = logging.getLogger(__name__)
-logger.info("Runtime toggles: SIM=%s VISION_ENABLED=%s HEAD_TRACKING=%s LOG_LEVEL=%s",
-            SIM, VISION_ENABLED, HEAD_TRACKING, LOG_LEVEL)
+logger.info(
+    "Runtime toggles: SIM=%s VISION_ENABLED=%s HEAD_TRACKING=%s LOG_LEVEL=%s",
+    SIM,
+    VISION_ENABLED,
+    HEAD_TRACKING,
+    LOG_LEVEL,
+)
 
 # Suppress WebRTC warnings
 warnings.filterwarnings("ignore", message=".*AVCaptureDeviceTypeExternal.*")
@@ -77,54 +82,24 @@ else:
 masked = (API_KEY[:6] + "..." + API_KEY[-4:]) if len(API_KEY) >= 12 else "<short>"
 logger.info("OPENAI_API_KEY loaded (prefix): %s", masked)
 
-# init camera
-camera = init_camera(camera_index=0, simulation=SIM)
-
-# Vision manager initialization with proper error handling
-vision_manager: VisionManager | None = None
-if camera and camera.isOpened() and VISION_ENABLED:
-    vision_manager = init_vision(camera=camera)
-
-# hardware / IO
-current_robot = ReachyMini()
-
-head_tracker: HeadTracker | None = None
-if HEAD_TRACKING and not SIM:
-    head_tracker = HeadTracker()
-    logger.info("Head tracking enabled")
-elif HEAD_TRACKING and SIM:
-    logger.warning("Head tracking disabled while in Simulation")
-else:
-    logger.warning("Head tracking disabled")
-
-movement_manager = MovementManager(
-    current_robot=current_robot, head_tracker=head_tracker, camera=camera
-)
-robot_is_speaking = asyncio.Event()
-speaking_queue = asyncio.Queue()
-
-# tool deps
-deps = Deps(
-    reachy_mini=current_robot,
-    create_head_pose=create_head_pose,
-    camera=camera,
-    vision_manager=vision_manager,
-)
-
-# audio sync
-audio_sync = AudioSync(
-    AudioConfig(output_sample_rate=SAMPLE_RATE),
-    set_offsets=movement_manager.set_offsets,
-)
-
 
 class OpenAIRealtimeHandler(AsyncStreamHandler):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        deps: Deps,
+        audio_sync: AudioSync,
+        robot_is_speaking: asyncio.Event,
+        speaking_queue: asyncio.Queue,
+    ) -> None:
         super().__init__(
             expected_layout="mono",
             output_sample_rate=SAMPLE_RATE,
             input_sample_rate=SAMPLE_RATE,
         )
+        self.deps = deps
+        self.audio_sync = audio_sync
+        self.robot_is_speaking = robot_is_speaking
+        self.speaking_queue = speaking_queue
         self.client: AsyncOpenAI | None = None
         self.connection = None
         self.output_queue: asyncio.Queue = asyncio.Queue()
@@ -138,11 +113,13 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         self._backoff = self._backoff_start
 
     def copy(self):
-        return OpenAIRealtimeHandler()
+        return OpenAIRealtimeHandler(
+            self.deps, self.audio_sync, self.robot_is_speaking, self.speaking_queue
+        )
 
     async def start_up(self):
         if not self._started_audio:
-            audio_sync.start()
+            self.audio_sync.start()
             self._started_audio = True
 
         if self.client is None:
@@ -214,8 +191,8 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                         # Enhanced speech state tracking
                         if event_type == "input_audio_buffer.speech_started":
                             # Only process user speech if robot isn't currently speaking
-                            if not robot_is_speaking.is_set():
-                                audio_sync.on_input_speech_started()
+                            if not self.robot_is_speaking.is_set():
+                                self.audio_sync.on_input_speech_started()
                                 logger.info("User speech detected (robot not speaking)")
                             else:
                                 logger.info(
@@ -224,7 +201,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
 
                         elif event_type == "response.started":
                             self._speech_start_time = time.time()
-                            audio_sync.on_response_started()
+                            self.audio_sync.on_response_started()
                             logger.info("Robot started speaking")
 
                         elif event_type in (
@@ -253,10 +230,10 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
 
                         # audio streaming
                         if event_type == "response.audio.delta":
-                            robot_is_speaking.set()
+                            self.robot_is_speaking.set()
                             # block mic from recording for given time, for each audio delta
-                            speaking_queue.put_nowait(0.25)
-                            audio_sync.on_response_audio_delta(
+                            self.speaking_queue.put_nowait(0.25)
+                            self.audio_sync.on_response_audio_delta(
                                 getattr(event, "delta", b"")
                             )
 
@@ -267,7 +244,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
 
                             try:
                                 tool_result = await dispatch_tool_call(
-                                    tool_name, args_json_str, deps
+                                    tool_name, args_json_str, self.deps
                                 )
                             except Exception as e:
                                 logger.exception("Tool %s failed", tool_name)
@@ -331,7 +308,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
     async def receive(self, frame: bytes) -> None:
         """Mic frames from fastrtc."""
         # Don't send mic audio while robot is speaking (simple echo cancellation)
-        if robot_is_speaking.is_set() or not self._connection_ready:
+        if self.robot_is_speaking.is_set() or not self._connection_ready:
             return
 
         mic_samples = np.frombuffer(frame, dtype=np.int16).squeeze()
@@ -345,7 +322,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
     async def emit(self) -> tuple[int, np.ndarray] | AdditionalOutputs | None:
         """Return audio for playback or chat outputs."""
         try:
-            sample_rate, pcm_frame = audio_sync.playback_q.get_nowait()
+            sample_rate, pcm_frame = self.audio_sync.playback_q.get_nowait()
             logger.debug(
                 "Emitting playback frame (sr=%d, n=%d)", sample_rate, pcm_frame.size
             )
@@ -365,10 +342,12 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             finally:
                 self.connection = None
                 self._connection_ready = False
-        await audio_sync.stop()
+        await self.audio_sync.stop()
 
 
-async def receive_loop(recorder: GstRecorder, openai: OpenAIRealtimeHandler) -> None:
+async def receive_loop(
+    recorder: GstRecorder, openai: OpenAIRealtimeHandler, stop_event: asyncio.Event
+) -> None:
     logger.info("Starting receive loop")
     while not stop_event.is_set():
         data = recorder.get_sample()
@@ -377,7 +356,9 @@ async def receive_loop(recorder: GstRecorder, openai: OpenAIRealtimeHandler) -> 
         await asyncio.sleep(0)  # Prevent busy waiting
 
 
-async def emit_loop(player: GstPlayer, openai: OpenAIRealtimeHandler) -> None:
+async def emit_loop(
+    player: GstPlayer, openai: OpenAIRealtimeHandler, stop_event: asyncio.Event
+) -> None:
     while not stop_event.is_set():
         data = await openai.emit()
         if isinstance(data, AdditionalOutputs):
@@ -398,7 +379,12 @@ async def emit_loop(player: GstPlayer, openai: OpenAIRealtimeHandler) -> None:
         await asyncio.sleep(0)  # Prevent busy waiting
 
 
-async def control_mic_loop():
+async def control_mic_loop(
+    stop_event: asyncio.Event,
+    robot_is_speaking: asyncio.Event,
+    speaking_queue: asyncio.Queue,
+    audio_sync: AudioSync,
+):
     # Control mic to prevent echo, blocks mic for given time
     while not stop_event.is_set():
         try:
@@ -412,11 +398,48 @@ async def control_mic_loop():
         await asyncio.sleep(block_time)
 
 
-# stop_event = threading.Event()
-stop_event = asyncio.Event()
-
 async def loop():
-    openai = OpenAIRealtimeHandler()
+    stop_event = asyncio.Event()
+
+    # locals replacing previous globals
+    camera = init_camera(camera_index=0, simulation=SIM)
+
+    vision_manager: VisionManager | None = None
+    if camera and camera.isOpened() and VISION_ENABLED:
+        vision_manager = init_vision(camera=camera)
+
+    current_robot = ReachyMini()
+
+    head_tracker: HeadTracker | None = None
+    if HEAD_TRACKING and not SIM:
+        head_tracker = HeadTracker()
+        logger.info("Head tracking enabled")
+    elif HEAD_TRACKING and SIM:
+        logger.warning("Head tracking disabled while in Simulation")
+    else:
+        logger.warning("Head tracking disabled")
+
+    movement_manager = MovementManager(
+        current_robot=current_robot, head_tracker=head_tracker, camera=camera
+    )
+
+    robot_is_speaking = asyncio.Event()
+    speaking_queue = asyncio.Queue()
+
+    deps = Deps(
+        reachy_mini=current_robot,
+        create_head_pose=create_head_pose,
+        camera=camera,
+        vision_manager=vision_manager,
+    )
+
+    audio_sync = AudioSync(
+        AudioConfig(output_sample_rate=SAMPLE_RATE),
+        set_offsets=movement_manager.set_offsets,
+    )
+
+    openai = OpenAIRealtimeHandler(deps, audio_sync, robot_is_speaking, speaking_queue)
+
     recorder = GstRecorder(sample_rate=SAMPLE_RATE)
     recorder.record()
     player = GstPlayer(sample_rate=SAMPLE_RATE)
@@ -427,19 +450,21 @@ async def loop():
 
     tasks = [
         asyncio.create_task(openai.start_up(), name="openai"),
-        asyncio.create_task(emit_loop(player, openai), name="emit"),
-        asyncio.create_task(receive_loop(recorder, openai), name="recv"),
-        asyncio.create_task(control_mic_loop(), name="mic-mute"),
+        asyncio.create_task(emit_loop(player, openai, stop_event), name="emit"),
+        asyncio.create_task(receive_loop(recorder, openai, stop_event), name="recv"),
+        asyncio.create_task(
+            control_mic_loop(stop_event, robot_is_speaking, speaking_queue, audio_sync),
+            name="mic-mute",
+        ),
         asyncio.create_task(
             movement_manager.enable(stop_event=stop_event), name="move"
         ),
     ]
-
     if vision_manager:
         tasks.append(
             asyncio.create_task(
                 vision_manager.enable(stop_event=stop_event), name="vision"
-            ),
+            )
         )
 
     try:
@@ -450,12 +475,10 @@ async def loop():
 
     if camera:
         camera.release()
-
     await openai.shutdown()
     movement_manager.set_neutral()
     recorder.stop()
     player.stop()
-
     current_robot.client.disconnect()
     logger.info("Stopped, robot disconected")
 
