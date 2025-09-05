@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 import numpy as np
-from reachy_mini_conversation_demo.speech_tapper import SwayRollRT, HOP_MS
+from reachy_mini_conversation_demo.audio.speech_tapper import SwayRollRT, HOP_MS
 
 
 @dataclass
