@@ -14,9 +14,18 @@ pip install -e .
 reachy-mini-conversation-demo
 ```
 
-## Runtime toggles
-You can pass flags to control runtime behavior:
-- `--sim` - run in simulation mode (no real robot needed).
-- `--vision` - enable vision system.
-- `--head-tracking` - enable head tracking (ignored if `--sim` is active).
-- `--debug` - enable debug logging (default is INFO).
+## Runtime Options
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `--sim` | *(flag)* | off | Run in **simulation mode** (no physical robot required). |
+| `--vision` | *(flag)* | off | Enable the **vision system** (must be paired with `--vision-provider`). |
+| `--vision-provider` | `local`, `openai` | `local` | Select vision backend:<br>• **local** → Hugging Face VLM (SmolVLM2) runs on your machine.<br>• **openai** → OpenAI multimodal models via API (requires `OPENAI_API_KEY`). |
+| `--head-tracking` | *(flag)* | off | Enable **head tracking** (ignored when `--sim` is active). |
+| `--debug` | *(flag)* | off | Enable **debug logging** (default log level is INFO). |
+
+## Examples
+- Simulated run with OpenAI Vision:
+```
+reachy-mini-conversation-demo --sim --vision --vision-provider=openai
+```
