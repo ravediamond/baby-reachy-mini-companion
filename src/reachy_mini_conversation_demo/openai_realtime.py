@@ -19,7 +19,7 @@ from reachy_mini_conversation_demo.tools import (
     ALL_TOOL_SPECS,
     dispatch_tool_call,
 )
-from reachy_mini_conversation_demo.audio_sway import AudioSync, pcm_to_b64
+from reachy_mini_conversation_demo.audio.audio_sway import AudioSync, pcm_to_b64
 from reachy_mini_conversation_demo.config import config
 
 logger = logging.getLogger(__name__)

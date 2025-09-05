@@ -15,7 +15,7 @@ from typing import Any, Dict, Literal, Optional
 import cv2
 import numpy as np
 
-from reachy_mini_conversation_demo.vision import VisionManager
+from reachy_mini_conversation_demo.vision.processors import VisionManager
 from reachy_mini_conversation_demo.movement import MovementManager
 
 logger = logging.getLogger(__name__)

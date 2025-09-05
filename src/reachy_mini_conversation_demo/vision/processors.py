@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 class VisionConfig:
     """Configuration for vision processing"""
 
+    processor_type: str = "local"
+    openai_model: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
     model_path: str = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
     vision_interval: float = 5.0
     max_new_tokens: int = 64
@@ -66,7 +68,7 @@ class VisionProcessor:
             if self.device == "cuda":
                 dtype = torch.bfloat16
             elif self.device == "mps":
-                dtype = torch.float16  # best for MPS
+                dtype = torch.float32  # best for MPS
             else:
                 dtype = torch.float32
 
@@ -100,13 +102,10 @@ class VisionProcessor:
 
         for attempt in range(self.config.max_retries):
             try:
-                # Convert CV2 BGR to RGB
-                rgb_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
-
                 # Convert to JPEG bytes
                 success, jpeg_buffer = cv2.imencode(
                     ".jpg",
-                    rgb_image,
+                    cv2_image,
                     [cv2.IMWRITE_JPEG_QUALITY, self.config.jpeg_quality],
                 )
                 if not success:
@@ -136,20 +135,17 @@ class VisionProcessor:
                     return_tensors="pt",
                 )
 
-                # move to device with proper dtype
-                if self.device == "cuda":
-                    inputs = inputs.to(self.device, dtype=torch.bfloat16)
-                elif self.device == "mps":
-                    inputs = inputs.to(self.device, dtype=torch.float16)
-                else:
-                    inputs = inputs.to(self.device, dtype=torch.float32)
+                # Move tensors to device WITHOUT forcing dtype (keeps input_ids as torch.long)
+                inputs = {
+                    k: (v.to(self.device) if hasattr(v, "to") else v)
+                    for k, v in inputs.items()
+                }
 
                 with torch.no_grad():
                     generated_ids = self.model.generate(
                         **inputs,
-                        do_sample=True if self.config.temperature > 0 else False,
+                        do_sample=False,
                         max_new_tokens=self.config.max_new_tokens,
-                        temperature=self.config.temperature,
                         pad_token_id=self.processor.tokenizer.eos_token_id,
                     )
 
@@ -203,6 +199,7 @@ class VisionProcessor:
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the loaded model"""
         return {
+            "processor_type": "local",
             "initialized": self._initialized,
             "device": self.device,
             "model_path": self.model_path,
@@ -220,7 +217,7 @@ class VisionManager:
         self.camera = camera
         self.config = config or VisionConfig()
         self.vision_interval = self.config.vision_interval
-        self.processor = VisionProcessor(self.config)
+        self.processor = create_vision_processor(self.config)  # Use factory function
 
         self._current_description = ""
         self._last_processed_time = 0
@@ -294,13 +291,11 @@ class VisionManager:
     async def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status information"""
         return {
-            "running": self._running,
             "last_processed": self._last_processed_time,
             "processor_info": self.processor.get_model_info(),
             "config": {
                 "interval": self.vision_interval,
-                "model_path": self.config.model_path,
-                "device": self.processor.device,
+                "processor_type": self.config.processor_type,
             },
         }
 
@@ -311,40 +306,58 @@ def init_camera(camera_index=0, simulation=True):
     if simulation:
         # Default build-in camera in SIM
         # TODO: please, test on Linux and Windows
-        # TODO simulation in find_camera
         camera = cv2.VideoCapture(0, api_preference)
     else:
-        # TODO handle macos in find_camera
+        # TODO handle macos properly
         if sys.platform == "darwin":
             camera = cv2.VideoCapture(camera_index, cv2.CAP_AVFOUNDATION)
         else:
-            camera = find_camera()
+            camera = cv2.VideoCapture(camera_index)
 
     return camera
 
 
-def init_vision(camera: cv2.VideoCapture) -> VisionManager:
+def create_vision_processor(config: VisionConfig):
+    """Factory function to create the appropriate vision processor"""
+    if config.processor_type == "openai":
+        try:
+            from .openai_vision import OpenAIVisionProcessor
+
+            return OpenAIVisionProcessor(config)
+        except ImportError:
+            logger.error("OpenAI vision processor not available, falling back to local")
+            return VisionProcessor(config)
+    else:
+        return VisionProcessor(config)
+
+
+def init_vision(
+    camera: cv2.VideoCapture, processor_type: str = "local"
+) -> VisionManager:
     model_id = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
 
     cache_dir = os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface"))
 
-    try:
-        os.makedirs(cache_dir, exist_ok=True)
-        os.environ["HF_HOME"] = cache_dir
-        logger.info("HF_HOME set to %s", cache_dir)
-    except Exception as e:
-        logger.warning("Failed to prepare HF cache dir %s: %s", cache_dir, e)
-        return
+    # Only download model if using local processor
+    if processor_type == "local":
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            os.environ["HF_HOME"] = cache_dir
+            logger.info("HF_HOME set to %s", cache_dir)
+        except Exception as e:
+            logger.warning("Failed to prepare HF cache dir %s: %s", cache_dir, e)
+            return None
 
-    snapshot_download(
-        repo_id=model_id,
-        repo_type="model",
-        cache_dir=cache_dir,
-    )
-    logger.info(f"Prefetched model_id={model_id} into cache_dir={cache_dir}")
+        snapshot_download(
+            repo_id=model_id,
+            repo_type="model",
+            cache_dir=cache_dir,
+        )
+        logger.info(f"Prefetched model_id={model_id} into cache_dir={cache_dir}")
 
-    # Configure VLLM processing
+    # Configure vision processing
     vision_config = VisionConfig(
+        processor_type=processor_type,
         model_path=model_id,
         vision_interval=5.0,
         max_new_tokens=64,
@@ -359,7 +372,7 @@ def init_vision(camera: cv2.VideoCapture) -> VisionManager:
 
     device_info = vision_manager.processor.get_model_info()
     logger.info(
-        f"Vision processing enabled: {device_info['model_path']} on {device_info['device']}",
+        f"Vision processing enabled: {device_info.get('model_path', device_info.get('processor_type'))} on {device_info.get('device', 'API')}",
     )
 
     return vision_manager

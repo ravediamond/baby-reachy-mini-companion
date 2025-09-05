@@ -9,7 +9,7 @@ import cv2
 from reachy_mini import ReachyMini
 from reachy_mini.reachy_mini import IMAGE_SIZE
 from reachy_mini.utils import create_head_pose
-from reachy_mini_conversation_demo.head_tracker import HeadTracker
+from reachy_mini_conversation_demo.vision.head_tracker import HeadTracker
 
 logger = logging.getLogger(__name__)
 

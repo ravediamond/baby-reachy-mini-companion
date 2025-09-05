@@ -11,22 +11,32 @@ from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
 
 from reachy_mini_conversation_demo.config import config
-from reachy_mini_conversation_demo.head_tracker import HeadTracker
+from reachy_mini_conversation_demo.vision.head_tracker import HeadTracker
 from reachy_mini_conversation_demo.openai_realtime import OpenAIRealtimeHandler
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
 from reachy_mini_conversation_demo.tools import (
     ToolDependencies,
 )
-from reachy_mini_conversation_demo.audio_sway import AudioSync, AudioConfig
+from reachy_mini_conversation_demo.audio.audio_sway import AudioSync, AudioConfig
 from reachy_mini_conversation_demo.movement import MovementManager
-from reachy_mini_conversation_demo.gstreamer import GstPlayer, GstRecorder
-from reachy_mini_conversation_demo.vision import VisionManager, init_vision, init_camera
+from reachy_mini_conversation_demo.audio.gstreamer import GstPlayer, GstRecorder
+from reachy_mini_conversation_demo.vision.processors import (
+    VisionManager,
+    init_vision,
+    init_camera,
+)
 
 # Command-line arguments
 parser = argparse.ArgumentParser(description="Reachy Mini Conversation Demo")
 parser.add_argument("--sim", action="store_true", help="Run in simulation mode")
 parser.add_argument("--vision", action="store_true", help="Enable vision")
 parser.add_argument("--head-tracking", action="store_true", help="Enable head tracking")
+parser.add_argument(
+    "--vision-provider",
+    choices=["openai", "local"],
+    default="local",
+    help="Choose vision provider (default: local)",
+)
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
 
@@ -135,7 +145,9 @@ async def loop():
 
     vision_manager: VisionManager | None = None
     if camera and camera.isOpened() and VISION_ENABLED:
-        vision_manager = init_vision(camera=camera)
+        processor_type = args.vision_provider
+        vision_manager = init_vision(camera=camera, processor_type=processor_type)
+        logger.info(f"Vision processor type: {processor_type}")
 
     current_robot = ReachyMini()
 
