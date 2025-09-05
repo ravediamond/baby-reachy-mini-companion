@@ -1,31 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import random
 import argparse
-import time
 import warnings
 
-import numpy as np
-from openai import AsyncOpenAI
-
-from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
-from websockets import ConnectionClosedError, ConnectionClosedOK
+from fastrtc import AdditionalOutputs
 
 from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
 
 from reachy_mini_conversation_demo.config import config
 from reachy_mini_conversation_demo.head_tracker import HeadTracker
+from reachy_mini_conversation_demo.openai_realtime import OpenAIRealtimeHandler
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
 from reachy_mini_conversation_demo.tools import (
     ToolDependencies,
-    ALL_TOOL_SPECS,
-    dispatch_tool_call,
 )
-from reachy_mini_conversation_demo.audio_sway import AudioSync, AudioConfig, pcm_to_b64
+from reachy_mini_conversation_demo.audio_sway import AudioSync, AudioConfig
 from reachy_mini_conversation_demo.movement import MovementManager
 from reachy_mini_conversation_demo.gstreamer import GstPlayer, GstRecorder
 from reachy_mini_conversation_demo.vision import VisionManager, init_vision, init_camera
@@ -80,271 +72,6 @@ else:
 # Key preview in logs
 masked = (API_KEY[:6] + "..." + API_KEY[-4:]) if len(API_KEY) >= 12 else "<short>"
 logger.info("OPENAI_API_KEY loaded (prefix): %s", masked)
-
-
-class OpenAIRealtimeHandler(AsyncStreamHandler):
-    def __init__(
-        self,
-        deps: ToolDependencies,
-        audio_sync: AudioSync,
-        robot_is_speaking: asyncio.Event,
-        speaking_queue: asyncio.Queue,
-    ) -> None:
-        super().__init__(
-            expected_layout="mono",
-            output_sample_rate=SAMPLE_RATE,
-            input_sample_rate=SAMPLE_RATE,
-        )
-        self.deps = deps
-        self.audio_sync = audio_sync
-        self.robot_is_speaking = robot_is_speaking
-        self.speaking_queue = speaking_queue
-        self.client: AsyncOpenAI | None = None
-        self.connection = None
-        self.output_queue: asyncio.Queue = asyncio.Queue()
-        self._stop = False
-        self._started_audio = False
-        self._connection_ready = False
-        self._speech_start_time = 0.0
-        # backoff managment for retry
-        self._backoff_start = 1.0
-        self._backoff_max = 16.0
-        self._backoff = self._backoff_start
-
-    def copy(self):
-        return OpenAIRealtimeHandler(
-            self.deps, self.audio_sync, self.robot_is_speaking, self.speaking_queue
-        )
-
-    async def start_up(self):
-        if not self._started_audio:
-            self.audio_sync.start()
-            self._started_audio = True
-
-        if self.client is None:
-            logger.info("Realtime start_up: creating AsyncOpenAI client...")
-            self.client = AsyncOpenAI(api_key=API_KEY)
-
-        self._backoff = self._backoff_start
-        while not self._stop:
-            try:
-                async with self.client.beta.realtime.connect(
-                    model=MODEL_NAME
-                ) as rt_connection:
-                    self.connection = rt_connection
-                    self._connection_ready = False
-
-                    # configure session
-                    await rt_connection.session.update(
-                        session={
-                            "turn_detection": {
-                                "type": "server_vad",
-                                "threshold": 0.6,  # Higher threshold = less sensitive
-                                "prefix_padding_ms": 300,  # More padding before speech
-                                "silence_duration_ms": 800,  # Longer silence before detecting end
-                            },
-                            "voice": "ballad",
-                            "instructions": SESSION_INSTRUCTIONS,
-                            "input_audio_transcription": {
-                                "model": "whisper-1",
-                                "language": "en",
-                            },
-                            "tools": ALL_TOOL_SPECS,
-                            "tool_choice": "auto",
-                            "temperature": 0.7,
-                        }
-                    )
-
-                    # Wait for session to be configured
-                    await asyncio.sleep(0.2)
-
-                    # Add system message with even stronger brevity emphasis
-                    await rt_connection.conversation.item.create(
-                        item={
-                            "type": "message",
-                            "role": "system",
-                            "content": [
-                                {
-                                    "type": "input_text",
-                                    "text": f"{SESSION_INSTRUCTIONS}\n\nIMPORTANT: Always keep responses under 25 words. Be extremely concise.",
-                                }
-                            ],
-                        }
-                    )
-
-                    self._connection_ready = True
-
-                    logger.info(
-                        "Session updated: tools=%d, voice=%s, vad=improved",
-                        len(ALL_TOOL_SPECS),
-                        "ballad",
-                    )
-
-                    logger.info("Realtime event loop started with improved VAD")
-                    self._backoff = self._backoff_start
-
-                    async for event in rt_connection:
-                        event_type = getattr(event, "type", None)
-                        logger.debug("RT event: %s", event_type)
-
-                        # Enhanced speech state tracking
-                        if event_type == "input_audio_buffer.speech_started":
-                            # Only process user speech if robot isn't currently speaking
-                            if not self.robot_is_speaking.is_set():
-                                self.audio_sync.on_input_speech_started()
-                                logger.info("User speech detected (robot not speaking)")
-                            else:
-                                logger.info(
-                                    "Ignoring speech detection - robot is speaking"
-                                )
-
-                        elif event_type == "response.started":
-                            self._speech_start_time = time.time()
-                            self.audio_sync.on_response_started()
-                            logger.info("Robot started speaking")
-
-                        elif event_type in (
-                            "response.audio.completed",
-                            "response.completed",
-                            "response.audio.done",
-                        ):
-                            logger.info("Robot finished speaking %s", event_type)
-
-                        elif (
-                            event_type
-                            == "conversation.item.input_audio_transcription.completed"
-                        ):
-                            await self.output_queue.put(
-                                AdditionalOutputs(
-                                    {"role": "user", "content": event.transcript}
-                                )
-                            )
-
-                        elif event_type == "response.audio_transcript.done":
-                            await self.output_queue.put(
-                                AdditionalOutputs(
-                                    {"role": "assistant", "content": event.transcript}
-                                )
-                            )
-
-                        # audio streaming
-                        if event_type == "response.audio.delta":
-                            self.robot_is_speaking.set()
-                            # block mic from recording for given time, for each audio delta
-                            self.speaking_queue.put_nowait(0.25)
-                            self.audio_sync.on_response_audio_delta(
-                                getattr(event, "delta", b"")
-                            )
-
-                        elif event_type == "response.function_call_arguments.done":
-                            tool_name = getattr(event, "name", None)
-                            args_json_str = getattr(event, "arguments", None)
-                            call_id = getattr(event, "call_id", None)
-
-                            try:
-                                tool_result = await dispatch_tool_call(
-                                    tool_name, args_json_str, self.deps
-                                )
-
-                                logger.info(f"Tool result {tool_result}")
-
-                            except Exception as e:
-                                logger.exception("Tool %s failed", tool_name)
-                                tool_result = {"error": str(e)}
-
-                            await rt_connection.conversation.item.create(
-                                item={
-                                    "type": "function_call_output",
-                                    "call_id": call_id,
-                                    "output": json.dumps(tool_result),
-                                }
-                            )
-                            logger.info(
-                                "Sent tool=%s call_id=%s result=%s",
-                                tool_name,
-                                call_id,
-                                tool_result,
-                            )
-                            if tool_name and (
-                                tool_name == "camera" or "scene" in tool_name
-                            ):
-                                logger.info(
-                                    "Forcing response after tool call %s", tool_name
-                                )
-                                await rt_connection.response.create()
-
-                        # server errors
-                        if event_type == "error":
-                            err = getattr(event, "error", None)
-                            msg = getattr(
-                                err, "message", str(err) if err else "unknown error"
-                            )
-                            logger.error("Realtime error: %s (raw=%s)", msg, err)
-                            await self.output_queue.put(
-                                AdditionalOutputs(
-                                    {"role": "assistant", "content": f"[error] {msg}"}
-                                )
-                            )
-
-            except (ConnectionClosedOK, ConnectionClosedError) as e:
-                if self._stop:
-                    break
-                logger.warning(
-                    "Connection closed (%s). Reconnecting…",
-                    getattr(e, "code", "no-code"),
-                )
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                logger.exception("Realtime loop error; will reconnect")
-            finally:
-                self.connection = None
-                self._connection_ready = False
-
-            # Exponential backoff
-            delay = min(self._backoff, self._backoff_max) + random.uniform(0, 0.5)
-            logger.info("Reconnect in %.1fs…", delay)
-            await asyncio.sleep(delay)
-            self._backoff = min(self._backoff * 2.0, self._backoff_max)
-
-    async def receive(self, frame: bytes) -> None:
-        """Mic frames from fastrtc."""
-        # Don't send mic audio while robot is speaking (simple echo cancellation)
-        if self.robot_is_speaking.is_set() or not self._connection_ready:
-            return
-
-        mic_samples = np.frombuffer(frame, dtype=np.int16).squeeze()
-        audio_b64 = pcm_to_b64(mic_samples)
-
-        try:
-            await self.connection.input_audio_buffer.append(audio=audio_b64)
-        except (ConnectionClosedOK, ConnectionClosedError):
-            pass
-
-    async def emit(self) -> tuple[int, np.ndarray] | AdditionalOutputs | None:
-        """Return audio for playback or chat outputs."""
-        try:
-            sample_rate, pcm_frame = self.audio_sync.playback_q.get_nowait()
-            logger.debug(
-                "Emitting playback frame (sr=%d, n=%d)", sample_rate, pcm_frame.size
-            )
-            return (sample_rate, pcm_frame)
-        except asyncio.QueueEmpty:
-            pass
-        return await wait_for_item(self.output_queue)
-
-    async def shutdown(self) -> None:
-        logger.info("Shutdown: closing connections and audio")
-        self._stop = True
-        if self.connection:
-            try:
-                await self.connection.close()
-            except Exception:
-                logger.exception("Error closing realtime connection")
-            finally:
-                self.connection = None
-                self._connection_ready = False
-        await self.audio_sync.stop()
 
 
 async def receive_loop(
