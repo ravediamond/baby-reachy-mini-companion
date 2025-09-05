@@ -109,7 +109,9 @@ class GstRecorder:
             raise RuntimeError("Failed to create GStreamer elements")
 
         # Force mono/S16LE at 24000; resample handles device SR (e.g., 16000 → 24000)
-        caps = Gst.Caps.from_string(f"audio/x-raw,channels=1,rate={sample_rate},format=S16LE")
+        caps = Gst.Caps.from_string(
+            f"audio/x-raw,channels=1,rate={sample_rate},format=S16LE"
+        )
         self.appsink.set_property("caps", caps)
 
         # Build pipeline
@@ -168,6 +170,7 @@ class GstRecorder:
         if self._thread_bus_calls is not None:
             self._thread_bus_calls.join()
         logger.info("Stopped Recorder")
+
 
 def _create_device_element(
     direction: str, name_substr: Optional[str]
