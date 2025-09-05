@@ -20,6 +20,7 @@ class Config:
 
     # Optional
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-realtime-preview")
+    OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
     HF_HOME = os.getenv("HF_HOME", "./cache")
 
 
