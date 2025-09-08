@@ -75,7 +75,7 @@ class MovementManager:
                         eye_center = np.clip(eye_center, [0, 0], [w - 1, h - 1])
 
                         current_head_pose = self.current_robot.look_at_image(
-                            *eye_center, duration=0.0, apply=False
+                            *eye_center, duration=0.0, perform_movement=False
                         )
 
                         self.current_head_pose = current_head_pose
