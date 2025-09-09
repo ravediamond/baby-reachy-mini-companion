@@ -11,7 +11,7 @@ from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
 
 from reachy_mini_conversation_demo.config import config
-from reachy_mini_conversation_demo.vision.head_tracker import HeadTracker
+from reachy_mini_conversation_demo.vision.yolo_head_tracker import HeadTracker
 from reachy_mini_conversation_demo.openai_realtime import OpenAIRealtimeHandler
 from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
 from reachy_mini_conversation_demo.tools import (
