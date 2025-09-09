@@ -21,7 +21,7 @@ from reachy_mini_conversation_demo.tools import (
     ToolDependencies,
 )
 from reachy_mini_conversation_demo.audio.audio_sway import AudioSync, AudioConfig
-from reachy_mini_conversation_demo.movement import MovementManager
+from reachy_mini_conversation_demo.moves import MovementManager
 from reachy_mini_conversation_demo.audio.gstreamer import GstPlayer, GstRecorder
 from reachy_mini_conversation_demo.vision.processors import (
     VisionManager,
@@ -225,7 +225,7 @@ async def loop():
             name="mic-mute",
         ),
         asyncio.create_task(
-            movement_manager.enable(stop_event=stop_event), name="move"
+            movement_manager.enable(stop_event), name="move"
         ),
     ]
     if vision_manager:

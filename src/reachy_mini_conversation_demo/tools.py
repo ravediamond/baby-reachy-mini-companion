@@ -16,9 +16,33 @@ import cv2
 import numpy as np
 
 from reachy_mini_conversation_demo.vision.processors import VisionManager
-from reachy_mini_conversation_demo.movement import MovementManager
 
 logger = logging.getLogger(__name__)
+
+# Initialize dance and emotion libraries
+try:
+    from reachy_mini_dances_library.collection.dance import AVAILABLE_MOVES
+    from reachy_mini.motion.recorded_move import RecordedMoves
+    from reachy_mini_conversation_demo.dance_emotion_moves import DanceQueueMove, EmotionQueueMove, GotoQueueMove
+    
+    # Initialize recorded moves for emotions
+    RECORDED_MOVES = RecordedMoves("pollen-robotics/reachy-mini-emotions-library")
+    DANCE_AVAILABLE = True
+    EMOTION_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Dance/emotion libraries not available: {e}")
+    AVAILABLE_MOVES = {}
+    RECORDED_MOVES = None
+    DANCE_AVAILABLE = False
+    EMOTION_AVAILABLE = False
+
+# Initialize face recognition
+try:
+    from deepface import DeepFace
+    FACE_RECOGNITION_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"DeepFace not available: {e}")
+    FACE_RECOGNITION_AVAILABLE = False
 
 
 def all_concrete_subclasses(base):
@@ -146,11 +170,33 @@ class MoveHead(Tool):
         deltas = self.DELTAS.get(direction, self.DELTAS["front"])
         target = create_head_pose(*deltas, degrees=True)
 
-        result = _execute_motion(deps, target)
-        if "error" in result:
-            return result
-
-        return {"status": f"looking {direction}"}
+        # Use new movement manager
+        try:
+            movement_manager = deps.movement_manager
+            
+            # Get current state for interpolation
+            current_head_pose = deps.reachy_mini.get_current_head_pose()
+            _, current_antennas = deps.reachy_mini.get_current_joint_positions()
+            
+            # Create goto move
+            goto_move = GotoQueueMove(
+                target_head_pose=target,
+                start_head_pose=current_head_pose,
+                target_antennas=(0, 0),  # Reset antennas to default
+                start_antennas=(current_antennas[1], current_antennas[2]),  # Skip body_yaw
+                target_body_yaw=0,  # Reset body yaw  
+                start_body_yaw=current_antennas[0],  # body_yaw is first in joint positions
+                duration=deps.motion_duration_s
+            )
+            
+            movement_manager.queue_move(goto_move)
+            movement_manager.set_moving_state(deps.motion_duration_s)
+            
+            return {"status": f"looking {direction}"}
+            
+        except Exception as e:
+            logger.exception("move_head failed")
+            return {"error": f"move_head failed: {type(e).__name__}: {e}"}
 
 
 class Camera(Tool):
@@ -206,7 +252,7 @@ class HeadTracking(Tool):
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
         enable = bool(kwargs.get("start"))
         movement_manager = deps.movement_manager
-        movement_manager.is_head_tracking_on = enable
+        movement_manager.is_head_tracking_enabled = enable
         status = "started" if enable else "stopped"
         logger.info("Tool call: head_tracking %s", status)
         return {"status": f"head tracking {status}"}
@@ -305,6 +351,222 @@ class AnalyzeSceneFor(Tool):
 
         result["analysis_purpose"] = purpose
         return result
+
+
+class Dance(Tool):
+    name = "dance"
+    description = "Play a named or random dance move once (or repeat). Non-blocking."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "move": {
+                "type": "string", 
+                "description": "Name of the move; use 'random' or omit for random.",
+            },
+            "repeat": {
+                "type": "integer",
+                "description": "How many times to repeat the move (default 1).",
+            },
+        },
+        "required": [],
+    }
+
+    async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        if not DANCE_AVAILABLE:
+            return {"error": "Dance system not available"}
+
+        move_name = kwargs.get("move", None)
+        repeat = int(kwargs.get("repeat", 1))
+
+        logger.info("Tool call: dance move=%s repeat=%d", move_name, repeat)
+
+        if not move_name or move_name == "random":
+            import random
+            move_name = random.choice(list(AVAILABLE_MOVES.keys()))
+
+        if move_name not in AVAILABLE_MOVES:
+            return {"error": f"Unknown dance move '{move_name}'. Available: {list(AVAILABLE_MOVES.keys())}"}
+
+        # Add dance moves to queue
+        movement_manager = deps.movement_manager
+        for _ in range(repeat):
+            dance_move = DanceQueueMove(move_name)
+            movement_manager.queue_move(dance_move)
+
+        return {"status": "queued", "move": move_name, "repeat": repeat}
+
+
+class StopDance(Tool):
+    name = "stop_dance"
+    description = "Stop the current dance move"
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "dummy": {
+                "type": "boolean",
+                "description": "dummy boolean, set it to true",
+            }
+        },
+        "required": ["dummy"],
+    }
+
+    async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        logger.info("Tool call: stop_dance")
+        movement_manager = deps.movement_manager
+        movement_manager.clear_queue()
+        return {"status": "stopped dance and cleared queue"}
+
+
+class PlayEmotion(Tool):
+    name = "play_emotion"
+    description = "Play a pre-recorded emotion"
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "emotion": {
+                "type": "string",
+                "description": "Name of the emotion to play",
+            },
+        },
+        "required": ["emotion"],
+    }
+
+    async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        if not EMOTION_AVAILABLE:
+            return {"error": "Emotion system not available"}
+
+        emotion_name = kwargs.get("emotion")
+        if not emotion_name:
+            return {"error": "Emotion name is required"}
+
+        logger.info("Tool call: play_emotion emotion=%s", emotion_name)
+
+        # Check if emotion exists
+        try:
+            emotion_names = RECORDED_MOVES.list_moves()
+            if emotion_name not in emotion_names:
+                return {"error": f"Unknown emotion '{emotion_name}'. Available: {emotion_names}"}
+
+            # Add emotion to queue
+            movement_manager = deps.movement_manager
+            emotion_move = EmotionQueueMove(emotion_name, RECORDED_MOVES)
+            movement_manager.queue_move(emotion_move)
+
+            return {"status": "queued", "emotion": emotion_name}
+
+        except Exception as e:
+            logger.exception("Failed to play emotion")
+            return {"error": f"Failed to play emotion: {str(e)}"}
+
+
+class StopEmotion(Tool):
+    name = "stop_emotion"
+    description = "Stop the current emotion"
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "dummy": {
+                "type": "boolean",
+                "description": "dummy boolean, set it to true",
+            }
+        },
+        "required": ["dummy"],
+    }
+
+    async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        logger.info("Tool call: stop_emotion")
+        movement_manager = deps.movement_manager
+        movement_manager.clear_queue()
+        return {"status": "stopped emotion and cleared queue"}
+
+
+class FaceRecognition(Tool):
+    name = "get_person_name"
+    description = "Get the name of the person you are talking to"
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "dummy": {
+                "type": "boolean",
+                "description": "dummy boolean, set it to true",
+            }
+        },
+        "required": ["dummy"],
+    }
+
+    async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        if not FACE_RECOGNITION_AVAILABLE:
+            return {"error": "Face recognition not available"}
+
+        logger.info("Tool call: face_recognition")
+
+        try:
+            # Capture frame
+            frame = await asyncio.to_thread(_read_frame, deps.camera)
+            
+            # Save frame temporarily
+            temp_path = "/tmp/face_recognition.jpg"
+            import cv2
+            cv2.imwrite(temp_path, frame)
+
+            # Use DeepFace to find face
+            results = await asyncio.to_thread(
+                DeepFace.find, 
+                img_path=temp_path, 
+                db_path="./pollen_faces"
+            )
+
+            if len(results) == 0:
+                return {"error": "Didn't recognize the face"}
+
+            # Extract name from results
+            name = "Unknown"
+            for index, row in results[0].iterrows():
+                file_path = row["identity"]
+                name = file_path.split("/")[-2]
+                break
+
+            return {"answer": f"The name is {name}"}
+
+        except Exception as e:
+            logger.exception("Face recognition failed")
+            return {"error": f"Face recognition failed: {str(e)}"}
+
+
+class DoNothing(Tool):
+    name = "do_nothing"
+    description = "Choose to do nothing - stay still and silent. Use when you want to be contemplative or just chill."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "Optional reason for doing nothing (e.g., 'contemplating existence', 'saving energy', 'being mysterious')",
+            },
+        },
+        "required": [],
+    }
+
+    async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        reason = kwargs.get("reason", "just chilling")
+        logger.info("Tool call: do_nothing reason=%s", reason)
+        return {"status": "doing nothing", "reason": reason}
+
+
+def get_available_emotions_and_descriptions() -> str:
+    """Get formatted list of available emotions with descriptions"""
+    if not EMOTION_AVAILABLE:
+        return "Emotions not available"
+    
+    try:
+        names = RECORDED_MOVES.list_moves()
+        ret = "Available emotions:\n"
+        for name in names:
+            description = RECORDED_MOVES.get(name).description
+            ret += f" - {name}: {description}\n"
+        return ret
+    except Exception as e:
+        return f"Error getting emotions: {e}"
 
 
 # Registry & specs (dynamic)
