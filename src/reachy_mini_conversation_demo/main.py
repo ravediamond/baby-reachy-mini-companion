@@ -26,8 +26,9 @@ from reachy_mini_conversation_demo.audio.gstreamer import GstPlayer, GstRecorder
 from reachy_mini_conversation_demo.vision.processors import (
     VisionManager,
     init_vision,
-    init_camera,
 )
+from reachy_mini.utils.camera import find_camera
+from reachy_mini_conversation_demo.camera_worker import CameraWorker
 
 # Command-line arguments
 parser = argparse.ArgumentParser(description="Reachy Mini Conversation Demo")
@@ -37,8 +38,8 @@ parser.add_argument("--vision", action="store_true", help="Enable vision")
 parser.add_argument(
     "--head-tracker",
     choices=["yolo", "mediapipe", None],
-    default=None,
-    help="Choose head tracker (default: None)",
+    default="mediapipe",
+    help="Choose head tracker (default: mediapipe)",
 )
 parser.add_argument(
     "--vision-provider",
@@ -60,9 +61,9 @@ SAMPLE_RATE = 24000  # TODO: hardcoded, should it stay like this?
 MODEL_NAME = config.MODEL_NAME
 API_KEY = config.OPENAI_API_KEY
 
-# Defaults are all False unless CLI flags are passed
+# Default values (vision disabled by default, head tracking enabled by default)
 SIM = args.sim
-VISION_ENABLED = args.vision
+VISION_ENABLED = args.vision  # Vision disabled by default, enabled with --vision
 HEAD_TRACKING_ENABLED = args.head_tracker is not None
 LOG_LEVEL = "DEBUG" if args.debug else "INFO"
 NO_INTERRUPUTIONS = args.no_interruptions
@@ -156,12 +157,41 @@ async def control_mic_loop(
 async def loop():
     stop_event = asyncio.Event()
 
-    # locals replacing previous globals
-    camera = init_camera(camera_index=0, simulation=SIM)
+    # Initialize camera using same approach as main_works.py
+    camera = None
+    camera_available = False
+    
+    if not SIM:
+        camera = find_camera()
+    else:
+        import cv2
+        camera = cv2.VideoCapture(0)
+    
+    # Check camera availability (same logic as main_works.py)
+    if camera is not None:
+        try:
+            if camera.isOpened():
+                # Test if we can actually read a frame
+                ret, _ = camera.read()
+                if ret:
+                    camera_available = True
+                    logger.info("Camera initialized successfully")
+                else:
+                    logger.warning("Camera opened but cannot read frames")
+            else:
+                logger.warning("Camera failed to open")
+        except Exception as e:
+            logger.warning(f"Camera test failed: {e}")
+    else:
+        logger.warning("No camera found")
+    
+    if not camera_available:
+        logger.warning("Face tracking will be disabled - no camera available")
+        camera = None  # Ensure camera is None if not available
 
     vision_manager: VisionManager | None = None
     if camera and camera.isOpened() and VISION_ENABLED:
-        processor_type = args.visionS_provider
+        processor_type = args.vision_provider
         vision_manager = init_vision(camera=camera, processor_type=processor_type)
         logger.info(f"Vision processor type: {processor_type}")
 
@@ -180,8 +210,17 @@ async def loop():
     else:
         logger.warning("Head tracking disabled")
 
+    # Initialize camera worker (replaces face tracking in MovementManager)
+    camera_worker = None
+    if camera_available and camera is not None:
+        camera_worker = CameraWorker(camera, current_robot, head_tracker)
+        camera_worker.start()
+        logger.info("Camera worker started successfully")
+    else:
+        logger.info("Skipping camera worker - no camera available")
+
     movement_manager = MovementManager(
-        current_robot=current_robot, head_tracker=head_tracker, camera=camera
+        current_robot=current_robot, head_tracker=head_tracker, camera=camera, camera_worker=camera_worker
     )
 
     robot_is_speaking = asyncio.Event()
@@ -192,6 +231,7 @@ async def loop():
         create_head_pose=create_head_pose,
         movement_manager=movement_manager,
         camera=camera,
+        camera_worker=camera_worker,
         vision_manager=vision_manager,
     )
 
@@ -241,6 +281,10 @@ async def loop():
         logger.info("Shutting down")
         stop_event.set()
 
+    # Stop camera worker
+    if camera_worker:
+        camera_worker.stop()
+    
     if camera:
         camera.release()
 
@@ -249,7 +293,7 @@ async def loop():
     recorder.stop()
     player.stop()
     current_robot.client.disconnect()
-    logger.info("Stopped, robot disconected")
+    logger.info("Stopped, robot disconnected")
 
 
 def main():

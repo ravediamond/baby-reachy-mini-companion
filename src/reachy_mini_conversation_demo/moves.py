@@ -174,10 +174,12 @@ class MovementManager:
         current_robot: ReachyMini,
         head_tracker = None,
         camera = None,
+        camera_worker = None,
     ):
         self.current_robot = current_robot
         self.head_tracker = head_tracker
         self.camera = camera
+        self.camera_worker = camera_worker
         
         # Movement state
         self.state = MovementState()
@@ -190,14 +192,6 @@ class MovementManager:
         self.breathing_inactivity_delay = 5.0  # seconds
         self.target_frequency = 50.0  # Hz
         self.target_period = 1.0 / self.target_frequency
-        
-        # Face tracking state (no threads/globals)
-        self.is_head_tracking_enabled = True
-        self.last_face_detected_time: Optional[float] = None
-        self.face_lost_delay = 2.0  # seconds to wait before starting interpolation
-        self.interpolation_duration = 1.0  # seconds to interpolate back to neutral
-        self.interpolation_start_time: Optional[float] = None
-        self.interpolation_start_pose: Optional[np.ndarray] = None
 
     def queue_move(self, move: Move) -> None:
         """Add a move to the primary move queue"""
@@ -319,108 +313,13 @@ class MovementManager:
         return (secondary_head_pose, (0, 0), 0)
     
     def _update_face_tracking(self, current_time: float) -> None:
-        """Update face tracking offsets (integrated into main loop)"""
-        if not self.is_head_tracking_enabled or self.camera is None or self.head_tracker is None:
-            return
-        
-        try:
-            success, frame = self.camera.read()
-            if not success:
-                return
-            
-            eye_center, _ = self.head_tracker.get_head_position(frame)
-            
-            if eye_center is not None:
-                # Face detected - immediately switch to tracking
-                self.last_face_detected_time = current_time
-                self.interpolation_start_time = None  # Stop any interpolation
-                
-                # Convert normalized coordinates to pixel coordinates and get pose
-                h, w, _ = frame.shape
-                eye_center_norm = (eye_center + 1) / 2
-                eye_center_pixels = [eye_center_norm[0] * w, eye_center_norm[1] * h]
-                
-                # Get the head pose needed to look at the target
-                target_pose = self.current_robot.look_at_image(
-                    eye_center_pixels[0], 
-                    eye_center_pixels[1], 
-                    duration=0.0, 
-                    perform_movement=False
-                )
-                
-                # Extract translation and rotation from the target pose
-                try:
-                    from scipy.spatial.transform import Rotation as R
-                except ImportError:
-                    logger.warning("scipy not available, face tracking may not work properly")
-                    return
-                
-                translation = target_pose[:3, 3]
-                rotation = R.from_matrix(target_pose[:3, :3]).as_euler('xyz', degrees=False)
-                
-                # Update face tracking offsets
-                self.state.face_tracking_offsets = (
-                    translation[0], translation[1], translation[2],  # x, y, z
-                    rotation[0], rotation[1], rotation[2]  # roll, pitch, yaw
-                )
-            
-            else:
-                # No face detected - handle smooth interpolation back to neutral
-                if self.last_face_detected_time is not None:
-                    time_since_face_lost = current_time - self.last_face_detected_time
-                    
-                    if time_since_face_lost >= self.face_lost_delay:
-                        # Start interpolation if not already started
-                        if self.interpolation_start_time is None:
-                            self.interpolation_start_time = current_time
-                            # Capture current pose as start of interpolation
-                            current_translation = self.state.face_tracking_offsets[:3]
-                            current_rotation_euler = self.state.face_tracking_offsets[3:]
-                            # Convert to 4x4 pose matrix
-                            self.interpolation_start_pose = np.eye(4)
-                            self.interpolation_start_pose[:3, 3] = current_translation
-                            try:
-                                from scipy.spatial.transform import Rotation as R
-                                self.interpolation_start_pose[:3, :3] = R.from_euler('xyz', current_rotation_euler).as_matrix()
-                            except ImportError:
-                                logger.warning("scipy not available, using identity rotation")
-                                # Keep identity rotation matrix
-                        
-                        # Calculate interpolation progress (t from 0 to 1)
-                        elapsed_interpolation = current_time - self.interpolation_start_time
-                        t = min(1.0, elapsed_interpolation / self.interpolation_duration)
-                        
-                        # Interpolate between current pose and neutral pose
-                        neutral_pose = np.eye(4)
-                        interpolated_pose = linear_pose_interpolation(
-                            self.interpolation_start_pose, 
-                            neutral_pose, 
-                            t
-                        )
-                        
-                        # Extract translation and rotation from interpolated pose
-                        translation = interpolated_pose[:3, 3]
-                        try:
-                            from scipy.spatial.transform import Rotation as R
-                        except ImportError:
-                            logger.warning("scipy not available, face tracking may not work properly")
-                            return
-                        rotation = R.from_matrix(interpolated_pose[:3, :3]).as_euler('xyz', degrees=False)
-                        
-                        # Update face tracking offsets
-                        self.state.face_tracking_offsets = (
-                            translation[0], translation[1], translation[2],  # x, y, z
-                            rotation[0], rotation[1], rotation[2]  # roll, pitch, yaw
-                        )
-                        
-                        # If interpolation is complete, reset timing
-                        if t >= 1.0:
-                            self.last_face_detected_time = None
-                            self.interpolation_start_time = None
-                            self.interpolation_start_pose = None
-        
-        except Exception as e:
-            logger.error(f"Face tracking error: {e}")
+        """Get face tracking offsets from camera worker thread"""
+        if self.camera_worker is not None:
+            # Get face tracking offsets from camera worker thread
+            self.state.face_tracking_offsets = self.camera_worker.get_face_tracking_offsets()
+        else:
+            # No camera worker, use neutral offsets
+            self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     def set_neutral(self) -> None:
         """Set neutral robot position"""

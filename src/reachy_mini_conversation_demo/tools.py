@@ -65,9 +65,10 @@ class ToolDependencies:
 
     reachy_mini: ReachyMini
     create_head_pose: Any
-    movement_manager: MovementManager
+    movement_manager: Any  # MovementManager from moves.py
     # Optional deps
     camera: Optional[cv2.VideoCapture] = None
+    camera_worker: Optional[Any] = None  # CameraWorker for frame buffering
     vision_manager: Optional[VisionManager] = None
     camera_retry_attempts: int = 5
     camera_retry_delay_s: float = 0.10
@@ -75,21 +76,7 @@ class ToolDependencies:
     motion_duration_s: float = 1.0
 
 
-# Helpers
-def _read_frame(
-    cap: cv2.VideoCapture, attempts: int = 5, delay_s: float = 0.1
-) -> np.ndarray:
-    """Read a frame from the camera with retries."""
-    trials, frame, ret = 0, None, False
-    while trials < attempts and not ret:
-        ret, frame = cap.read()
-        trials += 1
-        if not ret and trials < attempts:
-            time.sleep(delay_s)
-    if not ret or frame is None:
-        logger.error("Failed to capture image from camera after %d attempts", attempts)
-        raise RuntimeError("Failed to capture image from camera.")
-    return frame
+# Helpers - removed _read_frame as it's no longer needed with camera worker
 
 
 def _execute_motion(deps: ToolDependencies, target: Any) -> Dict[str, Any]:
@@ -221,23 +208,37 @@ class Camera(Tool):
 
         logger.info("Tool call: camera question=%s", image_query[:120])
 
-        # Capture a frame
-        try:
-            frame = await asyncio.to_thread(_read_frame, deps.camera)
-        except Exception as e:
-            logger.exception("camera: failed to capture image")
-            return {"error": f"camera capture failed: {type(e).__name__}: {e}"}
+        # Get frame from camera worker buffer (like main_works.py)
+        if deps.camera_worker is not None:
+            frame = deps.camera_worker.get_latest_frame()
+            if frame is None:
+                logger.error("No frame available from camera worker")
+                return {"error": "No frame available"}
+        else:
+            logger.error("Camera worker not available")
+            return {"error": "Camera worker not available"}
 
-        result = await asyncio.to_thread(
-            deps.vision_manager.processor.process_image, frame, image_query
-        )
-        if isinstance(result, dict) and "error" in result:
-            return result
-        return (
-            {"image_description": result}
-            if isinstance(result, str)
-            else {"error": "vision returned non-string"}
-        )
+        # Use vision manager for processing if available
+        if deps.vision_manager is not None:
+            result = await asyncio.to_thread(
+                deps.vision_manager.processor.process_image, frame, image_query
+            )
+            if isinstance(result, dict) and "error" in result:
+                return result
+            return (
+                {"image_description": result}
+                if isinstance(result, str)
+                else {"error": "vision returned non-string"}
+            )
+        else:
+            # Return base64 encoded image like main_works.py camera tool
+            import cv2
+            import base64
+            temp_path = "/tmp/camera_frame.jpg"
+            cv2.imwrite(temp_path, frame)
+            with open(temp_path, "rb") as f:
+                b64_encoded = base64.b64encode(f.read()).decode("utf-8")
+            return {"b64_im": b64_encoded}
 
 
 class HeadTracking(Tool):
@@ -251,8 +252,11 @@ class HeadTracking(Tool):
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
         enable = bool(kwargs.get("start"))
-        movement_manager = deps.movement_manager
-        movement_manager.is_head_tracking_enabled = enable
+        
+        # Update camera worker head tracking state
+        if deps.camera_worker is not None:
+            deps.camera_worker.set_head_tracking_enabled(enable)
+        
         status = "started" if enable else "stopped"
         logger.info("Tool call: head_tracking %s", status)
         return {"status": f"head tracking {status}"}
@@ -501,10 +505,17 @@ class FaceRecognition(Tool):
         logger.info("Tool call: face_recognition")
 
         try:
-            # Capture frame
-            frame = await asyncio.to_thread(_read_frame, deps.camera)
+            # Get frame from camera worker buffer (like main_works.py)
+            if deps.camera_worker is not None:
+                frame = deps.camera_worker.get_latest_frame()
+                if frame is None:
+                    logger.error("No frame available from camera worker")
+                    return {"error": "No frame available"}
+            else:
+                logger.error("Camera worker not available")
+                return {"error": "Camera worker not available"}
             
-            # Save frame temporarily
+            # Save frame temporarily (same as main_works.py pattern)
             temp_path = "/tmp/face_recognition.jpg"
             import cv2
             cv2.imwrite(temp_path, frame)
