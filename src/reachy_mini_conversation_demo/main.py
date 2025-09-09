@@ -38,6 +38,12 @@ parser.add_argument(
     help="Choose vision provider (default: local)",
 )
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+parser.add_argument(
+    "--no-interruptions",
+    action="store_true",
+    default=False,
+    help="Disable the ability for the user to interrupt Reachy while it is speaking",
+)
 args = parser.parse_args()
 
 # Config values
@@ -50,6 +56,7 @@ SIM = args.sim
 VISION_ENABLED = args.vision
 HEAD_TRACKING = args.head_tracking
 LOG_LEVEL = "DEBUG" if args.debug else "INFO"
+NO_INTERRUPUTIONS = args.no_interruptions
 
 # logging
 logging.basicConfig(
@@ -145,7 +152,7 @@ async def loop():
 
     vision_manager: VisionManager | None = None
     if camera and camera.isOpened() and VISION_ENABLED:
-        processor_type = args.vision_provider
+        processor_type = args.visionS_provider
         vision_manager = init_vision(camera=camera, processor_type=processor_type)
         logger.info(f"Vision processor type: {processor_type}")
 
@@ -180,7 +187,13 @@ async def loop():
         set_offsets=movement_manager.set_offsets,
     )
 
-    openai = OpenAIRealtimeHandler(deps, audio_sync, robot_is_speaking, speaking_queue)
+    openai = OpenAIRealtimeHandler(
+        deps,
+        audio_sync,
+        robot_is_speaking,
+        speaking_queue,
+        no_interruptions=NO_INTERRUPUTIONS,
+    )
 
     recorder = GstRecorder(sample_rate=SAMPLE_RATE)
     recorder.record()

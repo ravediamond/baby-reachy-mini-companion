@@ -46,6 +46,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         audio_sync: AudioSync,
         robot_is_speaking: asyncio.Event,
         speaking_queue: asyncio.Queue,
+        no_interruptions: bool = False,
     ) -> None:
         super().__init__(
             expected_layout="mono",
@@ -57,6 +58,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         self.audio_sync = audio_sync
         self.robot_is_speaking = robot_is_speaking
         self.speaking_queue = speaking_queue
+        self.no_interruptions = no_interruptions
 
         # runtime
         self.client: Optional[AsyncOpenAI] = None
@@ -151,7 +153,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
 
                         # conversation / transcripts
                         if et == "input_audio_buffer.speech_started":
-                            if not self.robot_is_speaking.is_set():
+                            if not self.no_interruptions and not self.robot_is_speaking.is_set():
                                 self.audio_sync.on_input_speech_started()
                                 logger.info("User speech detected")
                         elif et == "response.started":
@@ -254,7 +256,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
 
     async def receive(self, frame: bytes) -> None:
         """Accept PCM16 mono frames from the mic pipeline (fastrtc)."""
-        if self.robot_is_speaking.is_set() or not self._connection_ready:
+        if (self.no_interruptions and self.robot_is_speaking.is_set()) or not self._connection_ready:
             return
 
         mic_samples = np.frombuffer(frame, dtype=np.int16).squeeze()
