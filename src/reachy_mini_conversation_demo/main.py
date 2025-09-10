@@ -285,7 +285,7 @@ async def loop():
     tasks = [
         # asyncio.create_task(openai.start_up(), name="openai"),
         # asyncio.create_task(emit_loop(player, openai, stop_event), name="emit"),
-        asyncio.create_task(receive_loop(recorder, openai, stop_event), name="recv"),
+        # asyncio.create_task(receive_loop(recorder, openai, stop_event), name="recv"),
         # asyncio.create_task(
         #     control_mic_loop(stop_event, robot_is_speaking, speaking_queue, audio_sync),
         #     name="mic-mute",

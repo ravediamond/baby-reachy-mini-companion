@@ -104,9 +104,9 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                             "turn_detection": {
                                 "type": "server_vad",
                                 # Commenting the next three lines makes the interaction much more reactive
-                                "threshold": 0.6,
-                                "prefix_padding_ms": 300,
-                                "silence_duration_ms": 800,
+                                # "threshold": 0.6,
+                                # "prefix_padding_ms": 300,
+                                # "silence_duration_ms": 800,
                             },
                             "voice": "ballad",
                             "instructions": SESSION_INSTRUCTIONS,
@@ -187,7 +187,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                         if et == "response.audio.delta":
                             self.robot_is_speaking.set()
                             # block mic briefly per chunk to reduce echo
-                            self.speaking_queue.put_nowait(0.25)
+                            # self.speaking_queue.put_nowait(0.25)
                             self.audio_sync.on_response_audio_delta(
                                 getattr(event, "delta", b"")
                             )
