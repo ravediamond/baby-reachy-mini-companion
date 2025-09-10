@@ -11,13 +11,13 @@ from __future__ import annotations
 import time
 import asyncio
 import logging
-from abc import ABC, abstractmethod
 from typing import Optional, Tuple, Union
 from dataclasses import dataclass
 from collections import deque
 
 import numpy as np
 from reachy_mini import ReachyMini
+from reachy_mini.motion.move import Move
 from reachy_mini.utils import create_head_pose
 from reachy_mini.utils.interpolation import compose_world_offset, linear_pose_interpolation
 
@@ -25,26 +25,6 @@ logger = logging.getLogger(__name__)
 
 # Type definitions
 FullBodyPose = Tuple[np.ndarray, Tuple[float, float], float]  # (head_pose_4x4, antennas, body_yaw)
-
-
-class Move(ABC):
-    """Base class for all moves (primary moves that go in the queue)"""
-    
-    def __init__(self, duration: float):
-        self.duration = duration
-    
-    @abstractmethod
-    def evaluate(self, t: float) -> FullBodyPose:
-        """
-        Evaluate the move at time t.
-        
-        Args:
-            t: Time since move started (seconds)
-            
-        Returns:
-            FullBodyPose: (head_pose_4x4, (antenna_left, antenna_right), body_yaw)
-        """
-        pass
 
 
 class BreathingMove(Move):
@@ -59,8 +39,6 @@ class BreathingMove(Move):
             interpolation_start_antennas: Current antenna positions to interpolate from  
             interpolation_duration: Duration of interpolation to neutral (seconds)
         """
-        super().__init__(float('inf'))  # Continuous breathing (never ends naturally)
-        
         self.interpolation_start_pose = interpolation_start_pose
         self.interpolation_start_antennas = np.array(interpolation_start_antennas)
         self.interpolation_duration = interpolation_duration
@@ -75,7 +53,12 @@ class BreathingMove(Move):
         self.antenna_sway_amplitude = np.deg2rad(15)  # 15 degrees
         self.antenna_frequency = 0.5  # Hz (faster antenna sway)
     
-    def evaluate(self, t: float) -> FullBodyPose:
+    @property
+    def duration(self) -> float:
+        """Duration property required by official Move interface."""
+        return float('inf')  # Continuous breathing (never ends naturally)
+    
+    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
         """Evaluate breathing move at time t."""
         if t < self.interpolation_duration:
             # Phase 1: Interpolate to neutral base position
@@ -104,8 +87,8 @@ class BreathingMove(Move):
             antenna_sway = self.antenna_sway_amplitude * np.sin(2 * np.pi * self.antenna_frequency * breathing_time)
             antennas = np.array([antenna_sway, -antenna_sway])
         
-        # Return full body pose: (head_pose, antennas, body_yaw)
-        return (head_pose, (antennas[0], antennas[1]), 0)
+        # Return in official Move interface format: (head_pose, antennas_array, body_yaw)
+        return (head_pose, antennas, 0.0)
 
 
 def combine_full_body(primary_pose: FullBodyPose, secondary_pose: FullBodyPose) -> FullBodyPose:
@@ -275,7 +258,21 @@ class MovementManager:
         """Get the primary full body pose from current move or neutral"""
         if self.state.current_move is not None and self.state.move_start_time is not None:
             move_time = current_time - self.state.move_start_time
-            primary_full_body_pose = self.state.current_move.evaluate(move_time)
+            head, antennas, body_yaw = self.state.current_move.evaluate(move_time)
+            
+            # Convert official Move interface to FullBodyPose format
+            # Handle None values from official interface
+            if head is None:
+                head = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
+            if antennas is None:
+                antennas = np.array([0.0, 0.0])
+            if body_yaw is None:
+                body_yaw = 0.0
+            
+            # Convert antennas to tuple format for FullBodyPose
+            antennas_tuple = (float(antennas[0]), float(antennas[1]))
+            primary_full_body_pose = (head, antennas_tuple, float(body_yaw))
+            
             self.state.is_playing_move = True
             self.state.is_moving = True
         else:
@@ -284,7 +281,7 @@ class MovementManager:
             self.state.is_moving = (time.time() - self.state.moving_start < self.state.moving_for)
             # Neutral primary pose
             neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-            primary_full_body_pose = (neutral_head_pose, (0, 0), 0)
+            primary_full_body_pose = (neutral_head_pose, (0.0, 0.0), 0.0)
         
         return primary_full_body_pose
     

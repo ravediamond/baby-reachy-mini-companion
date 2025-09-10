@@ -12,8 +12,9 @@ from typing import Tuple
 import numpy as np
 from reachy_mini_dances_library.dance_move import DanceMove
 from reachy_mini.motion.recorded_move import RecordedMoves
+from reachy_mini.motion.move import Move
 
-from reachy_mini_conversation_demo.moves import Move, FullBodyPose
+from reachy_mini_conversation_demo.moves import FullBodyPose
 
 logger = logging.getLogger(__name__)
 
@@ -23,24 +24,31 @@ class DanceQueueMove(Move):
     
     def __init__(self, move_name: str):
         self.dance_move = DanceMove(move_name)
-        super().__init__(self.dance_move.duration)
         self.move_name = move_name
     
-    def evaluate(self, t: float) -> FullBodyPose:
+    @property
+    def duration(self) -> float:
+        """Duration property required by official Move interface."""
+        return self.dance_move.duration
+    
+    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
         """Evaluate dance move at time t"""
         try:
             # Get the pose from the dance move
-            pose_data = self.dance_move.evaluate(t)
+            head_pose, antennas, body_yaw = self.dance_move.evaluate(t)
             
-            # DanceMove returns (head_pose, antennas, body_yaw) - already in correct format
-            return pose_data
+            # Convert to numpy array if antennas is tuple and return in official Move format
+            if isinstance(antennas, tuple):
+                antennas = np.array([antennas[0], antennas[1]])
+            
+            return (head_pose, antennas, body_yaw)
             
         except Exception as e:
             logger.error(f"Error evaluating dance move '{self.move_name}' at t={t}: {e}")
             # Return neutral pose on error
             from reachy_mini.utils import create_head_pose
             neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-            return (neutral_head_pose, (0, 0), 0)
+            return (neutral_head_pose, np.array([0.0, 0.0]), 0.0)
 
 
 class EmotionQueueMove(Move):
@@ -48,24 +56,31 @@ class EmotionQueueMove(Move):
     
     def __init__(self, emotion_name: str, recorded_moves: RecordedMoves):
         self.emotion_move = recorded_moves.get(emotion_name)
-        super().__init__(self.emotion_move.duration)
         self.emotion_name = emotion_name
     
-    def evaluate(self, t: float) -> FullBodyPose:
+    @property
+    def duration(self) -> float:
+        """Duration property required by official Move interface."""
+        return self.emotion_move.duration
+    
+    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
         """Evaluate emotion move at time t"""
         try:
             # Get the pose from the emotion move
-            pose_data = self.emotion_move.evaluate(t)
+            head_pose, antennas, body_yaw = self.emotion_move.evaluate(t)
             
-            # RecordedMove returns (head_pose, antennas, body_yaw) - already in correct format
-            return pose_data
+            # Convert to numpy array if antennas is tuple and return in official Move format
+            if isinstance(antennas, tuple):
+                antennas = np.array([antennas[0], antennas[1]])
+            
+            return (head_pose, antennas, body_yaw)
             
         except Exception as e:
             logger.error(f"Error evaluating emotion '{self.emotion_name}' at t={t}: {e}")
             # Return neutral pose on error
             from reachy_mini.utils import create_head_pose
             neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-            return (neutral_head_pose, (0, 0), 0)
+            return (neutral_head_pose, np.array([0.0, 0.0]), 0.0)
 
 
 class GotoQueueMove(Move):
@@ -74,8 +89,7 @@ class GotoQueueMove(Move):
     def __init__(self, target_head_pose: np.ndarray, start_head_pose: np.ndarray = None, 
                  target_antennas: Tuple[float, float] = (0, 0), start_antennas: Tuple[float, float] = None,
                  target_body_yaw: float = 0, start_body_yaw: float = None, duration: float = 1.0):
-        super().__init__(duration)
-        
+        self._duration = duration
         self.target_head_pose = target_head_pose
         self.start_head_pose = start_head_pose
         self.target_antennas = target_antennas
@@ -83,7 +97,12 @@ class GotoQueueMove(Move):
         self.target_body_yaw = target_body_yaw  
         self.start_body_yaw = start_body_yaw or 0
     
-    def evaluate(self, t: float) -> FullBodyPose:
+    @property
+    def duration(self) -> float:
+        """Duration property required by official Move interface."""
+        return self._duration
+    
+    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
         """Evaluate goto move at time t using linear interpolation"""
         try:
             from reachy_mini.utils.interpolation import linear_pose_interpolation
@@ -101,11 +120,11 @@ class GotoQueueMove(Move):
             # Interpolate head pose
             head_pose = linear_pose_interpolation(start_pose, self.target_head_pose, t_clamped)
             
-            # Interpolate antennas
-            antennas = (
+            # Interpolate antennas - return as numpy array
+            antennas = np.array([
                 self.start_antennas[0] + (self.target_antennas[0] - self.start_antennas[0]) * t_clamped,
                 self.start_antennas[1] + (self.target_antennas[1] - self.start_antennas[1]) * t_clamped
-            )
+            ])
             
             # Interpolate body yaw
             body_yaw = self.start_body_yaw + (self.target_body_yaw - self.start_body_yaw) * t_clamped
@@ -114,5 +133,6 @@ class GotoQueueMove(Move):
             
         except Exception as e:
             logger.error(f"Error evaluating goto move at t={t}: {e}")
-            # Return target pose on error
-            return (self.target_head_pose, self.target_antennas, self.target_body_yaw)
+            # Return target pose on error - convert antennas to numpy array
+            target_antennas_array = np.array([self.target_antennas[0], self.target_antennas[1]])
+            return (self.target_head_pose, target_antennas_array, self.target_body_yaw)
