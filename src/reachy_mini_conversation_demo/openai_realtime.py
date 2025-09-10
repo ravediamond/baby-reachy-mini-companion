@@ -103,6 +103,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                         session={
                             "turn_detection": {
                                 "type": "server_vad",
+                                # Commenting the next three lines makes the interaction much more reactive
                                 "threshold": 0.6,
                                 "prefix_padding_ms": 300,
                                 "silence_duration_ms": 800,
