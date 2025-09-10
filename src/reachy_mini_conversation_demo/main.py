@@ -250,6 +250,30 @@ async def loop():
         no_interruptions=NO_INTERRUPUTIONS,
     )
 
+    from fastrtc import AdditionalOutputs, AsyncStreamHandler, Stream, wait_for_item
+    from threading import Thread
+    import gradio as gr
+
+    chatbot = gr.Chatbot(type="messages")
+    latest_message = gr.Textbox(type="text", visible=False)
+
+    # ---- gradio / fastrtc wiring unchanged ----
+    def update_chatbot(chatbot: list[dict], response: dict):
+        chatbot.append(response)
+        return chatbot
+
+    stream = Stream(
+        openai,
+        mode="send-receive",
+        modality="audio",
+        additional_inputs=[chatbot],
+        additional_outputs=[chatbot],
+        additional_outputs_handler=update_chatbot,
+    )
+
+    Thread(target=stream.ui.launch, kwargs={"server_port": 7860}).start()
+
+
     recorder = GstRecorder(sample_rate=SAMPLE_RATE)
     recorder.record()
     player = GstPlayer(sample_rate=SAMPLE_RATE)
@@ -259,13 +283,13 @@ async def loop():
     logger.info("Starting main audio loop. You can start to speak")
 
     tasks = [
-        asyncio.create_task(openai.start_up(), name="openai"),
-        asyncio.create_task(emit_loop(player, openai, stop_event), name="emit"),
+        # asyncio.create_task(openai.start_up(), name="openai"),
+        # asyncio.create_task(emit_loop(player, openai, stop_event), name="emit"),
         asyncio.create_task(receive_loop(recorder, openai, stop_event), name="recv"),
-        asyncio.create_task(
-            control_mic_loop(stop_event, robot_is_speaking, speaking_queue, audio_sync),
-            name="mic-mute",
-        ),
+        # asyncio.create_task(
+        #     control_mic_loop(stop_event, robot_is_speaking, speaking_queue, audio_sync),
+        #     name="mic-mute",
+        # ),
         asyncio.create_task(movement_manager.enable(stop_event), name="move"),
         asyncio.create_task(camera_worker.enable(stop_event), name="camera-worker"),
     ]

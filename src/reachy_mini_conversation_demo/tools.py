@@ -170,7 +170,7 @@ class MoveHead(Tool):
                 target_head_pose=target,
                 start_head_pose=current_head_pose,
                 target_antennas=(0, 0),  # Reset antennas to default
-                start_antennas=(current_antennas[1], current_antennas[2]),  # Skip body_yaw
+                start_antennas=(current_antennas[0], current_antennas[1]),  # Skip body_yaw
                 target_body_yaw=0,  # Reset body yaw  
                 start_body_yaw=current_antennas[0],  # body_yaw is first in joint positions
                 duration=deps.motion_duration_s

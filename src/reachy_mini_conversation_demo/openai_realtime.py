@@ -260,7 +260,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         if (self.no_interruptions and self.robot_is_speaking.is_set()) or not self._connection_ready:
             return
 
-        mic_samples = np.frombuffer(frame, dtype=np.int16).squeeze()
+        mic_samples = np.frombuffer(frame[1], dtype=np.int16).squeeze()
         audio_b64 = pcm_to_b64(mic_samples)
 
         try:
