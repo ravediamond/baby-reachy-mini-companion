@@ -52,6 +52,8 @@ async def main():
         asyncio.create_task(movement_manager.enable(stop_event), name="move"),
     ]
 
+    # TODO camera worker seems to induce huge performance issues in the movementmanager loop -> 10hz instead of 50hz
+    # We don't use it for now
     if camera_worker is not None:
         tasks.append(
             asyncio.create_task(camera_worker.enable(stop_event), name="camera")
