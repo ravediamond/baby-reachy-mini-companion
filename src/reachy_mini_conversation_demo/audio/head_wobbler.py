@@ -35,6 +35,7 @@ class HeadWobbler:
             print("Audio queue length:", self.audio_queue.qsize())
 
             sr, chunk = await self.audio_queue.get()  # (1,N), int16
+
             pcm = np.asarray(chunk).squeeze(0)
             results = self.sway.feed(pcm, sr)  # list of dicts with keys x_mm..yaw_rad
 

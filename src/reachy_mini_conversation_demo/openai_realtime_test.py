@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import time
 
 import numpy as np
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
@@ -48,7 +49,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     #     "language": "en",
                     # },
                     "voice": "ballad",
-                    "instructions": "You are a helpful assistant.",
+                    "instructions": "On parle en francais",
                     "tools": ALL_TOOL_SPECS,
                     "tool_choice": "auto",
                     "temperature": 0.7,
@@ -68,12 +69,19 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     print("[DEBUG] user speech stopped")
                     pass
 
+                if event.type in ("response.audio.completed", "response.completed"):
+                    # Doesn't seem to be called
+                    print("[DEBUG] response completed")
+                    self.deps.head_wobbler.reset()
+
                 if event.type == "response.created":
                     print("[DEBUG] response created")
                     pass
 
                 if event.type == "response.done":
+                    # Doesn't mean the audio is done playing
                     print("[DEBUG] response done")
+                    pass
                     # self.deps.head_wobbler.reset()
 
                 # if (

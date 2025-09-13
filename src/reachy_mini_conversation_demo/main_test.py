@@ -46,9 +46,8 @@ async def main():
         modality="audio",
     )
 
-    Thread(target=stream.ui.launch).start()  # TODO launch as a asyncio task ?
-
     tasks = [
+        asyncio.create_task(asyncio.to_thread(stream.ui.launch), name="ui"),
         asyncio.create_task(movement_manager.enable(stop_event), name="move"),
     ]
 
