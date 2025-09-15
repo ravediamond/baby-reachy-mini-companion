@@ -210,7 +210,7 @@ class MovementManager:
         self.move_queue = deque()
 
         # Configuration
-        self.breathing_inactivity_delay = 5.0  # seconds
+        self.idle_inactivity_delay = 5.0  # seconds
         self.target_frequency = 50.0  # Hz
         self.target_period = 1.0 / self.target_frequency
 
@@ -254,6 +254,12 @@ class MovementManager:
         self.state.moving_for = duration
         self.state.update_activity()
 
+    def is_idle(self):
+        """Check if the robot is idle based on inactivity delay."""
+        current_time = time.time()
+        time_since_activity = current_time - self.state.last_activity_time
+        return time_since_activity >= self.idle_inactivity_delay
+
     def _manage_move_queue(self, current_time: float) -> None:
         """Manage the primary move queue (sequential execution)."""
         # Check if current move is finished
@@ -278,7 +284,8 @@ class MovementManager:
         # Start breathing after inactivity delay if no moves in queue
         if self.state.current_move is None and not self.move_queue:
             time_since_activity = current_time - self.state.last_activity_time
-            if time_since_activity >= self.breathing_inactivity_delay:
+
+            if self.is_idle():
                 # Start breathing move
                 try:
                     _, current_antennas = (

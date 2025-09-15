@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import time
+from datetime import datetime
 
 import numpy as np
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
@@ -30,6 +31,9 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         self.output_queue = asyncio.Queue()
 
         self._pending_calls: dict[str, dict] = {}
+
+        self.last_activity_time = asyncio.get_event_loop().time()
+        self.start_time = asyncio.get_event_loop().time()
 
     def copy(self):
         """Create a copy of the handler."""
@@ -101,6 +105,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
                 if event.type == "response.audio.delta":
                     self.deps.head_wobbler.feed(event.delta)
+                    self.last_activity_time = asyncio.get_event_loop().time()
+                    print(
+                        "[DEBUG] last activity time updated to", self.last_activity_time
+                    )
                     await self.output_queue.put(
                         (
                             self.output_sample_rate,
@@ -178,7 +186,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         }
                     )
 
-                    # re synchronize the head wobble after a tool call that may have taken some time
+                    # re synchronize the head wobble after a tool call that may have taken some time
                     self.deps.head_wobbler.reset()
                     # cleanup
                     self._pending_calls.pop(call_id, None)
@@ -208,6 +216,17 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
     async def emit(self) -> tuple[int, np.ndarray] | AdditionalOutputs | None:
         """Emit audio frame to be played by the speaker."""
         # sends to the stream the stuff put in the output queue by the openai event handler
+        # This is called periodically by the fastrtc Stream
+
+        # Handle idle
+        idle_duration = asyncio.get_event_loop().time() - self.last_activity_time
+        if idle_duration > 15.0 and self.deps.movement_manager.is_idle():
+            await self.send_idle_signal(idle_duration)
+
+            self.last_activity_time = (
+                asyncio.get_event_loop().time()
+            )  # avoid repeated resets
+
         return await wait_for_item(self.output_queue)
 
     async def shutdown(self) -> None:
@@ -215,3 +234,34 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         if self.connection:
             await self.connection.close()
             self.connection = None
+
+    def format_timestamp(self):
+        """Format current timestamp with date, time and elapsed seconds."""
+        current_time = asyncio.get_event_loop().time()
+        elapsed_seconds = current_time - self.start_time
+        dt = datetime.fromtimestamp(current_time)
+        return f"[{dt.strftime('%Y-%m-%d %H:%M:%S')} | +{elapsed_seconds:.1f}s]"
+
+    async def send_idle_signal(self, idle_duration) -> None:
+        """Send an idle signal to the openai server."""
+        print("[DEBUG] Sending idle signal")
+
+        timestamp_msg = f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] You've been idle for a while. Feel free to get creative - dance, show an emotion, look around, do nothing, or just be yourself!"
+        if not self.connection:
+            print("[DEBUG] No connection, cannot send idle signal")
+            return
+        await self.connection.conversation.item.create(
+            item={
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": timestamp_msg}],
+            }
+        )
+        await self.connection.response.create(
+            response={
+                "modalities": ["text"],
+                "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
+                "tool_choice": "required",
+            }
+        )
+        # TODO additional inputs

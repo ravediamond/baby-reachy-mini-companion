@@ -54,9 +54,6 @@ class HeadWobbler:
         self._consumer_loop = loop
 
         while not stop_event.is_set():
-            # log simple pour debug
-            print("Audio queue length:", self.audio_queue.qsize())
-
             sr, chunk = await self.audio_queue.get()  # (1,N) int16
             pcm = np.asarray(chunk).squeeze(0)
             results = self.sway.feed(pcm, sr)
