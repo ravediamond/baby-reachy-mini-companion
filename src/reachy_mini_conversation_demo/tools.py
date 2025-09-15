@@ -377,7 +377,29 @@ class Dance(Tool):
         "properties": {
             "move": {
                 "type": "string",
-                "description": "Name of the move; use 'random' or omit for random.",
+                "description": """Name of the move; use 'random' or omit for random. 
+                                    Here is a list of the available moves: 
+                                        simple_nod: A simple, continuous up-and-down nodding motion.
+                                        head_tilt_roll: A continuous side-to-side head roll (ear to shoulder).
+                                        side_to_side_sway: A smooth, side-to-side sway of the entire head.
+                                        dizzy_spin: A circular 'dizzy' head motion combining roll and pitch.
+                                        stumble_and_recover: A simulated stumble and recovery with multiple axis movements. Good vibes
+                                        headbanger_combo: A strong head nod combined with a vertical bounce.
+                                        interwoven_spirals: A complex spiral motion using three axes at different frequencies.
+                                        sharp_side_tilt: A sharp, quick side-to-side tilt using a triangle waveform.
+                                        side_peekaboo: A multi-stage peekaboo performance, hiding and peeking to each side.
+                                        yeah_nod: An emphatic two-part yeah nod using transient motions.
+                                        uh_huh_tilt: A combined roll-and-pitch uh-huh gesture of agreement.
+                                        neck_recoil: A quick, transient backward recoil of the neck.
+                                        chin_lead: A forward motion led by the chin, combining translation and pitch.
+                                        groovy_sway_and_roll: A side-to-side sway combined with a corresponding roll for a groovy effect.
+                                        chicken_peck: A sharp, forward, chicken-like pecking motion.
+                                        side_glance_flick: A quick glance to the side that holds, then returns.
+                                        polyrhythm_combo: A 3-beat sway and a 2-beat nod create a polyrhythmic feel.
+                                        grid_snap: A robotic, grid-snapping motion using square waveforms.
+                                        pendulum_swing: A simple, smooth pendulum-like swing using a roll motion.
+                                        jackson_square: Traces a rectangle via a 5-point path, with sharp twitches on arrival at each checkpoint.
+                """,
             },
             "repeat": {
                 "type": "integer",
@@ -436,6 +458,22 @@ class StopDance(Tool):
         return {"status": "stopped dance and cleared queue"}
 
 
+def get_available_emotions_and_descriptions():
+    """Get formatted list of available emotions with descriptions."""
+    names = RECORDED_MOVES.list_moves()
+
+    ret = """
+    Available emotions:
+
+    """
+
+    for name in names:
+        description = RECORDED_MOVES.get(name).description
+        ret += f" - {name}: {description}\n"
+
+    return ret
+
+
 class PlayEmotion(Tool):
     name = "play_emotion"
     description = "Play a pre-recorded emotion"
@@ -444,7 +482,10 @@ class PlayEmotion(Tool):
         "properties": {
             "emotion": {
                 "type": "string",
-                "description": "Name of the emotion to play",
+                "description": f"""Name of the emotion to play.
+                                    Here is a list of the available emotions:
+                                    {get_available_emotions_and_descriptions()}
+                                    """,
             },
         },
         "required": ["emotion"],
