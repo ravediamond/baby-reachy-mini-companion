@@ -1,5 +1,7 @@
 import argparse
 import asyncio
+import logging
+import warnings
 from threading import Thread
 
 from reachy_mini.utils.camera import find_camera
@@ -23,6 +25,9 @@ def parse_args():
     parser.add_argument(
         "--headless", default=False, action="store_true", help="Run in headless mode"
     )
+    parser.add_argument(
+        "--debug", default=False, action="store_true", help="Enable debug logging"
+    )
     return parser.parse_args()
 
 
@@ -40,7 +45,6 @@ def handle_vision_stuff(args, current_robot):
 
             camera = cv2.VideoCapture(0)
 
-        print("camera", camera)
         if args.head_tracker is not None:
             if args.head_tracker == "yolo":
                 from reachy_mini_conversation_demo.vision.yolo_head_tracker import (
@@ -54,15 +58,13 @@ def handle_vision_stuff(args, current_robot):
 
                 head_tracker = HeadTracker()
 
-        print("head tracker", head_tracker)
-
         camera_worker = CameraWorker(camera, current_robot, head_tracker)
 
     return camera, camera_worker, head_tracker, vision_manager
 
 
 class AioTaskThread:
-    """Lance UNE coroutine dans son propre thread + event loop."""
+    """Runs a single coroutine in its own thread and event loop."""
 
     def __init__(self, coro_fn, *args, **kwargs):
         self.coro_fn = coro_fn
@@ -94,3 +96,28 @@ class AioTaskThread:
 
     def join(self):
         self.thread.join()
+
+
+def setup_logger(debug):
+    """Setups the logger."""
+    log_level = "DEBUG" if debug else "INFO"
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s:%(lineno)d | %(message)s",
+    )
+    logger = logging.getLogger(__name__)
+
+    # Suppress WebRTC warnings
+    warnings.filterwarnings("ignore", message=".*AVCaptureDeviceTypeExternal.*")
+    warnings.filterwarnings("ignore", category=UserWarning, module="aiortc")
+
+    # Tame third-party noise (looser in DEBUG)
+    if log_level == "DEBUG":
+        logging.getLogger("aiortc").setLevel(logging.INFO)
+        logging.getLogger("fastrtc").setLevel(logging.INFO)
+        logging.getLogger("aioice").setLevel(logging.INFO)
+    else:
+        logging.getLogger("aiortc").setLevel(logging.ERROR)
+        logging.getLogger("fastrtc").setLevel(logging.ERROR)
+        logging.getLogger("aioice").setLevel(logging.WARNING)
+    return logger

@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import logging
 import time
 from datetime import datetime
 
@@ -13,6 +14,8 @@ from reachy_mini_conversation_demo.tools import (
     ToolDependencies,
     dispatch_tool_call,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpenaiRealtimeHandler(AsyncStreamHandler):
@@ -64,28 +67,26 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             # Manage event received from the openai server
             self.connection = conn
             async for event in self.connection:
-                # print(f"[DEBUG] OpenAI event: {event.type}")
+                logger.debug(f"OpenAI event: {event.type}")
                 if event.type == "input_audio_buffer.speech_started":
                     self.clear_queue()
                     self.deps.head_wobbler.reset()
-                    print("[DEBUG] user speech started")
+                    logger.debug("user speech started")
 
                 if event.type == "input_audio_buffer.speech_stopped":
-                    print("[DEBUG] user speech stopped")
-                    pass
+                    logger.debug("user speech stopped")
 
                 if event.type in ("response.audio.completed", "response.completed"):
                     # Doesn't seem to be called
-                    print("[DEBUG] response completed")
+                    logger.debug("response completed")
                     self.deps.head_wobbler.reset()
 
                 if event.type == "response.created":
-                    print("[DEBUG] response created")
-                    pass
+                    logger.debug("response created")
 
                 if event.type == "response.done":
                     # Doesn't mean the audio is done playing
-                    print("[DEBUG] response done")
+                    logger.debug("response done")
                     pass
                     # self.deps.head_wobbler.reset()
 
@@ -107,8 +108,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type == "response.audio.delta":
                     self.deps.head_wobbler.feed(event.delta)
                     self.last_activity_time = asyncio.get_event_loop().time()
-                    print(
-                        "[DEBUG] last activity time updated to", self.last_activity_time
+                    logger.debug(
+                        "last activity time updated to %s", self.last_activity_time
                     )
                     await self.output_queue.put(
                         (
@@ -152,10 +153,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         tool_result = await dispatch_tool_call(
                             tool_name, args_json_str, self.deps
                         )
-                        print("[Tool %s executed]", tool_name)
-                        print("Tool result: %s", tool_result)
+                        logger.debug("[Tool %s executed]", tool_name)
+                        logger.debug("Tool result: %s", tool_result)
                     except Exception as e:
-                        print("Tool %s failed", tool_name)
+                        logger.error("Tool %s failed", tool_name)
                         tool_result = {"error": str(e)}
 
                     # send the tool result back
@@ -199,7 +200,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type == "error":
                     err = getattr(event, "error", None)
                     msg = getattr(err, "message", str(err) if err else "unknown error")
-                    print("Realtime error: %s (raw=%s)", msg, err)
+                    logger.error("Realtime error: %s (raw=%s)", msg, err)
                     await self.output_queue.put(
                         AdditionalOutputs(
                             {"role": "assistant", "content": f"[error] {msg}"}
@@ -248,11 +249,11 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
     async def send_idle_signal(self, idle_duration) -> None:
         """Send an idle signal to the openai server."""
-        print("[DEBUG] Sending idle signal")
+        logger.debug("Sending idle signal")
         self.is_idle_tool_call = True
         timestamp_msg = f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] You've been idle for a while. Feel free to get creative - dance, show an emotion, look around, do nothing, or just be yourself!"
         if not self.connection:
-            print("[DEBUG] No connection, cannot send idle signal")
+            logger.debug("No connection, cannot send idle signal")
             return
         await self.connection.conversation.item.create(
             item={

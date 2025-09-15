@@ -454,9 +454,6 @@ class MovementManager:
                 logger.debug(
                     f"Loop freq - Actual: {actual_freq:.1f}Hz, Potential: {potential_freq:.1f}Hz, Target: {self.target_frequency:.1f}Hz"
                 )
-                print(
-                    f"Loop freq - Actual: {actual_freq:.1f}Hz, Potential: {potential_freq:.1f}Hz, Target: {self.target_frequency:.1f}Hz"
-                )
                 last_print_time = current_time
 
             await asyncio.sleep(sleep_time)

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import logging
 from asyncio import QueueEmpty
 from typing import Optional
 
@@ -9,16 +10,14 @@ from reachy_mini_conversation_demo.audio.speech_tapper import HOP_MS, SwayRollRT
 
 SAMPLE_RATE = 24000
 MOVEMENT_LATENCY_S = 0.08  # seconds between audio and robot movement
+logger = logging.getLogger(__name__)
 
 
 class HeadWobbler:
-    """
-    - feed() peut être appelé depuis n'importe quel thread.
-    - consumer() tourne dans SON thread/loop.
-    - Les offsets sont appliqués sur la loop "mouvement" via call_soon_threadsafe.
-    """
+    """Converts audio deltas (base64) into head movement offsets."""
 
     def __init__(self, set_offsets):
+        """Initialize the head wobbler."""
         self._apply_offsets = set_offsets
         self._base_ts: Optional[float] = None
         self._hops_done: int = 0
@@ -34,11 +33,12 @@ class HeadWobbler:
         consumer_loop: asyncio.AbstractEventLoop,
         movement_loop: asyncio.AbstractEventLoop,
     ) -> None:
+        """Bind the event loops for thread-safe communication."""
         self._consumer_loop = consumer_loop
         self._movement_loop = movement_loop
 
     def feed(self, delta_b64: str) -> None:
-        """Thread-safe: push audio dans la queue du consumer."""
+        """Thread-safe: push audio into the consumer queue."""
         buf = np.frombuffer(base64.b64decode(delta_b64), dtype=np.int16).reshape(1, -1)
         if self._consumer_loop is None:
             return
@@ -48,7 +48,7 @@ class HeadWobbler:
         )
 
     async def enable(self, stop_event: asyncio.Event) -> None:
-        """Convertit les chunks audio en poses temps-réel."""
+        """Convert audio deltas into head movement offsets."""
         hop_dt = HOP_MS / 1000.0
         loop = asyncio.get_running_loop()
         self._consumer_loop = loop
@@ -102,6 +102,7 @@ class HeadWobbler:
                 i += 1
 
     def drain_audio_queue(self) -> None:
+        """Empty the audio queue."""
         try:
             while True:
                 self.audio_queue.get_nowait()
@@ -109,6 +110,7 @@ class HeadWobbler:
             pass
 
     def reset(self) -> None:
+        """Reset the internal state."""
         self.drain_audio_queue()
         self._base_ts = None
         self._hops_done = 0
