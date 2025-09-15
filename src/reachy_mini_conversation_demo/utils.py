@@ -20,6 +20,9 @@ def parse_args():
     parser.add_argument(
         "--no-camera", default=False, action="store_true", help="Disable camera usage"
     )
+    parser.add_argument(
+        "--headless", default=False, action="store_true", help="Run in headless mode"
+    )
     return parser.parse_args()
 
 
