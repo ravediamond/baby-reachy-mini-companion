@@ -34,6 +34,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
         self.last_activity_time = asyncio.get_event_loop().time()
         self.start_time = asyncio.get_event_loop().time()
+        self.is_idle_tool_call = False
 
     def copy(self):
         """Create a copy of the handler."""
@@ -180,11 +181,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                             }
                         )
 
-                    await self.connection.response.create(
-                        response={
-                            "instructions": "Use the tool result just returned and answer concisely in speech."
-                        }
-                    )
+                    if not self.is_idle_tool_call:
+                        await self.connection.response.create(
+                            response={
+                                "instructions": "Use the tool result just returned and answer concisely in speech."
+                            }
+                        )
+                    else:
+                        self.is_idle_tool_call = False
 
                     # re synchronize the head wobble after a tool call that may have taken some time
                     self.deps.head_wobbler.reset()
@@ -245,7 +249,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
     async def send_idle_signal(self, idle_duration) -> None:
         """Send an idle signal to the openai server."""
         print("[DEBUG] Sending idle signal")
-
+        self.is_idle_tool_call = True
         timestamp_msg = f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] You've been idle for a while. Feel free to get creative - dance, show an emotion, look around, do nothing, or just be yourself!"
         if not self.connection:
             print("[DEBUG] No connection, cannot send idle signal")
