@@ -178,6 +178,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         }
                     )
 
+                    # re synchronize the head wobble after a tool call that may have taken some time
+                    self.deps.head_wobbler.reset()
                     # cleanup
                     self._pending_calls.pop(call_id, None)
 

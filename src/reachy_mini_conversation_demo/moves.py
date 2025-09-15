@@ -1,5 +1,4 @@
-"""
-Movement system with sequential primary moves and additive secondary moves.
+"""Movement system with sequential primary moves and additive secondary moves.
 
 This module implements the movement architecture from main_works.py:
 - Primary moves (sequential): emotions, dances, goto, breathing
@@ -48,6 +47,7 @@ class BreathingMove(Move):
             interpolation_start_pose: 4x4 matrix of current head pose to interpolate from
             interpolation_start_antennas: Current antenna positions to interpolate from
             interpolation_duration: Duration of interpolation to neutral (seconds)
+
         """
         self.interpolation_start_pose = interpolation_start_pose
         self.interpolation_start_antennas = np.array(interpolation_start_antennas)
@@ -120,6 +120,7 @@ def combine_full_body(
 
     Returns:
         Combined full body pose (head_pose, antennas, body_yaw)
+
     """
     primary_head, primary_antennas, primary_body_yaw = primary_pose
     secondary_head, secondary_antennas, secondary_body_yaw = secondary_pose
@@ -142,7 +143,7 @@ def combine_full_body(
 
 @dataclass
 class MovementState:
-    """State tracking for the movement system"""
+    """State tracking for the movement system."""
 
     # Primary move state
     current_move: Optional[Move] = None
@@ -176,13 +177,13 @@ class MovementState:
     is_moving: bool = False
 
     def update_activity(self) -> None:
-        """Update the last activity time"""
+        """Update the last activity time."""
         self.last_activity_time = time.time()
 
 
 class MovementManager:
-    """
-    Enhanced movement manager that reproduces main_works.py behavior:
+    """Enhanced movement manager that reproduces main_works.py behavior.
+
     - Sequential primary moves via queue
     - Additive secondary moves (speech + face tracking)
     - Single set_target control loop with pose fusion
@@ -214,7 +215,7 @@ class MovementManager:
         self.target_period = 1.0 / self.target_frequency
 
     def queue_move(self, move: Move) -> None:
-        """Add a move to the primary move queue"""
+        """Add a move to the primary move queue."""
         self.move_queue.append(move)
         self.state.update_activity()
         logger.info(
@@ -222,7 +223,7 @@ class MovementManager:
         )
 
     def clear_queue(self) -> None:
-        """Clear all queued moves and stop current move"""
+        """Clear all queued moves and stop current move."""
         self.move_queue.clear()
         self.state.current_move = None
         self.state.move_start_time = None
@@ -232,29 +233,29 @@ class MovementManager:
     def set_speech_offsets(
         self, offsets: Tuple[float, float, float, float, float, float]
     ) -> None:
-        """Set speech head offsets (secondary move)"""
+        """Set speech head offsets (secondary move)."""
         self.state.speech_offsets = offsets
 
     def set_offsets(
         self, offsets: Tuple[float, float, float, float, float, float]
     ) -> None:
-        """Compatibility alias for set_speech_offsets"""
+        """Compatibility alias for set_speech_offsets."""
         self.set_speech_offsets(offsets)
 
     def set_face_tracking_offsets(
         self, offsets: Tuple[float, float, float, float, float, float]
     ) -> None:
-        """Set face tracking offsets (secondary move)"""
+        """Set face tracking offsets (secondary move)."""
         self.state.face_tracking_offsets = offsets
 
     def set_moving_state(self, duration: float) -> None:
-        """Set legacy moving state for goto moves"""
+        """Set legacy moving state for goto moves."""
         self.state.moving_start = time.time()
         self.state.moving_for = duration
         self.state.update_activity()
 
     def _manage_move_queue(self, current_time: float) -> None:
-        """Manage the primary move queue (sequential execution)"""
+        """Manage the primary move queue (sequential execution)."""
         # Check if current move is finished
         if self.state.current_move is None or (
             self.state.move_start_time is not None
@@ -273,7 +274,7 @@ class MovementManager:
                 )
 
     def _manage_breathing(self, current_time: float) -> None:
-        """Manage automatic breathing when idle"""
+        """Manage automatic breathing when idle."""
         # Start breathing after inactivity delay if no moves in queue
         if self.state.current_move is None and not self.move_queue:
             time_since_activity = current_time - self.state.last_activity_time
@@ -309,7 +310,7 @@ class MovementManager:
             logger.info("Stopping breathing due to new move activity")
 
     def _get_primary_pose(self, current_time: float) -> FullBodyPose:
-        """Get the primary full body pose from current move or neutral"""
+        """Get the primary full body pose from current move or neutral."""
         if (
             self.state.current_move is not None
             and self.state.move_start_time is not None
@@ -345,7 +346,7 @@ class MovementManager:
         return primary_full_body_pose
 
     def _get_secondary_pose(self) -> FullBodyPose:
-        """Get the secondary full body pose from speech and face tracking offsets"""
+        """Get the secondary full body pose from speech and face tracking offsets."""
         # Combine speech sway offsets + face tracking offsets for secondary pose
         secondary_offsets = [
             self.state.speech_offsets[0] + self.state.face_tracking_offsets[0],  # x
@@ -369,7 +370,7 @@ class MovementManager:
         return (secondary_head_pose, (0, 0), 0)
 
     def _update_face_tracking(self, current_time: float) -> None:
-        """Get face tracking offsets from camera worker thread"""
+        """Get face tracking offsets from camera worker thread."""
         if self.camera_worker is not None:
             # Get face tracking offsets from camera worker thread
             self.state.face_tracking_offsets = (
@@ -380,15 +381,15 @@ class MovementManager:
             self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     def set_neutral(self) -> None:
-        """Set neutral robot position"""
+        """Set neutral robot position."""
         self.state.speech_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
         self.current_robot.set_target(head=neutral_head_pose, antennas=(0.0, 0.0))
 
     async def enable(self, stop_event: asyncio.Event) -> None:
-        """
-        Main movement control loop - reproduces main_works.py control architecture.
+        """Main movement control loop - reproduces main_works.py control architecture.
+
         Single set_target() call with pose fusion.
         """
         logger.info("Starting enhanced movement control loop (50Hz)")

@@ -1,9 +1,9 @@
 import asyncio
 import base64
-from asyncio.queues import QueueEmpty
+from asyncio import QueueEmpty
+from typing import Optional
 
 import numpy as np
-from pyparsing import Optional
 
 from reachy_mini_conversation_demo.audio.speech_tapper import HOP_MS, SwayRollRT
 
@@ -12,35 +12,56 @@ MOVEMENT_LATENCY_S = 0.08  # seconds between audio and robot movement
 
 
 class HeadWobbler:
+    """
+    - feed() peut être appelé depuis n'importe quel thread.
+    - consumer() tourne dans SON thread/loop.
+    - Les offsets sont appliqués sur la loop "mouvement" via call_soon_threadsafe.
+    """
+
     def __init__(self, set_offsets):
-        self.set_offsets = set_offsets
-        self._base_ts = None
+        self._apply_offsets = set_offsets
+        self._base_ts: Optional[float] = None
         self._hops_done: int = 0
 
-        self.audio_queue = asyncio.Queue()
+        self.audio_queue: asyncio.Queue = asyncio.Queue()
         self.sway = SwayRollRT()
-        self.task = asyncio.create_task(self.consumer())
 
-    def feed(self, delta_b64):
+        self._consumer_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._movement_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def bind_loops(
+        self,
+        consumer_loop: asyncio.AbstractEventLoop,
+        movement_loop: asyncio.AbstractEventLoop,
+    ) -> None:
+        self._consumer_loop = consumer_loop
+        self._movement_loop = movement_loop
+
+    def feed(self, delta_b64: str) -> None:
+        """Thread-safe: push audio dans la queue du consumer."""
         buf = np.frombuffer(base64.b64decode(delta_b64), dtype=np.int16).reshape(1, -1)
-        self.audio_queue.put_nowait((SAMPLE_RATE, buf))
+        if self._consumer_loop is None:
+            return
+        asyncio.run_coroutine_threadsafe(
+            self.audio_queue.put((SAMPLE_RATE, buf)),
+            self._consumer_loop,
+        )
 
-    async def consumer(self):
-        """Convert streaming audio chunks into head-offset poses at precise times."""
+    async def enable(self, stop_event: asyncio.Event) -> None:
+        """Convertit les chunks audio en poses temps-réel."""
         hop_dt = HOP_MS / 1000.0
         loop = asyncio.get_running_loop()
+        self._consumer_loop = loop
 
-        while True:
-            # print len of audio queue
+        while not stop_event.is_set():
+            # log simple pour debug
             print("Audio queue length:", self.audio_queue.qsize())
 
-            sr, chunk = await self.audio_queue.get()  # (1,N), int16
-
+            sr, chunk = await self.audio_queue.get()  # (1,N) int16
             pcm = np.asarray(chunk).squeeze(0)
-            results = self.sway.feed(pcm, sr)  # list of dicts with keys x_mm..yaw_rad
+            results = self.sway.feed(pcm, sr)
 
             if self._base_ts is None:
-                # anchor when first audio samples of this utterance arrive
                 self._base_ts = loop.time()
 
             i = 0
@@ -52,23 +73,18 @@ class HeadWobbler:
                 target = self._base_ts + MOVEMENT_LATENCY_S + self._hops_done * hop_dt
                 now = loop.time()
 
-                # if late by ≥1 hop, drop poses to catch up (no drift accumulation)
                 if now - target >= hop_dt:
                     lag_hops = int((now - target) / hop_dt)
-                    drop = min(
-                        lag_hops, len(results) - i - 1
-                    )  # keep at least one to show
+                    drop = min(lag_hops, len(results) - i - 1)
                     if drop > 0:
                         self._hops_done += drop
                         i += drop
                         continue
 
-                # if early, wait
                 if target > now:
                     await asyncio.sleep(target - now)
 
                 r = results[i]
-                # meters + radians
                 offsets = (
                     r["x_mm"] / 1000.0,
                     r["y_mm"] / 1000.0,
@@ -77,18 +93,25 @@ class HeadWobbler:
                     r["pitch_rad"],
                     r["yaw_rad"],
                 )
-                self.set_offsets(offsets)
+
+                if self._movement_loop:
+                    self._movement_loop.call_soon_threadsafe(
+                        self._apply_offsets, offsets
+                    )
+                else:
+                    self._apply_offsets(offsets)
+
                 self._hops_done += 1
                 i += 1
 
-    def drain_audio_queue(self):
+    def drain_audio_queue(self) -> None:
         try:
             while True:
                 self.audio_queue.get_nowait()
         except QueueEmpty:
             pass
 
-    def reset(self):
+    def reset(self) -> None:
         self.drain_audio_queue()
         self._base_ts = None
         self._hops_done = 0
