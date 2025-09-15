@@ -1,3 +1,4 @@
+import logging
 from threading import Thread
 
 from fastrtc import Stream
@@ -11,11 +12,15 @@ from reachy_mini_conversation_demo.utils import (
     AioTaskThread,
     handle_vision_stuff,
     parse_args,
+    setup_logger,
 )
 
 
 def main():
     args = parse_args()
+
+    logger = setup_logger(args.debug)
+    
     robot = ReachyMini()
 
     camera, camera_worker, head_tracker, vision_manager = handle_vision_stuff(
