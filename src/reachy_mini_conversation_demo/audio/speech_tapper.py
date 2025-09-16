@@ -3,7 +3,8 @@ from __future__ import annotations
 import math
 from collections import deque
 from itertools import islice
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 import numpy as np
 
 # Tunables
@@ -66,8 +67,7 @@ def _loudness_gain(db: float, offset: float = SENS_DB_OFFSET) -> float:
 
 
 def _to_float32_mono(x: np.ndarray) -> np.ndarray:
-    """
-    Convert arbitrary PCM array to float32 mono in [-1,1].
+    """Convert arbitrary PCM array to float32 mono in [-1,1].
     Accepts shapes: (N,), (1,N), (N,1), (C,N), (N,C).
     """
     a = np.asarray(x)
@@ -161,12 +161,12 @@ class SwayRollRT:
         self.phase_z = float(rng.random() * 2 * math.pi)
 
     def feed(self, pcm: np.ndarray, sr: Optional[int]) -> List[Dict[str, float]]:
-        """
-        Stream in PCM chunk. Returns a list of sway dicts, one per hop (HOP_MS).
+        """Stream in PCM chunk. Returns a list of sway dicts, one per hop (HOP_MS).
 
         Args:
             pcm: np.ndarray, shape (N,) or (C,N)/(N,C); int or float.
             sr:  sample rate of `pcm` (None -> assume SR).
+
         """
         sr_in = SR if sr is None else int(sr)
         x = _to_float32_mono(pcm)

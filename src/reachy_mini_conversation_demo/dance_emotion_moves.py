@@ -1,5 +1,4 @@
-"""
-Dance and emotion moves for the movement queue system.
+"""Dance and emotion moves for the movement queue system.
 
 This module implements dance moves and emotions as Move objects that can be queued
 and executed sequentially by the MovementManager.
@@ -10,11 +9,9 @@ import logging
 from typing import Tuple
 
 import numpy as np
-from reachy_mini_dances_library.dance_move import DanceMove
-from reachy_mini.motion.recorded_move import RecordedMoves
 from reachy_mini.motion.move import Move
-
-from reachy_mini_conversation_demo.moves import FullBodyPose
+from reachy_mini.motion.recorded_move import RecordedMoves
+from reachy_mini_dances_library.dance_move import DanceMove
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +102,8 @@ class GotoQueueMove(Move):
     def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
         """Evaluate goto move at time t using linear interpolation"""
         try:
-            from reachy_mini.utils.interpolation import linear_pose_interpolation
             from reachy_mini.utils import create_head_pose
+            from reachy_mini.utils.interpolation import linear_pose_interpolation
             
             # Clamp t to [0, 1] for interpolation
             t_clamped = max(0, min(1, t / self.duration))

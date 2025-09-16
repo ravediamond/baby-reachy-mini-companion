@@ -17,13 +17,16 @@ from dotenv import load_dotenv
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, Stream, wait_for_item
 from openai import OpenAI
 from reachy_mini import ReachyMini
-from reachy_mini_dances_library.dance_move import DanceMove
-from reachy_mini_dances_library.collection.dance import AVAILABLE_MOVES
 from reachy_mini.motion.goto import GotoMove
 from reachy_mini.motion.recorded_move import RecordedMoves
 from reachy_mini.utils import create_head_pose
 from reachy_mini.utils.camera import find_camera
-from reachy_mini.utils.interpolation import linear_pose_interpolation, compose_world_offset
+from reachy_mini.utils.interpolation import (
+    compose_world_offset,
+    linear_pose_interpolation,
+)
+from reachy_mini_dances_library.collection.dance import AVAILABLE_MOVES
+from reachy_mini_dances_library.dance_move import DanceMove
 from reachy_mini_toolbox.vision import HeadTracker
 from scipy.spatial.transform import Rotation as R
 
@@ -44,6 +47,7 @@ class BreathingMove:
             interpolation_start_pose: 4x4 matrix of current head pose to interpolate from
             interpolation_start_antennas: Current antenna positions to interpolate from  
             interpolation_duration: Duration of interpolation to neutral (seconds)
+
         """
         self.interpolation_start_pose = interpolation_start_pose
         self.interpolation_start_antennas = np.array(interpolation_start_antennas)
@@ -224,6 +228,7 @@ def combine_full_body(primary_pose, secondary_pose):
         
     Returns:
         Combined full body pose (head_pose, antennas, body_yaw)
+
     """
     primary_head, primary_antennas, primary_body_yaw = primary_pose
     secondary_head, secondary_antennas, secondary_body_yaw = secondary_pose
@@ -716,10 +721,10 @@ class OpenAIHandler(AsyncStreamHandler):
         while True:
             await asyncio.sleep(5)  # Check every 5 seconds
 
-            print(f"[DEBUG] Idle checker running...")
+            print("[DEBUG] Idle checker running...")
 
             if not self.connection:
-                print(f"[DEBUG] No connection, skipping...")
+                print("[DEBUG] No connection, skipping...")
                 continue
 
             current_time = time.time()
@@ -781,7 +786,7 @@ class OpenAIHandler(AsyncStreamHandler):
                 # Reset activity timer to avoid spam
                 self._last_activity_time = current_time
             else:
-                print(f"[DEBUG] Idle conditions not met")
+                print("[DEBUG] Idle conditions not met")
 
     async def start_up(self):
         global last_activity_time

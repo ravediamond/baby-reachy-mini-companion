@@ -10,13 +10,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
 import cv2
-import numpy as np
 from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
 
-from reachy_mini_conversation_demo.vision.processors import VisionManager
+# from reachy_mini_conversation_demo.vision.processors import VisionManager
 
 logger = logging.getLogger(__name__)
+
+ENABLE_FACE_RECOGNITION = False
 
 # Initialize dance and emotion libraries
 try:
@@ -40,17 +41,19 @@ except ImportError as e:
     DANCE_AVAILABLE = False
     EMOTION_AVAILABLE = False
 
-# Initialize face recognition
-try:
-    from deepface import DeepFace
+FACE_RECOGNITION_AVAILABLE = False
+if ENABLE_FACE_RECOGNITION:
+    # Initialize face recognition
+    try:
+        from deepface import DeepFace
 
-    FACE_RECOGNITION_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"DeepFace not available: {e}")
-    FACE_RECOGNITION_AVAILABLE = False
+        FACE_RECOGNITION_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"DeepFace not available: {e}")
 
 
 def all_concrete_subclasses(base):
+    """Recursively find all concrete (non-abstract) subclasses of a base class."""
     result = []
     for cls in base.__subclasses__():
         if not inspect.isabstract(cls):
@@ -66,14 +69,14 @@ Direction = Literal["left", "right", "up", "down", "front"]
 
 @dataclass
 class ToolDependencies:
-    """External dependencies injected into tools"""
+    """External dependencies injected into tools."""
 
     reachy_mini: ReachyMini
     movement_manager: Any  # MovementManager from moves.py
     # Optional deps
     camera: Optional[cv2.VideoCapture] = None
     camera_worker: Optional[Any] = None  # CameraWorker for frame buffering
-    vision_manager: Optional[VisionManager] = None
+    vision_manager: Optional[Any] = None
     head_wobbler: Optional[Any] = None  # HeadWobbler for audio-reactive motion
     camera_retry_attempts: int = 5
     camera_retry_delay_s: float = 0.10
@@ -101,8 +104,7 @@ def _execute_motion(deps: ToolDependencies, target: Any) -> Dict[str, Any]:
 
 # Tool base class
 class Tool(abc.ABC):
-    """
-    Base abstraction for tools used in function-calling.
+    """Base abstraction for tools used in function-calling.
 
     Each tool must define:
       - name: str
@@ -133,6 +135,8 @@ class Tool(abc.ABC):
 
 
 class MoveHead(Tool):
+    """Move head in a given direction."""
+
     name = "move_head"
     description = "Move your head in a given direction: left, right, up, down or front."
     parameters_schema = {
@@ -156,6 +160,7 @@ class MoveHead(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Move head in a given direction."""
         direction: Direction = kwargs.get("direction")
         logger.info("Tool call: move_head direction=%s", direction)
 
@@ -197,6 +202,8 @@ class MoveHead(Tool):
 
 
 class Camera(Tool):
+    """Take a picture with the camera and ask a question about it."""
+
     name = "camera"
     description = "Take a picture with the camera and ask a question about it."
     parameters_schema = {
@@ -211,6 +218,7 @@ class Camera(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Take a picture with the camera and ask a question about it."""
         image_query = (kwargs.get("question") or "").strip()
         if not image_query:
             logger.warning("camera: empty question")
@@ -254,6 +262,8 @@ class Camera(Tool):
 
 
 class HeadTracking(Tool):
+    """Toggle head tracking state."""
+
     name = "head_tracking"
     description = "Toggle head tracking state."
     parameters_schema = {
@@ -263,6 +273,7 @@ class HeadTracking(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Enable or disable head tracking."""
         enable = bool(kwargs.get("start"))
 
         # Update camera worker head tracking state
@@ -370,6 +381,8 @@ class HeadTracking(Tool):
 
 
 class Dance(Tool):
+    """Play a named or random dance move once (or repeat). Non-blocking."""
+
     name = "dance"
     description = "Play a named or random dance move once (or repeat). Non-blocking."
     parameters_schema = {
@@ -410,6 +423,7 @@ class Dance(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Play a named or random dance move once (or repeat). Non-blocking."""
         if not DANCE_AVAILABLE:
             return {"error": "Dance system not available"}
 
@@ -438,6 +452,8 @@ class Dance(Tool):
 
 
 class StopDance(Tool):
+    """Stop the current dance move."""
+
     name = "stop_dance"
     description = "Stop the current dance move"
     parameters_schema = {
@@ -452,6 +468,7 @@ class StopDance(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Stop the current dance move."""
         logger.info("Tool call: stop_dance")
         movement_manager = deps.movement_manager
         movement_manager.clear_queue()
@@ -475,6 +492,8 @@ def get_available_emotions_and_descriptions():
 
 
 class PlayEmotion(Tool):
+    """Play a pre-recorded emotion."""
+
     name = "play_emotion"
     description = "Play a pre-recorded emotion"
     parameters_schema = {
@@ -492,6 +511,7 @@ class PlayEmotion(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Play a pre-recorded emotion."""
         if not EMOTION_AVAILABLE:
             return {"error": "Emotion system not available"}
 
@@ -522,6 +542,8 @@ class PlayEmotion(Tool):
 
 
 class StopEmotion(Tool):
+    """Stop the current emotion."""
+
     name = "stop_emotion"
     description = "Stop the current emotion"
     parameters_schema = {
@@ -536,6 +558,7 @@ class StopEmotion(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Stop the current emotion."""
         logger.info("Tool call: stop_emotion")
         movement_manager = deps.movement_manager
         movement_manager.clear_queue()
@@ -543,6 +566,8 @@ class StopEmotion(Tool):
 
 
 class FaceRecognition(Tool):
+    """Get the name of the person you are talking to."""
+
     name = "get_person_name"
     description = "Get the name of the person you are talking to"
     parameters_schema = {
@@ -557,6 +582,7 @@ class FaceRecognition(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Get the name of the person you are talking to."""
         if not FACE_RECOGNITION_AVAILABLE:
             return {"error": "Face recognition not available"}
 
@@ -602,6 +628,8 @@ class FaceRecognition(Tool):
 
 
 class DoNothing(Tool):
+    """Choose to do nothing - stay still and silent. Use when you want to be contemplative or just chill."""
+
     name = "do_nothing"
     description = "Choose to do nothing - stay still and silent. Use when you want to be contemplative or just chill."
     parameters_schema = {
@@ -616,13 +644,14 @@ class DoNothing(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs) -> Dict[str, Any]:
+        """Do nothing - stay still and silent."""
         reason = kwargs.get("reason", "just chilling")
         logger.info("Tool call: do_nothing reason=%s", reason)
         return {"status": "doing nothing", "reason": reason}
 
 
 def get_available_emotions_and_descriptions() -> str:
-    """Get formatted list of available emotions with descriptions"""
+    """Get formatted list of available emotions with descriptions."""
     if not EMOTION_AVAILABLE:
         return "Emotions not available"
 
@@ -657,6 +686,7 @@ def _safe_load_obj(args_json: str) -> dict[str, Any]:
 async def dispatch_tool_call(
     tool_name: str, args_json: str, deps: ToolDependencies
 ) -> Dict[str, Any]:
+    """Dispatch a tool call by name with JSON args and dependencies."""
     tool = ALL_TOOLS.get(tool_name)
 
     if not tool:

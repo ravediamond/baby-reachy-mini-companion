@@ -1,328 +1,86 @@
-from __future__ import annotations
+from threading import Thread
 
-import asyncio
-import logging
-import argparse
-import warnings
-
-from fastrtc import AdditionalOutputs
-
+from fastrtc import Stream
 from reachy_mini import ReachyMini
-from reachy_mini.utils import create_head_pose
 
-from reachy_mini_conversation_demo.config import config
-from reachy_mini_conversation_demo.vision.yolo_head_tracker import (
-    HeadTracker as YoloHeadTracker,
-)
-from reachy_mini_toolbox.vision import HeadTracker as MediapipeHeadTracker
-from reachy_mini_conversation_demo.openai_realtime import OpenAIRealtimeHandler
-from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
-from reachy_mini_conversation_demo.tools import (
-    ToolDependencies,
-)
-from reachy_mini_conversation_demo.audio.audio_sway import AudioSync, AudioConfig
+from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
 from reachy_mini_conversation_demo.moves import MovementManager
-from reachy_mini_conversation_demo.audio.gstreamer import GstPlayer, GstRecorder
-from reachy_mini_conversation_demo.vision.processors import (
-    VisionManager,
-    init_vision,
-)
-from reachy_mini.utils.camera import find_camera
-from reachy_mini_conversation_demo.camera_worker import CameraWorker
-
-# Command-line arguments
-parser = argparse.ArgumentParser(description="Reachy Mini Conversation Demo")
-parser.add_argument("--sim", action="store_true", help="Run in simulation mode")
-parser.add_argument("--vision", action="store_true", help="Enable vision")
-# parser.add_argument("--head-tracking", action="store_true", help="Enable head tracking")
-parser.add_argument(
-    "--head-tracker",
-    choices=["yolo", "mediapipe", None],
-    default="mediapipe",
-    help="Choose head tracker (default: mediapipe)",
-)
-parser.add_argument(
-    "--vision-provider",
-    choices=["openai", "local"],
-    default="local",
-    help="Choose vision provider (default: local)",
-)
-parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-parser.add_argument(
-    "--no-interruptions",
-    action="store_true",
-    default=False,
-    help="Disable the ability for the user to interrupt Reachy while it is speaking",
-)
-args = parser.parse_args()
-
-# Config values
-SAMPLE_RATE = 24000  # TODO: hardcoded, should it stay like this?
-MODEL_NAME = config.MODEL_NAME
-API_KEY = config.OPENAI_API_KEY
-
-# Default values (vision disabled by default, head tracking enabled by default)
-SIM = args.sim
-VISION_ENABLED = args.vision  # Vision disabled by default, enabled with --vision
-HEAD_TRACKING_ENABLED = args.head_tracker is not None
-LOG_LEVEL = "DEBUG" if args.debug else "INFO"
-NO_INTERRUPUTIONS = args.no_interruptions
-
-# logging
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s:%(lineno)d | %(message)s",
-)
-logger = logging.getLogger(__name__)
-logger.info(
-    "Runtime toggles: SIM=%s VISION_ENABLED=%s HEAD_TRACKING=%s LOG_LEVEL=%s",
-    SIM,
-    VISION_ENABLED,
-    HEAD_TRACKING_ENABLED,
-    LOG_LEVEL,
+from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
+from reachy_mini_conversation_demo.tools import ToolDependencies
+from reachy_mini_conversation_demo.utils import (
+    AioTaskThread,
+    handle_vision_stuff,
+    parse_args,
+    setup_logger,
 )
 
-# Suppress WebRTC warnings
-warnings.filterwarnings("ignore", message=".*AVCaptureDeviceTypeExternal.*")
-warnings.filterwarnings("ignore", category=UserWarning, module="aiortc")
 
-# Tame third-party noise (looser in DEBUG)
-if LOG_LEVEL == "DEBUG":
-    logging.getLogger("aiortc").setLevel(logging.INFO)
-    logging.getLogger("fastrtc").setLevel(logging.INFO)
-    logging.getLogger("aioice").setLevel(logging.INFO)
-else:
-    logging.getLogger("aiortc").setLevel(logging.ERROR)
-    logging.getLogger("fastrtc").setLevel(logging.ERROR)
-    logging.getLogger("aioice").setLevel(logging.WARNING)
+def main():
+    args = parse_args()
 
-# Key preview in logs
-masked = (API_KEY[:6] + "..." + API_KEY[-4:]) if len(API_KEY) >= 12 else "<short>"
-logger.info("OPENAI_API_KEY loaded (prefix): %s", masked)
+    logger = setup_logger(args.debug)
+    
+    robot = ReachyMini()
 
-
-async def receive_loop(
-    recorder: GstRecorder, openai: OpenAIRealtimeHandler, stop_event: asyncio.Event
-) -> None:
-    logger.info("Starting receive loop")
-    while not stop_event.is_set():
-        data = recorder.get_sample()
-        if data is not None:
-            await openai.receive(data)
-        await asyncio.sleep(0)  # Prevent busy waiting
-
-
-async def emit_loop(
-    player: GstPlayer, openai: OpenAIRealtimeHandler, stop_event: asyncio.Event
-) -> None:
-    while not stop_event.is_set():
-        data = await openai.emit()
-        if isinstance(data, AdditionalOutputs):
-            for msg in data.args:
-                content = msg.get("content", "")
-                logger.info(
-                    "role=%s content=%s",
-                    msg.get("role"),
-                    content if len(content) < 500 else content[:500] + "…",
-                )
-
-        elif isinstance(data, tuple):
-            _, frame = data
-            player.push_sample(frame.tobytes())
-
-        else:
-            pass
-        await asyncio.sleep(0)  # Prevent busy waiting
-
-
-async def control_mic_loop(
-    stop_event: asyncio.Event,
-    robot_is_speaking: asyncio.Event,
-    speaking_queue: asyncio.Queue,
-    audio_sync: AudioSync,
-):
-    # Control mic to prevent echo, blocks mic for given time
-    while not stop_event.is_set():
-        try:
-            block_time = speaking_queue.get_nowait()
-        except asyncio.QueueEmpty:
-            robot_is_speaking.clear()
-            audio_sync.on_response_completed()
-            await asyncio.sleep(0)
-            continue
-
-        await asyncio.sleep(block_time)
-
-
-async def loop():
-    stop_event = asyncio.Event()
-
-    # Initialize camera using same approach as main_works.py
-    camera = None
-    camera_available = False
-
-    if not SIM:
-        camera = find_camera()
-    else:
-        import cv2
-
-        camera = cv2.VideoCapture(0)
-
-    # Check camera availability (same logic as main_works.py)
-    if camera is not None:
-        try:
-            if camera.isOpened():
-                # Test if we can actually read a frame
-                ret, _ = camera.read()
-                if ret:
-                    camera_available = True
-                    logger.info("Camera initialized successfully")
-                else:
-                    logger.warning("Camera opened but cannot read frames")
-            else:
-                logger.warning("Camera failed to open")
-        except Exception as e:
-            logger.warning(f"Camera test failed: {e}")
-    else:
-        logger.warning("No camera found")
-
-    if not camera_available:
-        logger.warning("Face tracking will be disabled - no camera available")
-        camera = None  # Ensure camera is None if not available
-
-    vision_manager: VisionManager | None = None
-    if camera and camera.isOpened() and VISION_ENABLED:
-        processor_type = args.vision_provider
-        vision_manager = init_vision(camera=camera, processor_type=processor_type)
-        logger.info(f"Vision processor type: {processor_type}")
-
-    current_robot = ReachyMini()
-
-    head_tracker = None
-    if HEAD_TRACKING_ENABLED and not SIM:
-        if args.head_tracker == "mediapipe":
-            head_tracker = MediapipeHeadTracker()
-            logger.info("Head tracking enabled with Mediapipe")
-        elif args.head_tracker == "yolo":
-            head_tracker = YoloHeadTracker()
-            logger.info("Head tracking enabled with YOLO")
-    elif HEAD_TRACKING_ENABLED and SIM:
-        logger.warning("Head tracking disabled while in Simulation")
-    else:
-        logger.warning("Head tracking disabled")
-
-    # Initialize camera worker (replaces face tracking in MovementManager)
-    camera_worker = None
-    if camera_available and camera is not None:
-        camera_worker = CameraWorker(camera, current_robot, head_tracker)
-    else:
-        logger.info("Skipping camera worker - no camera available")
+    camera, camera_worker, head_tracker, vision_manager = handle_vision_stuff(
+        args, robot
+    )
 
     movement_manager = MovementManager(
-        current_robot=current_robot,
+        current_robot=robot,
         head_tracker=head_tracker,
         camera=camera,
         camera_worker=camera_worker,
     )
 
-    robot_is_speaking = asyncio.Event()
-    speaking_queue = asyncio.Queue()
+    head_wobbler = HeadWobbler(set_offsets=movement_manager.set_offsets)
 
     deps = ToolDependencies(
-        reachy_mini=current_robot,
-        create_head_pose=create_head_pose,
+        reachy_mini=robot,
         movement_manager=movement_manager,
         camera=camera,
         camera_worker=camera_worker,
         vision_manager=vision_manager,
+        head_wobbler=head_wobbler,
     )
 
-    audio_sync = AudioSync(
-        AudioConfig(output_sample_rate=SAMPLE_RATE),
-        set_offsets=movement_manager.set_offsets,
+    handler = OpenaiRealtimeHandler(deps)
+    stream = Stream(handler=handler, mode="send-receive", modality="audio")
+
+    # UI bloquante → thread standard
+    ui_thread = Thread(target=stream.ui.launch, daemon=True)
+    ui_thread.start()
+
+    # Chaque service async → son propre thread/loop
+    move_thread = AioTaskThread(movement_manager.enable)  # loop A
+    wobbler_thread = AioTaskThread(head_wobbler.enable)  # loop B
+    cam_thread = AioTaskThread(camera_worker.enable) if camera_worker else None
+
+    move_thread.start()
+    wobbler_thread.start()
+    if cam_thread:
+        cam_thread.start()
+
+    # lier les loops pour la communication thread-safe
+    head_wobbler.bind_loops(
+        consumer_loop=wobbler_thread.loop,
+        movement_loop=move_thread.loop,
     )
-
-    openai = OpenAIRealtimeHandler(
-        deps,
-        audio_sync,
-        robot_is_speaking,
-        speaking_queue,
-        no_interruptions=NO_INTERRUPUTIONS,
-    )
-
-    from fastrtc import AdditionalOutputs, AsyncStreamHandler, Stream, wait_for_item
-    from threading import Thread
-    import gradio as gr
-
-    chatbot = gr.Chatbot(type="messages")
-    latest_message = gr.Textbox(type="text", visible=False)
-
-    # ---- gradio / fastrtc wiring unchanged ----
-    def update_chatbot(chatbot: list[dict], response: dict):
-        chatbot.append(response)
-        return chatbot
-
-    stream = Stream(
-        openai,
-        mode="send-receive",
-        modality="audio",
-        additional_inputs=[chatbot],
-        additional_outputs=[chatbot],
-        additional_outputs_handler=update_chatbot,
-    )
-
-    Thread(target=stream.ui.launch, kwargs={"server_port": 7860}).start()
-
-
-    recorder = GstRecorder(sample_rate=SAMPLE_RATE)
-    recorder.record()
-    player = GstPlayer(sample_rate=SAMPLE_RATE)
-    player.play()
-
-    movement_manager.set_neutral()
-    logger.info("Starting main audio loop. You can start to speak")
-
-    tasks = [
-        # asyncio.create_task(openai.start_up(), name="openai"),
-        # asyncio.create_task(emit_loop(player, openai, stop_event), name="emit"),
-        # asyncio.create_task(receive_loop(recorder, openai, stop_event), name="recv"),
-        # asyncio.create_task(
-        #     control_mic_loop(stop_event, robot_is_speaking, speaking_queue, audio_sync),
-        #     name="mic-mute",
-        # ),
-        asyncio.create_task(movement_manager.enable(stop_event), name="move"),
-        asyncio.create_task(camera_worker.enable(stop_event), name="camera-worker"),
-    ]
-    if vision_manager:
-        tasks.append(
-            asyncio.create_task(
-                vision_manager.enable(stop_event=stop_event), name="vision"
-            )
-        )
 
     try:
-        await asyncio.gather(*tasks, return_exceptions=False)
-    except asyncio.CancelledError:
-        logger.info("Shutting down")
-        stop_event.set()
+        ui_thread.join()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        move_thread.request_stop()
+        wobbler_thread.request_stop()
+        if cam_thread:
+            cam_thread.request_stop()
 
-    # Stop camera worker
-    if camera_worker:
-        camera_worker.stop()
-
-    if camera:
-        camera.release()
-
-    await openai.shutdown()
-    movement_manager.set_neutral()
-    recorder.stop()
-    player.stop()
-    current_robot.client.disconnect()
-    logger.info("Stopped, robot disconnected")
-
-
-def main():
-    asyncio.run(loop())
+        move_thread.join()
+        wobbler_thread.join()
+        if cam_thread:
+            cam_thread.join()
 
 
 if __name__ == "__main__":

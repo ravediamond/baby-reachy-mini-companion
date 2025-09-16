@@ -1,25 +1,25 @@
+import asyncio
 import base64
 import logging
 import os
-import time
 import sys
-import asyncio
-from typing import Dict, Any
 import threading
+import time
 from dataclasses import dataclass
+from typing import Any, Dict
 
 import cv2
 import numpy as np
 import torch
-from transformers import AutoModelForImageTextToText, AutoProcessor
 from huggingface_hub import snapshot_download
+from transformers import AutoModelForImageTextToText, AutoProcessor
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class VisionConfig:
-    """Configuration for vision processing"""
+    """Configuration for vision processing."""
 
     processor_type: str = "local"
     openai_model: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
@@ -34,9 +34,10 @@ class VisionConfig:
 
 
 class VisionProcessor:
-    """Handles SmolVLM2 model loading and inference"""
+    """Handles SmolVLM2 model loading and inference."""
 
     def __init__(self, config: VisionConfig = None):
+        """Initialize the vision processor."""
         self.config = config or VisionConfig()
         self.model_path = self.config.model_path
         self.device = self._determine_device()
@@ -58,6 +59,7 @@ class VisionProcessor:
         return "cuda" if torch.cuda.is_available() else "cpu"
 
     def initialize(self) -> bool:
+        """Load model and processor onto the selected device."""
         try:
             logger.info(
                 f"Loading SmolVLM2 model on {self.device} (HF_HOME={os.getenv('HF_HOME')})"
@@ -96,7 +98,7 @@ class VisionProcessor:
         cv2_image: np.ndarray,
         prompt: str = "Briefly describe what you see in one sentence.",
     ) -> str:
-        """Process CV2 image and return description with retry logic"""
+        """Process CV2 image and return description with retry logic."""
         if not self._initialized:
             return "Vision model not initialized"
 
@@ -183,7 +185,7 @@ class VisionProcessor:
                     return f"Vision processing error after {self.config.max_retries} attempts"
 
     def _extract_response(self, full_text: str) -> str:
-        """Extract the assistant's response from the full generated text"""
+        """Extract the assistant's response from the full generated text."""
         # Handle different response formats
         markers = ["assistant\n", "Assistant:", "Response:", "\n\n"]
 
@@ -197,7 +199,7 @@ class VisionProcessor:
         return full_text.strip()
 
     def get_model_info(self) -> Dict[str, Any]:
-        """Get information about the loaded model"""
+        """Get information about the loaded model."""
         return {
             "processor_type": "local",
             "initialized": self._initialized,
@@ -211,9 +213,10 @@ class VisionProcessor:
 
 
 class VisionManager:
-    """Manages periodic vision processing and scene understanding"""
+    """Manages periodic vision processing and scene understanding."""
 
     def __init__(self, camera, config: VisionConfig = None):
+        """Initialize vision manager with camera and configuration."""
         self.camera = camera
         self.config = config or VisionConfig()
         self.vision_interval = self.config.vision_interval
@@ -228,7 +231,7 @@ class VisionManager:
             raise RuntimeError("Vision processor initialization failed")
 
     async def enable(self, stop_event: threading.Event):
-        """Main vision processing loop (runs in separate thread)"""
+        """Vision processing loop (runs in separate thread)."""
         while not stop_event.is_set():
             try:
                 current_time = time.time()
@@ -255,20 +258,20 @@ class VisionManager:
 
                 await asyncio.sleep(1.0)  # Check every second
 
-            except Exception as e:
+            except Exception:
                 logger.exception("Vision processing loop error")
                 await asyncio.sleep(5.0)  # Longer sleep on error
 
-        logger.info(f"Vision loop finished")
+        logger.info("Vision loop finished")
 
     async def get_current_description(self) -> str:
-        """Get the most recent scene description (thread-safe)"""
+        """Get the most recent scene description (thread-safe)."""
         return self._current_description
 
     async def process_current_frame(
         self, prompt: str = "Describe what you see in detail."
     ) -> Dict[str, Any]:
-        """Process current camera frame with custom prompt"""
+        """Process current camera frame with custom prompt."""
         try:
             success, frame = self.camera.read()
             if not success or frame is None:
@@ -289,7 +292,7 @@ class VisionManager:
             return {"error": f"Frame processing failed: {str(e)}"}
 
     async def get_status(self) -> Dict[str, Any]:
-        """Get comprehensive status information"""
+        """Get comprehensive status information."""
         return {
             "last_processed": self._last_processed_time,
             "processor_info": self.processor.get_model_info(),
@@ -301,6 +304,7 @@ class VisionManager:
 
 
 def init_camera(camera_index=0, simulation=True):
+    """Initialize camera (real or simulated)."""
     api_preference = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else 0
 
     if simulation:
@@ -318,7 +322,7 @@ def init_camera(camera_index=0, simulation=True):
 
 
 def create_vision_processor(config: VisionConfig):
-    """Factory function to create the appropriate vision processor"""
+    """Create the appropriate vision processor (factory)."""
     if config.processor_type == "openai":
         try:
             from .openai_vision import OpenAIVisionProcessor
@@ -334,6 +338,7 @@ def create_vision_processor(config: VisionConfig):
 def init_vision(
     camera: cv2.VideoCapture, processor_type: str = "local"
 ) -> VisionManager:
+    """Initialize vision manager with the specified processor type."""
     model_id = "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
 
     cache_dir = os.path.expandvars(os.getenv("HF_HOME", "$HOME/.cache/huggingface"))

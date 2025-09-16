@@ -6,7 +6,7 @@ import gi
 
 gi.require_version("Gst", "1.0")
 gi.require_version("GstApp", "1.0")
-from gi.repository import GLib, Gst, GstApp
+from gi.repository import GLib, Gst
 
 
 class GstPlayer:
@@ -174,8 +174,7 @@ class GstRecorder:
 def _create_device_element(
     direction: str, name_substr: Optional[str]
 ) -> Optional[Gst.Element]:
-    """
-    direction: 'source' or 'sink'
+    """direction: 'source' or 'sink'
     name_substr: case-insensitive substring matching device display name/description.
     """
     logger = logging.getLogger(__name__)

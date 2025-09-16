@@ -1,20 +1,18 @@
 from __future__ import annotations
-from typing import Optional, Tuple
+
 import logging
+from typing import Optional, Tuple
 
 import numpy as np
-
 from huggingface_hub import hf_hub_download
-from ultralytics import YOLO
 from supervision import Detections
+from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
 
 
 class HeadTracker:
-    """
-    Lightweight head tracker using YOLO for face detection
-    """
+    """Lightweight head tracker using YOLO for face detection."""
 
     def __init__(
         self,
@@ -23,14 +21,14 @@ class HeadTracker:
         confidence_threshold: float = 0.3,
         device: str = "cpu",
     ) -> None:
-        """
-        Initialize YOLO-based head tracker
+        """Initialize YOLO-based head tracker.
 
         Args:
             model_repo: HuggingFace model repository
             model_filename: Model file name
             confidence_threshold: Minimum confidence for face detection
             device: Device to run inference on ('cpu' or 'cuda')
+
         """
         self.confidence_threshold = confidence_threshold
 
@@ -44,14 +42,14 @@ class HeadTracker:
             raise
 
     def _select_best_face(self, detections: Detections) -> Optional[int]:
-        """
-        Select the best face based on confidence and area (largest face with highest confidence)
+        """Select the best face based on confidence and area (largest face with highest confidence).
 
         Args:
             detections: Supervision detections object
 
         Returns:
             Index of best face or None if no valid faces
+
         """
         if detections.xyxy.shape[0] == 0:
             return None
@@ -76,8 +74,7 @@ class HeadTracker:
         return best_idx
 
     def _bbox_to_mp_coords(self, bbox: np.ndarray, w: int, h: int) -> np.ndarray:
-        """
-        Convert bounding box center to MediaPipe-style coordinates [-1, 1]
+        """Convert bounding box center to MediaPipe-style coordinates [-1, 1].
 
         Args:
             bbox: Bounding box [x1, y1, x2, y2]
@@ -86,6 +83,7 @@ class HeadTracker:
 
         Returns:
             Center point in [-1, 1] coordinates
+
         """
         center_x = (bbox[0] + bbox[2]) / 2.0
         center_y = (bbox[1] + bbox[3]) / 2.0
@@ -99,8 +97,8 @@ class HeadTracker:
     def get_eyes(
         self, img: np.ndarray
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Get eye positions (approximated from face bbox)
+        """Get eye positions (approximated from face bbox).
+
         Note: YOLO only provides face bbox, so we estimate eye positions
 
         Args:
@@ -108,6 +106,7 @@ class HeadTracker:
 
         Returns:
             Tuple of (left_eye, right_eye) in [-1, 1] coordinates
+
         """
         h, w = img.shape[:2]
 
@@ -142,9 +141,7 @@ class HeadTracker:
         return left_eye, right_eye
 
     def get_eyes_from_landmarks(self, face_landmarks) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Compatibility method - YOLO doesn't have landmarks, so we store bbox in the object
-        """
+        """Compatibility method - YOLO doesn't have landmarks, so we store bbox in the object."""
         if not hasattr(face_landmarks, "_bbox") or not hasattr(
             face_landmarks, "_img_shape"
         ):
@@ -171,30 +168,26 @@ class HeadTracker:
         return left_eye, right_eye
 
     def get_eye_center(self, face_landmarks) -> np.ndarray:
-        """
-        Get center point between estimated eyes
-        """
+        """Get center point between estimated eyes."""
         left_eye, right_eye = self.get_eyes_from_landmarks(face_landmarks)
         return np.mean([left_eye, right_eye], axis=0)
 
     def get_roll(self, face_landmarks) -> float:
-        """
-        Estimate roll from eye positions (will be 0 for YOLO since we estimate symmetric eyes)
-        """
+        """Estimate roll from eye positions (will be 0 for YOLO since we estimate symmetric eyes)."""
         left_eye, right_eye = self.get_eyes_from_landmarks(face_landmarks)
         return float(np.arctan2(right_eye[1] - left_eye[1], right_eye[0] - left_eye[0]))
 
     def get_head_position(
         self, img: np.ndarray
     ) -> Tuple[Optional[np.ndarray], Optional[float]]:
-        """
-        Get head position from face detection
+        """Get head position from face detection.
 
         Args:
             img: Input image
 
         Returns:
             Tuple of (eye_center [-1,1], roll_angle)
+
         """
         h, w = img.shape[:2]
 
@@ -227,19 +220,16 @@ class HeadTracker:
             return None, None
 
     def cleanup(self):
-        """
-        Clean up resources
-        """
+        """Clean up resources."""
         if hasattr(self, "model"):
             del self.model
             logger.info("YOLO model cleaned up")
 
 
 class FaceLandmarks:
-    """
-    Simple container for face detection results to maintain API compatibility
-    """
+    """Simple container for face detection results to maintain API compatibility."""
 
     def __init__(self, bbox: np.ndarray, img_shape: tuple):
+        """Initialize with bounding box and image shape."""
         self._bbox = bbox
         self._img_shape = img_shape

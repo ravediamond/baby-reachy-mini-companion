@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 import numpy as np
-from reachy_mini_conversation_demo.audio.speech_tapper import SwayRollRT, HOP_MS
+
+from reachy_mini_conversation_demo.audio.speech_tapper import HOP_MS, SwayRollRT
 
 
 @dataclass
@@ -22,10 +23,9 @@ def pcm_to_b64(array: np.ndarray) -> str:
 
 
 class AudioSync:
-    """
-    Routes assistant audio to:
-      1) a playback queue for fastrtc
-      2) a sway engine that emits head-offsets aligned to audio
+    """Routes assistant audio to:
+    1) a playback queue for fastrtc
+    2) a sway engine that emits head-offsets aligned to audio
     """
 
     def __init__(
@@ -34,8 +34,7 @@ class AudioSync:
         set_offsets: Callable[[Tuple[float, float, float, float, float, float]], None],
         sway: Optional[SwayRollRT] = None,
     ) -> None:
-        """
-        set_offsets: callback receiving (x,y,z,roll,pitch,yaw) at each hop, in meters/radians.
+        """set_offsets: callback receiving (x,y,z,roll,pitch,yaw) at each hop, in meters/radians.
         """
         self.cfg = cfg
         self.set_offsets = set_offsets
@@ -88,8 +87,7 @@ class AudioSync:
         self._drain(self._sway_q)
 
     def on_response_audio_delta(self, delta_b64: str) -> None:
-        """
-        Called for each 'response.audio.delta' event.
+        """Called for each 'response.audio.delta' event.
         Pushes audio both to playback and to sway engine.
         """
         buf = np.frombuffer(base64.b64decode(delta_b64), dtype=np.int16).reshape(1, -1)
@@ -107,8 +105,7 @@ class AudioSync:
     # internal
 
     async def _sway_consumer(self):
-        """
-        Convert streaming audio chunks into head-offset poses at precise times.
+        """Convert streaming audio chunks into head-offset poses at precise times.
         """
         hop_dt = HOP_MS / 1000.0
         loop = asyncio.get_running_loop()

@@ -1,294 +1,271 @@
-from __future__ import annotations
-
 import asyncio
+import base64
 import json
 import logging
-import random
-import time
-from typing import Optional
+from datetime import datetime
 
 import numpy as np
-from openai import AsyncOpenAI
-from websockets import ConnectionClosedError, ConnectionClosedOK
-
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
+from openai import AsyncOpenAI
 
-from reachy_mini_conversation_demo.prompts import SESSION_INSTRUCTIONS
 from reachy_mini_conversation_demo.tools import (
-    ToolDependencies,
     ALL_TOOL_SPECS,
+    ToolDependencies,
     dispatch_tool_call,
 )
-from reachy_mini_conversation_demo.audio.audio_sway import AudioSync, pcm_to_b64
-from reachy_mini_conversation_demo.config import config
 
 logger = logging.getLogger(__name__)
 
 
-SAMPLE_RATE = 24000  # keep same default as before
-MODEL_NAME = config.MODEL_NAME
-API_KEY = config.OPENAI_API_KEY
+class OpenaiRealtimeHandler(AsyncStreamHandler):
+    """An OpenAI realtime handler for fastrtc Stream."""
 
-
-class OpenAIRealtimeHandler(AsyncStreamHandler):
-    """
-    Async handler that bridges mic input -> OpenAI Realtime -> audio out (+ tool calls).
-    Public API:
-      - start_up()
-      - receive(frame: bytes)
-      - emit() -> tuple[int, np.ndarray] | AdditionalOutputs | None
-      - shutdown()
-    """
-
-    def __init__(
-        self,
-        deps: ToolDependencies,
-        audio_sync: AudioSync,
-        robot_is_speaking: asyncio.Event,
-        speaking_queue: asyncio.Queue,
-        no_interruptions: bool = False,
-    ) -> None:
+    def __init__(self, deps: ToolDependencies):
+        """Initialize the handler."""
         super().__init__(
             expected_layout="mono",
-            output_sample_rate=SAMPLE_RATE,
-            input_sample_rate=SAMPLE_RATE,
+            output_sample_rate=24000,
+            input_sample_rate=24000,
         )
-        # deps
         self.deps = deps
-        self.audio_sync = audio_sync
-        self.robot_is_speaking = robot_is_speaking
-        self.speaking_queue = speaking_queue
-        self.no_interruptions = no_interruptions
 
-        # runtime
-        self.client: Optional[AsyncOpenAI] = None
         self.connection = None
-        self.output_queue: asyncio.Queue = asyncio.Queue()
-        self._stop = False
-        self._started_audio = False
-        self._connection_ready = False
-        self._speech_start_time = 0.0
+        self.output_queue = asyncio.Queue()
 
-        # backoff
-        self._backoff_start = 1.0
-        self._backoff_max = 16.0
-        self._backoff = self._backoff_start
+        self._pending_calls: dict[str, dict] = {}
 
-    def copy(self) -> "OpenAIRealtimeHandler":
-        return OpenAIRealtimeHandler(
-            self.deps,
-            self.audio_sync,
-            self.robot_is_speaking,
-            self.speaking_queue,
-        )
+        self.last_activity_time = asyncio.get_event_loop().time()
+        self.start_time = asyncio.get_event_loop().time()
+        self.is_idle_tool_call = False
+
+    def copy(self):
+        """Create a copy of the handler."""
+        return OpenaiRealtimeHandler(self.deps)
 
     async def start_up(self):
-        if not self._started_audio:
-            self.audio_sync.start()
-            self._started_audio = True
+        """Start the handler."""
+        self.client = AsyncOpenAI()
+        async with self.client.beta.realtime.connect(model="gpt-realtime") as conn:
+            await conn.session.update(
+                session={
+                    "turn_detection": {
+                        "type": "server_vad",
+                    },
+                    # "input_audio_transcription": {
+                    #     "model": "whisper-1",
+                    #     "language": "en",
+                    # },
+                    "voice": "ballad",
+                    "instructions": "On parle en francais",
+                    "tools": ALL_TOOL_SPECS,
+                    "tool_choice": "auto",
+                    "temperature": 0.7,
+                }
+            )
 
-        if self.client is None:
-            logger.info("Realtime start_up: creating AsyncOpenAI client…")
-            self.client = AsyncOpenAI(api_key=API_KEY)
+            # Manage event received from the openai server
+            self.connection = conn
+            async for event in self.connection:
+                logger.debug(f"OpenAI event: {event.type}")
+                if event.type == "input_audio_buffer.speech_started":
+                    self.clear_queue()
+                    self.deps.head_wobbler.reset()
+                    logger.debug("user speech started")
 
-        self._backoff = self._backoff_start
-        while not self._stop:
-            try:
-                async with self.client.beta.realtime.connect(model=MODEL_NAME) as rtc:
-                    self.connection = rtc
-                    self._connection_ready = False
+                if event.type == "input_audio_buffer.speech_stopped":
+                    logger.debug("user speech stopped")
 
-                    # Configure session
-                    await rtc.session.update(
-                        session={
-                            "turn_detection": {
-                                "type": "server_vad",
-                                # Commenting the next three lines makes the interaction much more reactive
-                                # "threshold": 0.6,
-                                # "prefix_padding_ms": 300,
-                                # "silence_duration_ms": 800,
-                            },
-                            "voice": "ballad",
-                            "instructions": SESSION_INSTRUCTIONS,
-                            "input_audio_transcription": {
-                                "model": "whisper-1",
-                                "language": "en",
-                            },
-                            "tools": ALL_TOOL_SPECS,
-                            "tool_choice": "auto",
-                            "temperature": 0.7,
-                        }
+                if event.type in ("response.audio.completed", "response.completed"):
+                    # Doesn't seem to be called
+                    logger.debug("response completed")
+                    self.deps.head_wobbler.reset()
+
+                if event.type == "response.created":
+                    logger.debug("response created")
+
+                if event.type == "response.done":
+                    # Doesn't mean the audio is done playing
+                    logger.debug("response done")
+                    pass
+                    # self.deps.head_wobbler.reset()
+
+                # if (
+                #     event.type
+                #     == "conversation.item.input_audio_transcription.completed"
+                # ):
+                #     await self.output_queue.put(
+                #         AdditionalOutputs({"role": "user", "content": event.transcript})
+                #     )
+
+                # if event.type == "response.audio_transcript.done":
+                #     await self.output_queue.put(
+                #         AdditionalOutputs(
+                #             {"role": "assistant", "content": event.transcript}
+                #         )
+                #     )
+
+                if event.type == "response.audio.delta":
+                    self.deps.head_wobbler.feed(event.delta)
+                    self.last_activity_time = asyncio.get_event_loop().time()
+                    logger.debug(
+                        "last activity time updated to %s", self.last_activity_time
+                    )
+                    await self.output_queue.put(
+                        (
+                            self.output_sample_rate,
+                            np.frombuffer(
+                                base64.b64decode(event.delta), dtype=np.int16
+                            ).reshape(1, -1),
+                        ),
                     )
 
-                    # Give the server a breath to apply config
-                    await asyncio.sleep(0.2)
+                # ---- tool-calling plumbing ----
+                # 1) model announces a function call item; capture name + call_id
+                if event.type == "response.output_item.added":
+                    item = getattr(event, "item", None)
+                    if item and getattr(item, "type", "") == "function_call":
+                        call_id = getattr(item, "call_id", None)
+                        name = getattr(item, "name", None)
+                        if call_id and name:
+                            self._pending_calls[call_id] = {
+                                "name": name,
+                                "args_buf": "",
+                            }
 
-                    # Extra brevity instruction
-                    await rtc.conversation.item.create(
+                # 2) model streams JSON arguments; buffer them by call_id
+                if event.type == "response.function_call_arguments.delta":
+                    call_id = getattr(event, "call_id", None)
+                    delta = getattr(event, "delta", "")
+                    if call_id in self._pending_calls:
+                        self._pending_calls[call_id]["args_buf"] += delta
+
+                # 3) when args done, execute Python tool, send function_call_output, then trigger a new response
+                if event.type == "response.function_call_arguments.done":
+                    call_id = getattr(event, "call_id", None)
+                    info = self._pending_calls.get(call_id)
+                    if not info:
+                        continue
+                    tool_name = info["name"]
+                    args_json_str = info["args_buf"] or "{}"
+
+                    try:
+                        tool_result = await dispatch_tool_call(
+                            tool_name, args_json_str, self.deps
+                        )
+                        logger.debug("[Tool %s executed]", tool_name)
+                        logger.debug("Tool result: %s", tool_result)
+                    except Exception as e:
+                        logger.error("Tool %s failed", tool_name)
+                        tool_result = {"error": str(e)}
+
+                    # send the tool result back
+                    await self.connection.conversation.item.create(
                         item={
-                            "type": "message",
-                            "role": "system",
-                            "content": [
-                                {
-                                    "type": "input_text",
-                                    "text": (
-                                        f"{SESSION_INSTRUCTIONS}\n\n"
-                                        "IMPORTANT: Always keep responses under 25 words. Be extremely concise."
-                                    ),
-                                }
-                            ],
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": json.dumps(tool_result),
                         }
                     )
+                    if tool_name == "camera":
+                        b64_im = json.dumps(tool_result["b64_im"])
+                        await self.connection.conversation.item.create(
+                            item={
+                                "type": "message",
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "input_image",
+                                        "image_url": f"data:image/jpeg;base64,{b64_im}",
+                                    }
+                                ],
+                            }
+                        )
 
-                    self._connection_ready = True
-                    self._backoff = self._backoff_start
-                    logger.info(
-                        "Session ready (tools=%d, voice=%s)",
-                        len(ALL_TOOL_SPECS),
-                        "ballad",
+                    if not self.is_idle_tool_call:
+                        await self.connection.response.create(
+                            response={
+                                "instructions": "Use the tool result just returned and answer concisely in speech."
+                            }
+                        )
+                    else:
+                        self.is_idle_tool_call = False
+
+                    # re synchronize the head wobble after a tool call that may have taken some time
+                    self.deps.head_wobbler.reset()
+                    # cleanup
+                    self._pending_calls.pop(call_id, None)
+
+                # server error
+                if event.type == "error":
+                    err = getattr(event, "error", None)
+                    msg = getattr(err, "message", str(err) if err else "unknown error")
+                    logger.error("Realtime error: %s (raw=%s)", msg, err)
+                    await self.output_queue.put(
+                        AdditionalOutputs(
+                            {"role": "assistant", "content": f"[error] {msg}"}
+                        )
                     )
 
-                    async for event in rtc:
-                        et = getattr(event, "type", None)
-                        logger.debug("RT event: %s", et)
-
-                        # conversation / transcripts
-                        if et == "input_audio_buffer.speech_started":
-                            if not self.no_interruptions and not self.robot_is_speaking.is_set():
-                                self.audio_sync.on_input_speech_started()
-                                logger.info("User speech detected")
-                        elif et == "response.started":
-                            self._speech_start_time = time.time()
-                            self.audio_sync.on_response_started()
-                            logger.info("Robot started speaking")
-                        elif et in (
-                            "response.audio.completed",
-                            "response.completed",
-                            "response.audio.done",
-                        ):
-                            logger.info("Robot finished speaking (%s)", et)
-                        elif (
-                            et
-                            == "conversation.item.input_audio_transcription.completed"
-                        ):
-                            await self.output_queue.put(
-                                AdditionalOutputs(
-                                    {"role": "user", "content": event.transcript}
-                                )
-                            )
-                        elif et == "response.audio_transcript.done":
-                            await self.output_queue.put(
-                                AdditionalOutputs(
-                                    {"role": "assistant", "content": event.transcript}
-                                )
-                            )
-
-                        # streaming audio
-                        if et == "response.audio.delta":
-                            self.robot_is_speaking.set()
-                            # block mic briefly per chunk to reduce echo
-                            # self.speaking_queue.put_nowait(0.25)
-                            self.audio_sync.on_response_audio_delta(
-                                getattr(event, "delta", b"")
-                            )
-
-                        # tool calls
-                        elif et == "response.function_call_arguments.done":
-                            tool_name = getattr(event, "name", None)
-                            args_json_str = getattr(event, "arguments", None)
-                            call_id = getattr(event, "call_id", None)
-
-                            try:
-                                tool_result = await dispatch_tool_call(
-                                    tool_name, args_json_str, self.deps
-                                )
-                                logger.info("Tool result: %s", tool_result)
-                            except Exception as e:
-                                logger.exception("Tool %s failed", tool_name)
-                                tool_result = {"error": str(e)}
-
-                            await rtc.conversation.item.create(
-                                item={
-                                    "type": "function_call_output",
-                                    "call_id": call_id,
-                                    "output": json.dumps(tool_result),
-                                }
-                            )
-
-                            # Force LLM to speak after vision/camera tools
-                            if tool_name and (
-                                tool_name == "camera" or "scene" in tool_name
-                            ):
-                                await rtc.response.create()
-
-                        # server error
-                        if et == "error":
-                            err = getattr(event, "error", None)
-                            msg = getattr(
-                                err, "message", str(err) if err else "unknown error"
-                            )
-                            logger.error("Realtime error: %s (raw=%s)", msg, err)
-                            await self.output_queue.put(
-                                AdditionalOutputs(
-                                    {"role": "assistant", "content": f"[error] {msg}"}
-                                )
-                            )
-
-            except (ConnectionClosedOK, ConnectionClosedError) as e:
-                if self._stop:
-                    break
-                logger.warning(
-                    "Connection closed (%s). Reconnecting…",
-                    getattr(e, "code", "no-code"),
-                )
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                logger.exception("Realtime loop error; will reconnect")
-            finally:
-                self.connection = None
-                self._connection_ready = False
-
-            # Exponential backoff before reconnect
-            delay = min(self._backoff, self._backoff_max) + random.uniform(0, 0.5)
-            logger.info("Reconnect in %.1fs…", delay)
-            await asyncio.sleep(delay)
-            self._backoff = min(self._backoff * 2.0, self._backoff_max)
-
-    async def receive(self, frame: bytes) -> None:
-        """Accept PCM16 mono frames from the mic pipeline (fastrtc)."""
-        if (self.no_interruptions and self.robot_is_speaking.is_set()) or not self._connection_ready:
+    # Microphone receive
+    async def receive(self, frame: tuple[int, np.ndarray]) -> None:
+        """Receive audio frame from the microphone and send it to the openai server."""
+        if not self.connection:
             return
-
-        mic_samples = np.frombuffer(frame[1], dtype=np.int16).squeeze()
-        audio_b64 = pcm_to_b64(mic_samples)
-
-        try:
-            await self.connection.input_audio_buffer.append(audio=audio_b64)
-        except (ConnectionClosedOK, ConnectionClosedError):
-            pass
+        _, array = frame
+        array = array.squeeze()
+        audio_message = base64.b64encode(array.tobytes()).decode("utf-8")
+        # Fills the input audio buffer to be sent to the server
+        await self.connection.input_audio_buffer.append(audio=audio_message)  # type: ignore
 
     async def emit(self) -> tuple[int, np.ndarray] | AdditionalOutputs | None:
-        """Return either audio to play (sr, np.int16 array) or chat outputs."""
-        try:
-            sample_rate, pcm_frame = self.audio_sync.playback_q.get_nowait()
-            logger.debug(
-                "Emitting playback frame (sr=%d, n=%d)", sample_rate, pcm_frame.size
-            )
-            return (sample_rate, pcm_frame)
-        except asyncio.QueueEmpty:
-            pass
+        """Emit audio frame to be played by the speaker."""
+        # sends to the stream the stuff put in the output queue by the openai event handler
+        # This is called periodically by the fastrtc Stream
+
+        # Handle idle
+        idle_duration = asyncio.get_event_loop().time() - self.last_activity_time
+        if idle_duration > 15.0 and self.deps.movement_manager.is_idle():
+            await self.send_idle_signal(idle_duration)
+
+            self.last_activity_time = (
+                asyncio.get_event_loop().time()
+            )  # avoid repeated resets
+
         return await wait_for_item(self.output_queue)
 
     async def shutdown(self) -> None:
-        logger.info("Shutdown: closing connections and audio")
-        self._stop = True
+        """Shutdown the handler."""
         if self.connection:
-            try:
-                await self.connection.close()
-            except Exception:
-                logger.exception("Error closing realtime connection")
-            finally:
-                self.connection = None
-                self._connection_ready = False
-        await self.audio_sync.stop()
+            await self.connection.close()
+            self.connection = None
+
+    def format_timestamp(self):
+        """Format current timestamp with date, time and elapsed seconds."""
+        current_time = asyncio.get_event_loop().time()
+        elapsed_seconds = current_time - self.start_time
+        dt = datetime.fromtimestamp(current_time)
+        return f"[{dt.strftime('%Y-%m-%d %H:%M:%S')} | +{elapsed_seconds:.1f}s]"
+
+    async def send_idle_signal(self, idle_duration) -> None:
+        """Send an idle signal to the openai server."""
+        logger.debug("Sending idle signal")
+        self.is_idle_tool_call = True
+        timestamp_msg = f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] You've been idle for a while. Feel free to get creative - dance, show an emotion, look around, do nothing, or just be yourself!"
+        if not self.connection:
+            logger.debug("No connection, cannot send idle signal")
+            return
+        await self.connection.conversation.item.create(
+            item={
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": timestamp_msg}],
+            }
+        )
+        await self.connection.response.create(
+            response={
+                "modalities": ["text"],
+                "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
+                "tool_choice": "required",
+            }
+        )
+        # TODO additional inputs
