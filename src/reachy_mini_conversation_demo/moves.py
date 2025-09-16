@@ -197,6 +197,7 @@ class MovementManager:
         camera=None,
         camera_worker=None,
     ):
+        """Initialize movement manager."""
         self.current_robot = current_robot
         self.head_tracker = head_tracker
         self.camera = camera
@@ -395,7 +396,7 @@ class MovementManager:
         self.current_robot.set_target(head=neutral_head_pose, antennas=(0.0, 0.0))
 
     async def enable(self, stop_event: asyncio.Event) -> None:
-        """Main movement control loop - reproduces main_works.py control architecture.
+        """Control loop main movements - reproduces main_works.py control architecture.
 
         Single set_target() call with pose fusion.
         """

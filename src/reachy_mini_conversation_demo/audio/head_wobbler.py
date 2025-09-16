@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # noqa: D100
 import base64
 import logging
 from asyncio import QueueEmpty

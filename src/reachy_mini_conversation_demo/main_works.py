@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # noqa: D100
 import base64
 import json
 import queue
@@ -30,7 +30,7 @@ from reachy_mini_dances_library.dance_move import DanceMove
 from reachy_mini_toolbox.vision import HeadTracker
 from scipy.spatial.transform import Rotation as R
 
-from reachy_mini_conversation_demo.speech_tapper import HOP_MS, SwayRollRT
+from reachy_mini_conversation_demo.audio.speech_tapper import HOP_MS, SwayRollRT
 
 # Constants
 SAMPLE_RATE = 24000
@@ -39,59 +39,71 @@ SIM = False
 
 class BreathingMove:
     """Breathing move with interpolation to neutral and then continuous breathing patterns."""
-    
-    def __init__(self, interpolation_start_pose, interpolation_start_antennas, interpolation_duration=1.0):
+
+    def __init__(
+        self,
+        interpolation_start_pose,
+        interpolation_start_antennas,
+        interpolation_duration=1.0,
+    ):
         """Initialize breathing move.
-        
+
         Args:
             interpolation_start_pose: 4x4 matrix of current head pose to interpolate from
-            interpolation_start_antennas: Current antenna positions to interpolate from  
+            interpolation_start_antennas: Current antenna positions to interpolate from
             interpolation_duration: Duration of interpolation to neutral (seconds)
 
         """
         self.interpolation_start_pose = interpolation_start_pose
         self.interpolation_start_antennas = np.array(interpolation_start_antennas)
         self.interpolation_duration = interpolation_duration
-        self.duration = float('inf')  # Continuous breathing (never ends naturally)
-        
+        self.duration = float("inf")  # Continuous breathing (never ends naturally)
+
         # Neutral positions for breathing base
         self.neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
         self.neutral_antennas = np.array([0.0, 0.0])
-        
+
         # Breathing parameters
         self.breathing_z_amplitude = 0.01  # 1cm gentle breathing
         self.breathing_frequency = 0.1  # Hz (6 breaths per minute)
         self.antenna_sway_amplitude = np.deg2rad(15)  # 15 degrees
         self.antenna_frequency = 0.5  # Hz (faster antenna sway)
-    
+
     def evaluate(self, t):
         """Evaluate breathing move at time t."""
         if t < self.interpolation_duration:
             # Phase 1: Interpolate to neutral base position
             interpolation_t = t / self.interpolation_duration
-            
+
             # Interpolate head pose
             head_pose = linear_pose_interpolation(
-                self.interpolation_start_pose,
-                self.neutral_head_pose, 
-                interpolation_t
+                self.interpolation_start_pose, self.neutral_head_pose, interpolation_t
             )
-            
+
             # Interpolate antennas
-            antennas = (1 - interpolation_t) * self.interpolation_start_antennas + interpolation_t * self.neutral_antennas
-            
+            antennas = (
+                (1 - interpolation_t) * self.interpolation_start_antennas
+                + interpolation_t * self.neutral_antennas
+            )
+
         else:
             # Phase 2: Breathing patterns from neutral base
             breathing_time = t - self.interpolation_duration
-            
+
             # Gentle z-axis breathing
-            z_offset = self.breathing_z_amplitude * np.sin(2 * np.pi * self.breathing_frequency * breathing_time)
-            head_pose = create_head_pose(x=0, y=0, z=z_offset, roll=0, pitch=0, yaw=0, degrees=True, mm=False)
-            
+            z_offset = self.breathing_z_amplitude * np.sin(
+                2 * np.pi * self.breathing_frequency * breathing_time
+            )
+            head_pose = create_head_pose(
+                x=0, y=0, z=z_offset, roll=0, pitch=0, yaw=0, degrees=True, mm=False
+            )
+
             # Antenna sway (opposite directions)
-            antenna_sway = self.antenna_sway_amplitude * np.sin(2 * np.pi * self.antenna_frequency * breathing_time)
+            antenna_sway = self.antenna_sway_amplitude * np.sin(
+                2 * np.pi * self.antenna_frequency * breathing_time
+            )
             antennas = np.array([antenna_sway, -antenna_sway])
-        
+
         # Return full body pose: (head_pose, antennas, body_yaw)
         return (head_pose, antennas, 0)
 
@@ -133,7 +145,7 @@ def init_globals():
         cap = find_camera()
     else:
         cap = cv2.VideoCapture(0)
-    
+
     # Check camera availability
     camera_available = False
     if cap is not None:
@@ -145,16 +157,20 @@ def init_globals():
                     camera_available = True
                     print(f"{format_timestamp()} Camera initialized successfully")
                 else:
-                    print(f"{format_timestamp()} WARNING: Camera opened but cannot read frames")
+                    print(
+                        f"{format_timestamp()} WARNING: Camera opened but cannot read frames"
+                    )
             else:
                 print(f"{format_timestamp()} WARNING: Camera failed to open")
         except Exception as e:
             print(f"{format_timestamp()} WARNING: Camera test failed: {e}")
     else:
         print(f"{format_timestamp()} WARNING: No camera found")
-    
+
     if not camera_available:
-        print(f"{format_timestamp()} Face tracking will be disabled - no camera available")
+        print(
+            f"{format_timestamp()} Face tracking will be disabled - no camera available"
+        )
         cap = None  # Ensure cap is None if camera not available
 
     # Initialize global state variables
@@ -170,12 +186,12 @@ def init_globals():
     latest_frame = None
     face_tracking_offsets = [0, 0, 0, 0, 0, 0]
     camera_thread_running = False
-    
+
     # Initialize face tracking timing variables
     last_face_detected_time = None
     interpolation_start_time = None
     interpolation_start_pose = None
-    
+
     # Initialize breathing variables
     is_breathing = False
     last_activity_time = time.time()  # Start tracking activity immediately
@@ -183,17 +199,21 @@ def init_globals():
     breathing_interpolation_start_pose = None
     breathing_start_time = None
     breathing_interpolation_start_antennas = None
-    
+
     # Initialize move system
     move_queue = queue.Queue()
     current_move = None
     move_start_time = None
-    global_full_body_pose = (create_head_pose(0, 0, 0, 0, 0, 0, degrees=True), (0, 0), 0)
+    global_full_body_pose = (
+        create_head_pose(0, 0, 0, 0, 0, 0, degrees=True),
+        (0, 0),
+        0,
+    )
 
     # Initialize thread locks
     frame_lock = threading.Lock()
     face_tracking_lock = threading.Lock()
-    
+
     recorded_moves = RecordedMoves("pollen-robotics/reachy-mini-emotions-library")
 
     client = OpenAI()
@@ -221,29 +241,31 @@ def format_timestamp():
 
 def combine_full_body(primary_pose, secondary_pose):
     """Combine primary and secondary full body poses.
-    
+
     Args:
         primary_pose: (head_pose, antennas, body_yaw) - primary move
         secondary_pose: (head_pose, antennas, body_yaw) - secondary offsets
-        
+
     Returns:
         Combined full body pose (head_pose, antennas, body_yaw)
 
     """
     primary_head, primary_antennas, primary_body_yaw = primary_pose
     secondary_head, secondary_antennas, secondary_body_yaw = secondary_pose
-    
+
     # Combine head poses using compose_world_offset
     # primary_head is T_abs, secondary_head is T_off_world
-    combined_head = compose_world_offset(primary_head, secondary_head, reorthonormalize=True)
-    
+    combined_head = compose_world_offset(
+        primary_head, secondary_head, reorthonormalize=True
+    )
+
     # Sum antennas and body_yaw
     combined_antennas = (
         primary_antennas[0] + secondary_antennas[0],
-        primary_antennas[1] + secondary_antennas[1]
+        primary_antennas[1] + secondary_antennas[1],
     )
     combined_body_yaw = primary_body_yaw + secondary_body_yaw
-    
+
     return (combined_head, combined_antennas, combined_body_yaw)
 
 
@@ -280,19 +302,21 @@ def camera_worker():
     global latest_frame, camera_thread_running, is_head_tracking, face_tracking_offsets
     global last_face_detected_time, interpolation_start_time, interpolation_start_pose
     global camera_available
-    
+
     camera_thread_running = True
-    
+
     # Early exit if no camera available
     if not camera_available or cap is None:
-        print(f"{format_timestamp()} Camera worker: No camera available, exiting gracefully")
+        print(
+            f"{format_timestamp()} Camera worker: No camera available, exiting gracefully"
+        )
         camera_thread_running = False
         return
-    
+
     head_tracker = HeadTracker()
     neutral_pose = np.eye(4)  # Neutral pose (identity matrix)
     previous_head_tracking_state = is_head_tracking  # Track state changes
-    
+
     while camera_thread_running:
         try:
             current_time = time.time()
@@ -305,57 +329,73 @@ def camera_worker():
                 # Check if face tracking was just disabled
                 if previous_head_tracking_state and not is_head_tracking:
                     # Face tracking was just disabled - start interpolation to neutral
-                    last_face_detected_time = current_time  # Trigger the face-lost logic
-                    interpolation_start_time = None  # Will be set by the face-lost interpolation
+                    last_face_detected_time = (
+                        current_time  # Trigger the face-lost logic
+                    )
+                    interpolation_start_time = (
+                        None  # Will be set by the face-lost interpolation
+                    )
                     interpolation_start_pose = None
-                
+
                 # Update tracking state
                 previous_head_tracking_state = is_head_tracking
 
                 # Handle face tracking if enabled
                 if is_head_tracking:
                     eye_center, _ = head_tracker.get_head_position(frame)
-                    
+
                     if eye_center is not None:
                         # Face detected - immediately switch to tracking
                         last_face_detected_time = current_time
                         interpolation_start_time = None  # Stop any interpolation
-                        
+
                         # Convert normalized coordinates to pixel coordinates
                         h, w, _ = frame.shape
                         eye_center_norm = (eye_center + 1) / 2
-                        eye_center_pixels = [eye_center_norm[0] * w, eye_center_norm[1] * h]
-                        
+                        eye_center_pixels = [
+                            eye_center_norm[0] * w,
+                            eye_center_norm[1] * h,
+                        ]
+
                         # Get the head pose needed to look at the target, but don't perform movement
                         target_pose = reachy_mini.look_at_image(
-                            eye_center_pixels[0], 
-                            eye_center_pixels[1], 
-                            duration=0.0, 
-                            perform_movement=False
+                            eye_center_pixels[0],
+                            eye_center_pixels[1],
+                            duration=0.0,
+                            perform_movement=False,
                         )
-                        
+
                         # Extract translation and rotation from the target pose directly
                         translation = target_pose[:3, 3]
-                        rotation = R.from_matrix(target_pose[:3, :3]).as_euler('xyz', degrees=False)
-                        
+                        rotation = R.from_matrix(target_pose[:3, :3]).as_euler(
+                            "xyz", degrees=False
+                        )
+
                         # Thread-safe update of face tracking offsets (use pose as-is)
                         with face_tracking_lock:
                             face_tracking_offsets = [
-                                translation[0], translation[1], translation[2],  # x, y, z
-                                rotation[0], rotation[1], rotation[2]  # roll, pitch, yaw
+                                translation[0],
+                                translation[1],
+                                translation[2],  # x, y, z
+                                rotation[0],
+                                rotation[1],
+                                rotation[2],  # roll, pitch, yaw
                             ]
-                    
+
                     else:
                         # No face detected while tracking enabled - set face lost timestamp
-                        if last_face_detected_time is None or last_face_detected_time == current_time:
+                        if (
+                            last_face_detected_time is None
+                            or last_face_detected_time == current_time
+                        ):
                             # Only update if we haven't already set a face lost time
                             # (current_time check prevents overriding the disable-triggered timestamp)
                             pass
-                        
+
                 # Handle smooth interpolation (works for both face-lost and tracking-disabled cases)
                 if last_face_detected_time is not None:
                     time_since_face_lost = current_time - last_face_detected_time
-                    
+
                     if time_since_face_lost >= face_lost_delay:
                         # Start interpolation if not already started
                         if interpolation_start_time is None:
@@ -367,37 +407,43 @@ def camera_worker():
                                 # Convert to 4x4 pose matrix
                                 interpolation_start_pose = np.eye(4)
                                 interpolation_start_pose[:3, 3] = current_translation
-                                interpolation_start_pose[:3, :3] = R.from_euler('xyz', current_rotation_euler).as_matrix()
-                        
+                                interpolation_start_pose[:3, :3] = R.from_euler(
+                                    "xyz", current_rotation_euler
+                                ).as_matrix()
+
                         # Calculate interpolation progress (t from 0 to 1)
                         elapsed_interpolation = current_time - interpolation_start_time
                         t = min(1.0, elapsed_interpolation / interpolation_duration)
-                        
+
                         # Interpolate between current pose and neutral pose
                         interpolated_pose = linear_pose_interpolation(
-                            interpolation_start_pose, 
-                            neutral_pose, 
-                            t
+                            interpolation_start_pose, neutral_pose, t
                         )
-                        
+
                         # Extract translation and rotation from interpolated pose
                         translation = interpolated_pose[:3, 3]
-                        rotation = R.from_matrix(interpolated_pose[:3, :3]).as_euler('xyz', degrees=False)
-                        
+                        rotation = R.from_matrix(interpolated_pose[:3, :3]).as_euler(
+                            "xyz", degrees=False
+                        )
+
                         # Thread-safe update of face tracking offsets
                         with face_tracking_lock:
                             face_tracking_offsets = [
-                                translation[0], translation[1], translation[2],  # x, y, z
-                                rotation[0], rotation[1], rotation[2]  # roll, pitch, yaw
+                                translation[0],
+                                translation[1],
+                                translation[2],  # x, y, z
+                                rotation[0],
+                                rotation[1],
+                                rotation[2],  # roll, pitch, yaw
                             ]
-                        
+
                         # If interpolation is complete, reset timing
                         if t >= 1.0:
                             last_face_detected_time = None
                             interpolation_start_time = None
                             interpolation_start_pose = None
                     # else: Keep current offsets (within 2s delay period)
-            
+
             time.sleep(0.001)  # Small sleep to prevent excessive CPU usage
 
         except Exception as e:
@@ -406,6 +452,7 @@ def camera_worker():
 
 
 async def move_head(params: dict) -> dict:
+    """Queue a head movement in the specified direction."""
     global moving_start, moving_for, last_activity_time, move_queue
     # look left, right up, down or front
     print("[TOOL CALL] move_head", params)
@@ -425,9 +472,9 @@ async def move_head(params: dict) -> dict:
     moving_start = time.time()
     moving_for = 1.0
     last_activity_time = time.time()  # Update activity time for breathing system
-    
+
     # Create GotoMove and add to queue
-    
+
     cur_head_joints, cur_antennas = reachy_mini.get_current_joint_positions()
     current_body_yaw = cur_head_joints[0]
 
@@ -439,14 +486,15 @@ async def move_head(params: dict) -> dict:
         start_antennas=np.array(cur_antennas),
         target_antennas=np.array((0, 0)),  # Reset antennas to default position
         duration=moving_for,
-        method="linear"
+        method="linear",
     )
     move_queue.put(goto_move)
-    
+
     return {"status": "queued head movement " + direction}
 
 
 async def head_tracking(params: dict) -> dict:
+    """Enable or disable head tracking."""
     global is_head_tracking
     if params.get("start"):
         is_head_tracking = True
@@ -492,7 +540,7 @@ async def stop_dance(params: dict) -> dict:
     current_move = None
     move_start_time = None
     is_playing_move = False
-    
+
     # Clear entire queue
     while not move_queue.empty():
         try:
@@ -532,7 +580,7 @@ async def stop_emotion(params: dict) -> dict:
     current_move = None
     move_start_time = None
     is_playing_move = False
-    
+
     # Clear entire queue
     while not move_queue.empty():
         try:
@@ -551,6 +599,7 @@ async def do_nothing(params: dict) -> dict:
 
 
 def get_available_emotions_and_descriptions():
+    """Return a formatted string listing available emotions and their descriptions."""
     names = recorded_moves.list_moves()
 
     ret = """
@@ -566,6 +615,7 @@ def get_available_emotions_and_descriptions():
 
 
 def get_b64_encoded_im(im):
+    """Convert an image to a base64-encoded JPEG string."""
     cv2.imwrite("/tmp/tmp_image.jpg", im)
     image_file = open("/tmp/tmp_image.jpg", "rb")
     b64_encoded_im = base64.b64encode(image_file.read()).decode("utf-8")
@@ -573,6 +623,7 @@ def get_b64_encoded_im(im):
 
 
 async def camera(params: dict) -> dict:
+    """Return the latest camera frame as a base64-encoded JPEG image."""
     print("[TOOL CALL] camera with params", params)
 
     # Thread-safe frame access
@@ -586,6 +637,7 @@ async def camera(params: dict) -> dict:
 
 
 async def face_recognition(params: dict) -> dict:
+    """Perform face recognition on the latest camera frame."""
     print("[TOOL CALL] face_recognition with params", params)
 
     # Thread-safe frame access
@@ -625,7 +677,10 @@ def _drain(q: asyncio.Queue):
 
 
 class OpenAIHandler(AsyncStreamHandler):
+    """An OpenAI realtime handler for fastrtc Stream."""
+
     def __init__(self) -> None:
+        """Initialize the handler."""
         super().__init__(
             expected_layout="mono",
             output_sample_rate=SAMPLE_RATE,
@@ -659,6 +714,7 @@ class OpenAIHandler(AsyncStreamHandler):
         self._is_assistant_speaking = False
 
     def copy(self):
+        """Create a new instance of the handler for a new stream."""
         return OpenAIHandler()
 
     async def _sway_consumer(self):
@@ -789,6 +845,7 @@ class OpenAIHandler(AsyncStreamHandler):
                 print("[DEBUG] Idle conditions not met")
 
     async def start_up(self):
+        """Initialize OpenAI connection and start idle checker."""
         global last_activity_time
         self.client = openai.AsyncOpenAI()
         async with self.client.beta.realtime.connect(
@@ -1222,6 +1279,7 @@ class OpenAIHandler(AsyncStreamHandler):
                     )
 
     async def receive(self, frame: tuple[int, np.ndarray]) -> None:
+        """Receive audio frame from the microphone and send it to the openai server."""
         if not self.connection:
             return
         _, array = frame
@@ -1230,9 +1288,11 @@ class OpenAIHandler(AsyncStreamHandler):
         await self.connection.input_audio_buffer.append(audio=audio_message)
 
     async def emit(self):
+        """Emit audio frame to be played by the speaker."""
         return await wait_for_item(self.output_queue)
 
     async def shutdown(self) -> None:
+        """Shutdown the handler."""
         if self.connection:
             await self.connection.close()
             self.connection = None
@@ -1240,11 +1300,13 @@ class OpenAIHandler(AsyncStreamHandler):
 
 # ---- gradio / fastrtc wiring unchanged ----
 def update_chatbot(chatbot: list[dict], response: dict):
+    """Update chatbot with new response."""
     chatbot.append(response)
     return chatbot
 
 
 def main():
+    """Entrypoint."""
     # Initialize all globals first
     init_globals()
 
@@ -1289,7 +1351,7 @@ def main():
         start_antennas=np.array(cur_antennas),
         target_antennas=np.array((0, 0)),
         duration=1.0,
-        method="linear"
+        method="linear",
     )
     move_queue.put(center_move)
 
@@ -1303,9 +1365,12 @@ def main():
         loop_start_time = time.time()
         loop_count += 1
         current_time = time.time()
-        
+
         # Move queue management
-        if current_move is None or (move_start_time is not None and current_time - move_start_time >= current_move.duration):
+        if current_move is None or (
+            move_start_time is not None
+            and current_time - move_start_time >= current_move.duration
+        ):
             # Current move finished or no current move, get next from queue
             current_move = None
             move_start_time = None
@@ -1313,10 +1378,12 @@ def main():
                 try:
                     current_move = move_queue.get_nowait()
                     move_start_time = current_time
-                    print(f"[MOVE] Starting new move, duration: {current_move.duration}s")
+                    print(
+                        f"[MOVE] Starting new move, duration: {current_move.duration}s"
+                    )
                 except queue.Empty:
                     pass
-        
+
         # Breathing logic: start breathing after inactivity delay if no moves in queue
         breathing_inactivity_delay = 5.0  # seconds
         if current_move is None and move_queue.empty():
@@ -1325,15 +1392,17 @@ def main():
                 # Start breathing move
                 _, current_antennas = reachy_mini.get_current_joint_positions()
                 current_head_pose = reachy_mini.get_current_head_pose()
-                
+
                 breathing_move = BreathingMove(
                     interpolation_start_pose=current_head_pose,
                     interpolation_start_antennas=current_antennas,
-                    interpolation_duration=1.0
+                    interpolation_duration=1.0,
                 )
                 move_queue.put(breathing_move)
-                print(f"[BREATHING] Started breathing after {time_since_activity:.1f}s of inactivity")
-        
+                print(
+                    f"[BREATHING] Started breathing after {time_since_activity:.1f}s of inactivity"
+                )
+
         # Stop breathing if new activity detected (queue has non-breathing moves)
         if current_move is not None and isinstance(current_move, BreathingMove):
             if not move_queue.empty():
@@ -1341,7 +1410,7 @@ def main():
                 current_move = None
                 move_start_time = None
                 print("[BREATHING] Stopping breathing due to new move activity")
-        
+
         # Get primary pose from current move or default neutral pose
         if current_move is not None and move_start_time is not None:
             move_time = current_time - move_start_time
@@ -1351,25 +1420,25 @@ def main():
         else:
             # Default neutral pose when no move is playing
             is_playing_move = False
-            is_moving = (time.time() - moving_start < moving_for)
+            is_moving = time.time() - moving_start < moving_for
             # Neutral primary pose
             neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
             primary_full_body_pose = (neutral_head_pose, (0, 0), 0)
-        
+
         # Create secondary pose from speech and face tracking offsets
         with face_tracking_lock:
             face_offsets = face_tracking_offsets.copy()
-        
+
         # Combine speech sway offsets + face tracking offsets for secondary pose
         secondary_offsets = [
             speech_head_offsets[0] + face_offsets[0],  # x
-            speech_head_offsets[1] + face_offsets[1],  # y  
+            speech_head_offsets[1] + face_offsets[1],  # y
             speech_head_offsets[2] + face_offsets[2],  # z
             speech_head_offsets[3] + face_offsets[3],  # roll
             speech_head_offsets[4] + face_offsets[4],  # pitch
             speech_head_offsets[5] + face_offsets[5],  # yaw
         ]
-        
+
         secondary_head_pose = create_head_pose(
             x=secondary_offsets[0],
             y=secondary_offsets[1],
@@ -1381,19 +1450,17 @@ def main():
             mm=False,
         )
         secondary_full_body_pose = (secondary_head_pose, (0, 0), 0)
-        
+
         # Combine primary and secondary poses
-        global_full_body_pose = combine_full_body(primary_full_body_pose, secondary_full_body_pose)
-        
+        global_full_body_pose = combine_full_body(
+            primary_full_body_pose, secondary_full_body_pose
+        )
+
         # Extract pose components
         head, antennas, body_yaw = global_full_body_pose
-        
+
         # Single set_target call - the one and only place we control the robot
-        reachy_mini.set_target(
-            head=head,
-            antennas=antennas,
-            body_yaw=body_yaw
-        )
+        reachy_mini.set_target(head=head, antennas=antennas, body_yaw=body_yaw)
 
         # Calculate computation time and adjust sleep for 50Hz
         computation_time = time.time() - loop_start_time

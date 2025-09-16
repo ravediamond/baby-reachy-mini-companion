@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # noqa: D100
 
 import math
 from collections import deque
@@ -68,6 +68,7 @@ def _loudness_gain(db: float, offset: float = SENS_DB_OFFSET) -> float:
 
 def _to_float32_mono(x: np.ndarray) -> np.ndarray:
     """Convert arbitrary PCM array to float32 mono in [-1,1].
+    
     Accepts shapes: (N,), (1,N), (N,1), (C,N), (N,C).
     """
     a = np.asarray(x)
@@ -115,6 +116,7 @@ class SwayRollRT:
     """
 
     def __init__(self, rng_seed: int = 7):
+        """Initialize state."""
         self._seed = int(rng_seed)
         self.samples = deque(maxlen=10 * SR)  # sliding window for VAD/env
         self.carry = np.zeros(0, dtype=np.float32)
@@ -151,7 +153,7 @@ class SwayRollRT:
         self.t = 0.0
 
     def reset_phases(self) -> None:
-        """Optional: re-randomize phases deterministically from stored seed."""
+        """Re-randomize phases deterministically from stored seed (Optional)."""
         rng = np.random.default_rng(self._seed)
         self.phase_pitch = float(rng.random() * 2 * math.pi)
         self.phase_yaw = float(rng.random() * 2 * math.pi)
