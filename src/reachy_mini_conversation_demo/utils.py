@@ -67,6 +67,7 @@ class AioTaskThread:
     """Runs a single coroutine in its own thread and event loop."""
 
     def __init__(self, coro_fn, *args, **kwargs):
+        """Coro_fn will be called as: await coro_fn(*args, _stop_async, **kwargs)."""
         self.coro_fn = coro_fn
         self.args = args
         self.kwargs = kwargs
@@ -88,13 +89,16 @@ class AioTaskThread:
             self.loop.close()
 
     def start(self):
+        """Start the thread and its event loop."""
         self.thread.start()
 
     def request_stop(self):
+        """Request the coroutine to stop by setting the _stop_async event."""
         if self._stop_async is not None:
             self.loop.call_soon_threadsafe(self._stop_async.set)
 
     def join(self):
+        """Wait for the thread to finish."""
         self.thread.join()
 
 
