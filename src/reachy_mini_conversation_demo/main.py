@@ -1,4 +1,4 @@
-from threading import Thread
+from threading import Thread  # noqa: D100
 
 from fastrtc import Stream
 from reachy_mini import ReachyMini
@@ -11,14 +11,15 @@ from reachy_mini_conversation_demo.utils import (
     AioTaskThread,
     handle_vision_stuff,
     parse_args,
-    setup_logger,
+    # setup_logger,
 )
 
 
 def main():
+    """Entrypoint for the Reachy Mini conversation demo."""
     args = parse_args()
 
-    logger = setup_logger(args.debug)
+    # logger = setup_logger(args.debug)
     
     robot = ReachyMini()
 

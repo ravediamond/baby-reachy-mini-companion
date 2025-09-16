@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: D100
 from threading import Thread
 from typing import Optional
 
@@ -6,11 +6,14 @@ import gi
 
 gi.require_version("Gst", "1.0")
 gi.require_version("GstApp", "1.0")
-from gi.repository import GLib, Gst
+from gi.repository import GLib, Gst  # noqa: E402
 
 
 class GstPlayer:
+    """Audio player using GStreamer."""
+
     def __init__(self, sample_rate: int = 24000, device_name: Optional[str] = None):
+        """Initialize player."""
         self._logger = logging.getLogger(__name__)
         Gst.init(None)
         self._loop = GLib.MainLoop()
@@ -68,15 +71,18 @@ class GstPlayer:
         self._logger.debug("bus message loop stopped")
 
     def play(self):
+        """Start playback."""
         self.pipeline.set_state(Gst.State.PLAYING)
         self._thread_bus_calls = Thread(target=self._handle_bus_calls, daemon=True)
         self._thread_bus_calls.start()
 
     def push_sample(self, data: bytes):
+        """Push audio sample (bytes) to playback pipeline."""
         buf = Gst.Buffer.new_wrapped(data)
         self.appsrc.push_buffer(buf)
 
     def stop(self):
+        """Stop playback and clean up."""
         logger = logging.getLogger(__name__)
         self._loop.quit()
         self.pipeline.set_state(Gst.State.NULL)
@@ -86,7 +92,10 @@ class GstPlayer:
 
 
 class GstRecorder:
+    """Audio recorder using GStreamer."""
+
     def __init__(self, sample_rate: int = 24000, device_name: Optional[str] = None):
+        """Initialize recorder."""
         self._logger = logging.getLogger(__name__)
         Gst.init(None)
         self._loop = GLib.MainLoop()
@@ -147,11 +156,13 @@ class GstRecorder:
         self._logger.debug("bus message loop stopped")
 
     def record(self):
+        """Start recording."""
         self.pipeline.set_state(Gst.State.PLAYING)
         self._thread_bus_calls = Thread(target=self._handle_bus_calls, daemon=True)
         self._thread_bus_calls.start()
 
     def get_sample(self):
+        """Return next audio sample as bytes, or None if no sample available."""
         sample = self.appsink.pull_sample()
         data = None
         if isinstance(sample, Gst.Sample):
@@ -163,6 +174,7 @@ class GstRecorder:
         return data
 
     def stop(self):
+        """Stop recording and clean up."""
         logger = logging.getLogger(__name__)
         self._loop.quit()
         self.pipeline.set_state(Gst.State.NULL)
@@ -174,7 +186,8 @@ class GstRecorder:
 def _create_device_element(
     direction: str, name_substr: Optional[str]
 ) -> Optional[Gst.Element]:
-    """direction: 'source' or 'sink'
+    """direction: 'source' or 'sink'.
+
     name_substr: case-insensitive substring matching device display name/description.
     """
     logger = logging.getLogger(__name__)

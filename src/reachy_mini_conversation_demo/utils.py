@@ -1,4 +1,4 @@
-import argparse
+import argparse  # noqa: D100
 import asyncio
 import logging
 import warnings
