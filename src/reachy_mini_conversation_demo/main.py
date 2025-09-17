@@ -1,5 +1,7 @@
 from threading import Thread  # noqa: D100
 
+import gradio as gr
+from fastapi import FastAPI
 from fastrtc import Stream
 from reachy_mini import ReachyMini
 
@@ -11,16 +13,23 @@ from reachy_mini_conversation_demo.utils import (
     AioTaskThread,
     handle_vision_stuff,
     parse_args,
-    # setup_logger,
+    setup_logger,
 )
+
+
+def update_chatbot(chatbot: list[dict], response: dict):
+    print("Updating chatbot with response:", response)
+    chatbot.append(response)
+    return chatbot
 
 
 def main():
     """Entrypoint for the Reachy Mini conversation demo."""
     args = parse_args()
 
-    # logger = setup_logger(args.debug)
-    
+    logger = setup_logger(args.debug)
+    logger.info("Starting Reachy Mini Conversation Demo")
+
     robot = ReachyMini()
 
     camera, camera_worker, head_tracker, vision_manager = handle_vision_stuff(
@@ -45,9 +54,20 @@ def main():
         head_wobbler=head_wobbler,
     )
 
-    handler = OpenaiRealtimeHandler(deps)
-    stream = Stream(handler=handler, mode="send-receive", modality="audio")
+    chatbot = gr.Chatbot(type="messages", resizable=True)
 
+    handler = OpenaiRealtimeHandler(deps)
+    stream = Stream(
+        handler=handler,
+        mode="send-receive",
+        modality="audio",
+        additional_inputs=[chatbot],
+        additional_outputs=[chatbot],
+        additional_outputs_handler=update_chatbot,
+    )
+
+    app = FastAPI()
+    app = gr.mount_gradio_app(app, stream.ui, path="/")
     # UI bloquante → thread standard
     ui_thread = Thread(target=stream.ui.launch, daemon=True)
     ui_thread.start()

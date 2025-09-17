@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime
 
+import gradio as gr
 import numpy as np
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
 from openai import AsyncOpenAI
@@ -51,10 +52,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     "turn_detection": {
                         "type": "server_vad",
                     },
-                    # "input_audio_transcription": {
-                    #     "model": "whisper-1",
-                    #     "language": "en",
-                    # },
+                    "input_audio_transcription": {
+                        "model": "whisper-1",
+                        "language": "fr",
+                    },
                     "voice": "ballad",
                     "instructions": "On parle en francais",
                     "tools": ALL_TOOL_SPECS,
@@ -89,20 +90,22 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     pass
                     # self.deps.head_wobbler.reset()
 
-                # if (
-                #     event.type
-                #     == "conversation.item.input_audio_transcription.completed"
-                # ):
-                #     await self.output_queue.put(
-                #         AdditionalOutputs({"role": "user", "content": event.transcript})
-                #     )
+                if (
+                    event.type
+                    == "conversation.item.input_audio_transcription.completed"
+                ):
+                    logger.debug(f"user transcript: {event.transcript}")
+                    await self.output_queue.put(
+                        AdditionalOutputs({"role": "user", "content": event.transcript})
+                    )
 
-                # if event.type == "response.audio_transcript.done":
-                #     await self.output_queue.put(
-                #         AdditionalOutputs(
-                #             {"role": "assistant", "content": event.transcript}
-                #         )
-                #     )
+                if event.type == "response.audio_transcript.done":
+                    logger.debug(f"assistant transcript: {event.transcript}")
+                    await self.output_queue.put(
+                        AdditionalOutputs(
+                            {"role": "assistant", "content": event.transcript}
+                        )
+                    )
 
                 if event.type == "response.audio.delta":
                     self.deps.head_wobbler.feed(event.delta)
@@ -166,6 +169,16 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                             "output": json.dumps(tool_result),
                         }
                     )
+
+                    await self.output_queue.put(
+                        AdditionalOutputs(
+                            {
+                                "role": "assistant",
+                                "content": "**Using tool: " + tool_name + "**",
+                            }
+                        )
+                    )
+
                     if tool_name == "camera":
                         b64_im = json.dumps(tool_result["b64_im"])
                         await self.connection.conversation.item.create(
@@ -179,6 +192,19 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                     }
                                 ],
                             }
+                        )
+                        logger.info("additional input camera")
+
+                        np_img = self.deps.camera_worker.get_latest_frame()
+                        img = gr.Image(value=np_img)
+
+                        await self.output_queue.put(
+                            AdditionalOutputs(
+                                {
+                                    "role": "assistant",
+                                    "content": img,
+                                }
+                            )
                         )
 
                     if not self.is_idle_tool_call:

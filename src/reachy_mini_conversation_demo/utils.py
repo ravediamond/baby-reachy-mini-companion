@@ -38,13 +38,15 @@ def handle_vision_stuff(args, current_robot):
     head_tracker = None
     vision_manager = None
     if not args.no_camera:
+        camera = find_camera()
+        """
         if not args.sim:
             camera = find_camera()
         else:
             import cv2
-
+    
             camera = cv2.VideoCapture(0)
-
+    """
         if args.head_tracker is not None:
             if args.head_tracker == "yolo":
                 from reachy_mini_conversation_demo.vision.yolo_head_tracker import (
@@ -120,6 +122,8 @@ def setup_logger(debug):
         logging.getLogger("aiortc").setLevel(logging.INFO)
         logging.getLogger("fastrtc").setLevel(logging.INFO)
         logging.getLogger("aioice").setLevel(logging.INFO)
+        logging.getLogger("openai").setLevel(logging.INFO)
+        logging.getLogger("websockets").setLevel(logging.INFO)
     else:
         logging.getLogger("aiortc").setLevel(logging.ERROR)
         logging.getLogger("fastrtc").setLevel(logging.ERROR)
