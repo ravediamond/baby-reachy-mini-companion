@@ -54,10 +54,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     },
                     "input_audio_transcription": {
                         "model": "whisper-1",
-                        "language": "fr",
+                        "language": "en",
                     },
                     "voice": "ballad",
-                    "instructions": "On parle en francais",
+                    "instructions": "We speak in English",
                     "tools": ALL_TOOL_SPECS,
                     "tool_choice": "auto",
                     "temperature": 0.7,
