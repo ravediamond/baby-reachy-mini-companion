@@ -1,4 +1,4 @@
-from threading import Thread  # noqa: D100
+from threading import Thread
 
 import gradio as gr
 from fastapi import FastAPI
@@ -18,7 +18,7 @@ from reachy_mini_conversation_demo.utils import (
 
 
 def update_chatbot(chatbot: list[dict], response: dict):
-    print("Updating chatbot with response:", response)
+    """Update the chatbot with AdditionalOutputs."""
     chatbot.append(response)
     return chatbot
 
@@ -64,15 +64,16 @@ def main():
         additional_inputs=[chatbot],
         additional_outputs=[chatbot],
         additional_outputs_handler=update_chatbot,
+        ui_args={"title": "Talk with Reachy Mini"},
     )
 
     app = FastAPI()
     app = gr.mount_gradio_app(app, stream.ui, path="/")
-    # UI bloquante → thread standard
+    # UI is blocking → run in a standard thread
     ui_thread = Thread(target=stream.ui.launch, daemon=True)
     ui_thread.start()
 
-    # Chaque service async → son propre thread/loop
+    # Each async service → its own thread/loop
     move_thread = AioTaskThread(movement_manager.enable)  # loop A
     wobbler_thread = AioTaskThread(head_wobbler.enable)  # loop B
     cam_thread = AioTaskThread(camera_worker.enable) if camera_worker else None
@@ -82,7 +83,7 @@ def main():
     if cam_thread:
         cam_thread.start()
 
-    # lier les loops pour la communication thread-safe
+    # Link the loops for thread-safe communication
     head_wobbler.bind_loops(
         consumer_loop=wobbler_thread.loop,
         movement_loop=move_thread.loop,
