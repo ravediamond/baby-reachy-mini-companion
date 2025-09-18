@@ -1,3 +1,4 @@
+import os
 from threading import Thread
 
 import gradio as gr
@@ -53,8 +54,17 @@ def main():
         vision_manager=vision_manager,
         head_wobbler=head_wobbler,
     )
-
-    chatbot = gr.Chatbot(type="messages", resizable=True)
+    current_file_path = os.path.dirname(os.path.abspath(__file__))
+    logger.info(f"Current file absolute path: {current_file_path}")
+    chatbot = gr.Chatbot(
+        type="messages",
+        resizable=True,
+        avatar_images=(
+            os.path.join(current_file_path, "images", "user_avatar.png"),
+            os.path.join(current_file_path, "images", "reachymini_avatar.png"),
+        ),
+    )
+    logger.info(f"Chatbot avatar images: {chatbot.avatar_images}")
 
     handler = OpenaiRealtimeHandler(deps)
     stream = Stream(
