@@ -174,8 +174,11 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         AdditionalOutputs(
                             {
                                 "role": "assistant",
-                                "content": "**Using tool: " + tool_name + "**",
-                            }
+                                "content": json.dumps(tool_result),
+                                "metadata": dict(
+                                    title="🛠️ Used tool " + tool_name, status="done"
+                                ),
+                            },
                         )
                     )
 
