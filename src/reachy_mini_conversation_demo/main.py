@@ -1,3 +1,5 @@
+"""Entrypoint for the Reachy Mini conversation demo."""
+
 import os
 from threading import Thread
 
