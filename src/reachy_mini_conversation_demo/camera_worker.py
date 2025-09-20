@@ -82,7 +82,7 @@ class CameraWorker:
         logger.info(f"Head tracking {'enabled' if enabled else 'disabled'}")
 
     def start(self) -> None:
-        """Start the camera worker loop in an asyncio task."""
+        """Start the camera worker loop in a thread."""
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
         logger.info("Camera worker started")
