@@ -1,10 +1,10 @@
-import asyncio  # noqa: D100
+"""Moves head given audio samples."""
+
 import base64
 import logging
 import queue
 import threading
 import time
-from asyncio import QueueEmpty
 from typing import Optional
 
 import numpy as np
@@ -31,22 +31,13 @@ class HeadWobbler:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
-    def bind_loops(
-        self,
-        consumer_loop: asyncio.AbstractEventLoop,
-        movement_loop: asyncio.AbstractEventLoop,
-    ) -> None:
-        """Bind the event loops for thread-safe communication."""
-        self._consumer_loop = consumer_loop
-        self._movement_loop = movement_loop
-
     def feed(self, delta_b64: str) -> None:
         """Thread-safe: push audio into the consumer queue."""
         buf = np.frombuffer(base64.b64decode(delta_b64), dtype=np.int16).reshape(1, -1)
         self.audio_queue.put((SAMPLE_RATE, buf))
 
     def start(self) -> None:
-        """Start the head wobbler loop in an asyncio task."""
+        """Start the head wobbler loop in a thread."""
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
         logger.info("Head wobbler started")
@@ -114,6 +105,7 @@ class HeadWobbler:
                 i += 1
         logger.debug("Head wobbler thread exited")
 
+    '''
     def drain_audio_queue(self) -> None:
         """Empty the audio queue."""
         try:
@@ -121,6 +113,7 @@ class HeadWobbler:
                 self.audio_queue.get_nowait()
         except QueueEmpty:
             pass
+    '''
 
     def reset(self) -> None:
         """Reset the internal state."""

@@ -399,7 +399,7 @@ class MovementManager:
         self.current_robot.set_target(head=neutral_head_pose, antennas=(0.0, 0.0))
 
     def start(self) -> None:
-        """Start the move worker loop in an asyncio task."""
+        """Start the move worker loop in a thread."""
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
         logger.info("Move worker started")
