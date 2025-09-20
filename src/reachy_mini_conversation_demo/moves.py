@@ -8,8 +8,8 @@ This module implements the movement architecture from main_works.py:
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -215,6 +215,9 @@ class MovementManager:
         self.target_frequency = 50.0  # Hz
         self.target_period = 1.0 / self.target_frequency
 
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
     def queue_move(self, move: Move) -> None:
         """Add a move to the primary move queue."""
         self.move_queue.append(move)
@@ -395,17 +398,30 @@ class MovementManager:
         neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
         self.current_robot.set_target(head=neutral_head_pose, antennas=(0.0, 0.0))
 
-    async def enable(self, stop_event: asyncio.Event) -> None:
+    def start(self) -> None:
+        """Start the move worker loop in an asyncio task."""
+        self._thread = threading.Thread(target=self.working_loop, daemon=True)
+        self._thread.start()
+        logger.info("Move worker started")
+
+    def stop(self) -> None:
+        """Stop the move worker loop."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join()
+        logger.info("Move worker stopped")
+
+    def working_loop(self) -> None:
         """Control loop main movements - reproduces main_works.py control architecture.
 
         Single set_target() call with pose fusion.
         """
-        logger.info("Starting enhanced movement control loop (50Hz)")
+        logger.debug("Starting enhanced movement control loop (50Hz)")
 
         loop_count = 0
         last_print_time = time.time()
 
-        while not stop_event.is_set():
+        while not self._stop_event.is_set():
             loop_start_time = time.time()
             loop_count += 1
             current_time = time.time()
@@ -457,6 +473,6 @@ class MovementManager:
                 )
                 last_print_time = current_time
 
-            await asyncio.sleep(sleep_time)
+            time.sleep(sleep_time)
 
-        logger.info("Movement control loop stopped")
+        logger.debug("Movement control loop stopped")
