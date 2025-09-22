@@ -227,6 +227,7 @@ class MovementManager:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._state_lock = threading.RLock()
+        self._is_listening = False
 
     def queue_move(self, move: Move) -> None:
         """Add a move to the primary move queue."""
@@ -276,9 +277,24 @@ class MovementManager:
     def is_idle(self):
         """Check if the robot is idle based on inactivity delay."""
         with self._state_lock:
+            if self._is_listening:
+                return False
             current_time = time.time()
             time_since_activity = current_time - self.state.last_activity_time
             return time_since_activity >= self.idle_inactivity_delay
+
+    def mark_user_activity(self) -> None:
+        """Record recent user activity to delay idle behaviours."""
+        with self._state_lock:
+            self.state.update_activity()
+
+    def set_listening(self, listening: bool) -> None:
+        """Toggle listening mode, freezing antennas when active."""
+        with self._state_lock:
+            if self._is_listening == listening:
+                return
+            self._is_listening = listening
+            self.state.update_activity()
 
     def _manage_move_queue(self, current_time: float) -> None:
         """Manage the primary move queue (sequential execution)."""
@@ -481,11 +497,14 @@ class MovementManager:
 
             # 7. Extract pose components
             head, antennas, body_yaw = global_full_body_pose
+            with self._state_lock:
+                listening = self._is_listening
+            antennas_cmd = (0.0, 0.0) if listening else antennas
 
             # 8. Single set_target call - the one and only place we control the robot
             try:
                 self.current_robot.set_target(
-                    head=head, antennas=antennas, body_yaw=body_yaw
+                    head=head, antennas=antennas_cmd, body_yaw=body_yaw
                 )
             except Exception as e:
                 logger.error(f"Failed to set robot target: {e}")
