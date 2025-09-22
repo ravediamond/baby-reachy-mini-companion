@@ -38,6 +38,7 @@ class HeadWobbler:
 
     def start(self) -> None:
         """Start the head wobbler loop in a thread."""
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
         logger.info("Head wobbler started")
