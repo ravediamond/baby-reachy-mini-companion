@@ -12,7 +12,6 @@ from reachy_mini_conversation_demo.moves import MovementManager
 from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
 from reachy_mini_conversation_demo.tools import ToolDependencies
 from reachy_mini_conversation_demo.utils import (
-    AioTaskThread,
     handle_vision_stuff,
     parse_args,
     setup_logger,
@@ -82,20 +81,10 @@ def main():
     app = gr.mount_gradio_app(app, stream.ui, path="/")
 
     # Each async service → its own thread/loop
-    move_thread = AioTaskThread(movement_manager.enable)  # loop A
-    wobbler_thread = AioTaskThread(head_wobbler.enable)  # loop B
-    cam_thread = AioTaskThread(camera_worker.enable) if camera_worker else None
-
-    move_thread.start()
-    wobbler_thread.start()
-    if cam_thread:
-        cam_thread.start()
-
-    # Link the loops for thread-safe communication
-    head_wobbler.bind_loops(
-        consumer_loop=wobbler_thread.loop,
-        movement_loop=move_thread.loop,
-    )
+    movement_manager.start()
+    head_wobbler.start()
+    if camera_worker:
+        camera_worker.start()
 
     try:
         stream.ui.launch()
@@ -103,15 +92,10 @@ def main():
         logger.info("Exiting...")
 
     finally:
-        move_thread.request_stop()
-        wobbler_thread.request_stop()
-        if cam_thread:
-            cam_thread.request_stop()
-
-        move_thread.join()
-        wobbler_thread.join()
-        if cam_thread:
-            cam_thread.join()
+        movement_manager.stop()
+        head_wobbler.stop()
+        if camera_worker:
+            camera_worker.stop()
 
         # prevent connection to keep alive some threads
         robot.client.disconnect()
