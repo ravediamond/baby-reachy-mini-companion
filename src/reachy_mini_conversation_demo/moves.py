@@ -58,9 +58,9 @@ class BreathingMove(Move):
         self.neutral_antennas = np.array([0.0, 0.0])
 
         # Breathing parameters
-        self.breathing_z_amplitude = 0.01  # 1cm gentle breathing
+        self.breathing_z_amplitude = 0.005  # 5mm gentle breathing
         self.breathing_frequency = 0.1  # Hz (6 breaths per minute)
-        self.antenna_sway_amplitude = np.deg2rad(15)  # 15 degrees
+        self.antenna_sway_amplitude = np.deg2rad(7.5)  # 7.5 degrees
         self.antenna_frequency = 0.5  # Hz (faster antenna sway)
 
     @property
