@@ -141,6 +141,12 @@ def combine_full_body(
     return (combined_head, combined_antennas, combined_body_yaw)
 
 
+def clone_full_body_pose(pose: FullBodyPose) -> FullBodyPose:
+    """Create a deep copy of a full body pose tuple."""
+    head, antennas, body_yaw = pose
+    return (head.copy(), (float(antennas[0]), float(antennas[1])), float(body_yaw))
+
+
 @dataclass
 class MovementState:
     """State tracking for the movement system."""
@@ -175,6 +181,7 @@ class MovementState:
     # Status flags
     is_playing_move: bool = False
     is_moving: bool = False
+    last_primary_pose: Optional[FullBodyPose] = None
 
     def update_activity(self) -> None:
         """Update the last activity time."""
@@ -206,6 +213,8 @@ class MovementManager:
         # Movement state
         self.state = MovementState()
         self.state.last_activity_time = time.time()
+        neutral_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
+        self.state.last_primary_pose = (neutral_pose, (0.0, 0.0), 0.0)
 
         # Move queue (primary moves)
         self.move_queue = deque()
@@ -343,17 +352,32 @@ class MovementManager:
                     body_yaw = 0.0
 
                 antennas_tuple = (float(antennas[0]), float(antennas[1]))
-                primary_full_body_pose = (head, antennas_tuple, float(body_yaw))
+                head_copy = head.copy()
+                primary_full_body_pose = (
+                    head_copy,
+                    antennas_tuple,
+                    float(body_yaw),
+                )
 
                 self.state.is_playing_move = True
                 self.state.is_moving = True
+                self.state.last_primary_pose = clone_full_body_pose(primary_full_body_pose)
             else:
                 self.state.is_playing_move = False
                 self.state.is_moving = (
                     time.time() - self.state.moving_start < self.state.moving_for
                 )
-                neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-                primary_full_body_pose = (neutral_head_pose, (0.0, 0.0), 0.0)
+
+                if self.state.last_primary_pose is not None:
+                    primary_full_body_pose = clone_full_body_pose(
+                        self.state.last_primary_pose
+                    )
+                else:
+                    neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
+                    primary_full_body_pose = (neutral_head_pose, (0.0, 0.0), 0.0)
+                    self.state.last_primary_pose = clone_full_body_pose(
+                        primary_full_body_pose
+                    )
 
         return primary_full_body_pose
 
@@ -399,8 +423,12 @@ class MovementManager:
         with self._state_lock:
             self.state.speech_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
             self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-        self.current_robot.set_target(head=neutral_head_pose, antennas=(0.0, 0.0))
+            neutral_full_body_pose = clone_full_body_pose(
+                (create_head_pose(0, 0, 0, 0, 0, 0, degrees=True), (0.0, 0.0), 0.0)
+            )
+            self.state.last_primary_pose = neutral_full_body_pose
+        head, antennas, body_yaw = self.state.last_primary_pose
+        self.current_robot.set_target(head=head, antennas=antennas, body_yaw=body_yaw)
 
     def start(self) -> None:
         """Start the move worker loop in a thread."""
