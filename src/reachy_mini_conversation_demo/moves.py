@@ -13,7 +13,8 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from queue import Empty, Queue
+from typing import Any, Optional, Tuple
 
 import numpy as np
 from reachy_mini import ReachyMini
@@ -219,12 +220,11 @@ class MovementManager:
 
         # Configuration
         self.idle_inactivity_delay = 5.0  # seconds
-        self.target_frequency = 50.0  # Hz
+        self.target_frequency = 100.0  # Hz
         self.target_period = 1.0 / self.target_frequency
 
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self._state_lock = threading.RLock()
         self._is_listening = False
         self._last_commanded_pose: FullBodyPose = clone_full_body_pose(
             self.state.last_primary_pose
@@ -234,30 +234,49 @@ class MovementManager:
         self._antenna_blend_duration = 0.4  # seconds to blend back after listening
         self._last_listening_blend_time = time.monotonic()
 
+        # Cross-thread signalling
+        self._command_queue: Queue[tuple[str, Any]] = Queue()
+        self._speech_offsets_lock = threading.Lock()
+        self._pending_speech_offsets: Tuple[float, float, float, float, float, float] = (
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        )
+        self._speech_offsets_dirty = False
+
+        self._face_offsets_lock = threading.Lock()
+        self._pending_face_offsets: Tuple[float, float, float, float, float, float] = (
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        )
+        self._face_offsets_dirty = False
+
+        self._shared_state_lock = threading.Lock()
+        self._shared_last_activity_time = self.state.last_activity_time
+        self._shared_is_listening = self._is_listening
+
     def queue_move(self, move: Move) -> None:
         """Add a move to the primary move queue."""
-        with self._state_lock:
-            self.move_queue.append(move)
-            self.state.update_activity()
-            logger.info(
-                f"Queued move with duration {move.duration}s, queue size: {len(self.move_queue)}"
-            )
+        self._command_queue.put(("queue_move", move))
 
     def clear_queue(self) -> None:
         """Clear all queued moves and stop current move."""
-        with self._state_lock:
-            self.move_queue.clear()
-            self.state.current_move = None
-            self.state.move_start_time = None
-            self.state.is_playing_move = False
-            logger.info("Cleared move queue and stopped current move")
+        self._command_queue.put(("clear_queue", None))
 
     def set_speech_offsets(
         self, offsets: Tuple[float, float, float, float, float, float]
     ) -> None:
         """Set speech head offsets (secondary move)."""
-        with self._state_lock:
-            self.state.speech_offsets = offsets
+        with self._speech_offsets_lock:
+            self._pending_speech_offsets = offsets
+            self._speech_offsets_dirty = True
 
     def set_offsets(
         self, offsets: Tuple[float, float, float, float, float, float]
@@ -269,38 +288,116 @@ class MovementManager:
         self, offsets: Tuple[float, float, float, float, float, float]
     ) -> None:
         """Set face tracking offsets (secondary move)."""
-        with self._state_lock:
-            self.state.face_tracking_offsets = offsets
+        with self._face_offsets_lock:
+            self._pending_face_offsets = offsets
+            self._face_offsets_dirty = True
 
     def set_moving_state(self, duration: float) -> None:
         """Set legacy moving state for goto moves."""
-        with self._state_lock:
-            self.state.moving_start = time.time()
-            self.state.moving_for = duration
-            self.state.update_activity()
+        self._command_queue.put(("set_moving_state", duration))
 
     def is_idle(self):
         """Check if the robot is idle based on inactivity delay."""
-        with self._state_lock:
-            if self._is_listening:
-                return False
-            current_time = time.time()
-            time_since_activity = current_time - self.state.last_activity_time
-            return time_since_activity >= self.idle_inactivity_delay
+        with self._shared_state_lock:
+            last_activity = self._shared_last_activity_time
+            listening = self._shared_is_listening
+
+        if listening:
+            return False
+
+        current_time = time.time()
+        time_since_activity = current_time - last_activity
+        return time_since_activity >= self.idle_inactivity_delay
 
     def mark_user_activity(self) -> None:
         """Record recent user activity to delay idle behaviours."""
-        with self._state_lock:
-            self.state.update_activity()
+        self._command_queue.put(("mark_activity", None))
 
     def set_listening(self, listening: bool) -> None:
         """Toggle listening mode, freezing antennas when active."""
-        with self._state_lock:
-            if self._is_listening == listening:
+        with self._shared_state_lock:
+            if self._shared_is_listening == listening:
                 return
-            self._is_listening = listening
+        self._command_queue.put(("set_listening", listening))
+
+    def _poll_signals(self, current_time: float) -> None:
+        """Apply queued commands and pending offset updates."""
+        self._apply_pending_offsets()
+
+        while True:
+            try:
+                command, payload = self._command_queue.get_nowait()
+            except Empty:
+                break
+            self._handle_command(command, payload, current_time)
+
+    def _apply_pending_offsets(self) -> None:
+        """Apply the most recent speech/face offset updates."""
+        speech_offsets: Optional[Tuple[float, float, float, float, float, float]] = None
+        with self._speech_offsets_lock:
+            if self._speech_offsets_dirty:
+                speech_offsets = self._pending_speech_offsets
+                self._speech_offsets_dirty = False
+
+        if speech_offsets is not None:
+            self.state.speech_offsets = speech_offsets
+            self.state.update_activity()
+
+        face_offsets: Optional[Tuple[float, float, float, float, float, float]] = None
+        with self._face_offsets_lock:
+            if self._face_offsets_dirty:
+                face_offsets = self._pending_face_offsets
+                self._face_offsets_dirty = False
+
+        if face_offsets is not None:
+            self.state.face_tracking_offsets = face_offsets
+            self.state.update_activity()
+
+    def _handle_command(self, command: str, payload: Any, current_time: float) -> None:
+        """Handle a single cross-thread command."""
+        if command == "queue_move":
+            if isinstance(payload, Move):
+                self.move_queue.append(payload)
+                self.state.update_activity()
+                duration = getattr(payload, "duration", None)
+                if duration is not None:
+                    try:
+                        duration_str = f"{float(duration):.2f}"
+                    except (TypeError, ValueError):
+                        duration_str = str(duration)
+                else:
+                    duration_str = "?"
+                logger.info(
+                    "Queued move with duration %ss, queue size: %s",
+                    duration_str,
+                    len(self.move_queue),
+                )
+            else:
+                logger.warning("Ignored queue_move command with invalid payload: %s", payload)
+        elif command == "clear_queue":
+            self.move_queue.clear()
+            self.state.current_move = None
+            self.state.move_start_time = None
+            self.state.is_playing_move = False
+            logger.info("Cleared move queue and stopped current move")
+        elif command == "set_moving_state":
+            try:
+                duration = float(payload)
+            except (TypeError, ValueError):
+                logger.warning("Invalid moving state duration: %s", payload)
+                return
+            self.state.moving_start = current_time
+            self.state.moving_for = max(0.0, duration)
+            self.state.update_activity()
+        elif command == "mark_activity":
+            self.state.update_activity()
+        elif command == "set_listening":
+            desired_state = bool(payload)
+            if self._is_listening == desired_state:
+                return
+            self._is_listening = desired_state
             self._last_listening_blend_time = time.monotonic()
-            if listening:
+            if desired_state:
                 # Capture the last antenna command so we keep that pose during listening
                 self._listening_antennas = (
                     float(self._last_commanded_pose[1][0]),
@@ -308,124 +405,120 @@ class MovementManager:
                 )
                 self._antenna_unfreeze_blend = 0.0
             self.state.update_activity()
+        else:
+            logger.warning("Unknown command received by MovementManager: %s", command)
+
+    def _publish_shared_state(self) -> None:
+        """Expose idle-related state for external threads."""
+        with self._shared_state_lock:
+            self._shared_last_activity_time = self.state.last_activity_time
+            self._shared_is_listening = self._is_listening
 
     def _manage_move_queue(self, current_time: float) -> None:
         """Manage the primary move queue (sequential execution)."""
-        with self._state_lock:
-            if self.state.current_move is None or (
-                self.state.move_start_time is not None
-                and current_time - self.state.move_start_time
-                >= self.state.current_move.duration
-            ):
-                self.state.current_move = None
-                self.state.move_start_time = None
+        if self.state.current_move is None or (
+            self.state.move_start_time is not None
+            and current_time - self.state.move_start_time
+            >= self.state.current_move.duration
+        ):
+            self.state.current_move = None
+            self.state.move_start_time = None
 
-                if self.move_queue:
-                    self.state.current_move = self.move_queue.popleft()
-                    self.state.move_start_time = current_time
-                    logger.info(
-                        f"Starting new move, duration: {self.state.current_move.duration}s"
-                    )
+            if self.move_queue:
+                self.state.current_move = self.move_queue.popleft()
+                self.state.move_start_time = current_time
+                logger.info(
+                    f"Starting new move, duration: {self.state.current_move.duration}s"
+                )
 
     def _manage_breathing(self, current_time: float) -> None:
         """Manage automatic breathing when idle."""
         # Start breathing after inactivity delay if no moves in queue
-        with self._state_lock:
-            if self.state.current_move is None and not self.move_queue:
-                time_since_activity = current_time - self.state.last_activity_time
+        if self.state.current_move is None and not self.move_queue:
+            time_since_activity = current_time - self.state.last_activity_time
+            if not self._is_listening and time_since_activity >= self.idle_inactivity_delay:
+                try:
+                    _, current_antennas = self.current_robot.get_current_joint_positions()
+                    current_head_pose = self.current_robot.get_current_head_pose()
 
-                if self.is_idle():
-                    try:
-                        _, current_antennas = (
-                            self.current_robot.get_current_joint_positions()
-                        )
-                        current_head_pose = self.current_robot.get_current_head_pose()
+                    breathing_move = BreathingMove(
+                        interpolation_start_pose=current_head_pose,
+                        interpolation_start_antennas=current_antennas,
+                        interpolation_duration=1.0,
+                    )
+                    self.move_queue.append(breathing_move)
+                    self.state.update_activity()
+                    logger.info(
+                        f"Started breathing after {time_since_activity:.1f}s of inactivity"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to start breathing: {e}")
 
-                        breathing_move = BreathingMove(
-                            interpolation_start_pose=current_head_pose,
-                            interpolation_start_antennas=current_antennas,
-                            interpolation_duration=1.0,
-                        )
-                        self.move_queue.append(breathing_move)
-                        self.state.update_activity()
-                        logger.info(
-                            f"Started breathing after {time_since_activity:.1f}s of inactivity"
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to start breathing: {e}")
-
-            if (
-                self.state.current_move is not None
-                and isinstance(self.state.current_move, BreathingMove)
-                and self.move_queue
-            ):
-                self.state.current_move = None
-                self.state.move_start_time = None
-                logger.info("Stopping breathing due to new move activity")
+        if (
+            self.state.current_move is not None
+            and isinstance(self.state.current_move, BreathingMove)
+            and self.move_queue
+        ):
+            self.state.current_move = None
+            self.state.move_start_time = None
+            logger.info("Stopping breathing due to new move activity")
 
     def _get_primary_pose(self, current_time: float) -> FullBodyPose:
         """Get the primary full body pose from current move or neutral."""
-        with self._state_lock:
-            # When a primary move is playing, sample it and cache the resulting pose
-            if (
-                self.state.current_move is not None
-                and self.state.move_start_time is not None
-            ):
-                move_time = current_time - self.state.move_start_time
-                head, antennas, body_yaw = self.state.current_move.evaluate(move_time)
+        # When a primary move is playing, sample it and cache the resulting pose
+        if self.state.current_move is not None and self.state.move_start_time is not None:
+            move_time = current_time - self.state.move_start_time
+            head, antennas, body_yaw = self.state.current_move.evaluate(move_time)
 
-                if head is None:
-                    head = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-                if antennas is None:
-                    antennas = np.array([0.0, 0.0])
-                if body_yaw is None:
-                    body_yaw = 0.0
+            if head is None:
+                head = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
+            if antennas is None:
+                antennas = np.array([0.0, 0.0])
+            if body_yaw is None:
+                body_yaw = 0.0
 
-                antennas_tuple = (float(antennas[0]), float(antennas[1]))
-                head_copy = head.copy()
-                primary_full_body_pose = (
-                    head_copy,
-                    antennas_tuple,
-                    float(body_yaw),
+            antennas_tuple = (float(antennas[0]), float(antennas[1]))
+            head_copy = head.copy()
+            primary_full_body_pose = (
+                head_copy,
+                antennas_tuple,
+                float(body_yaw),
+            )
+
+            self.state.is_playing_move = True
+            self.state.is_moving = True
+            self.state.last_primary_pose = clone_full_body_pose(primary_full_body_pose)
+        else:
+            # Otherwise reuse the last primary pose so we avoid jumps between moves
+            self.state.is_playing_move = False
+            self.state.is_moving = (
+                current_time - self.state.moving_start < self.state.moving_for
+            )
+
+            if self.state.last_primary_pose is not None:
+                primary_full_body_pose = clone_full_body_pose(
+                    self.state.last_primary_pose
                 )
-
-                self.state.is_playing_move = True
-                self.state.is_moving = True
+            else:
+                neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
+                primary_full_body_pose = (neutral_head_pose, (0.0, 0.0), 0.0)
                 self.state.last_primary_pose = clone_full_body_pose(
                     primary_full_body_pose
                 )
-            else:
-                # Otherwise reuse the last primary pose so we avoid jumps between moves
-                self.state.is_playing_move = False
-                self.state.is_moving = (
-                    time.time() - self.state.moving_start < self.state.moving_for
-                )
-
-                if self.state.last_primary_pose is not None:
-                    primary_full_body_pose = clone_full_body_pose(
-                        self.state.last_primary_pose
-                    )
-                else:
-                    neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-                    primary_full_body_pose = (neutral_head_pose, (0.0, 0.0), 0.0)
-                    self.state.last_primary_pose = clone_full_body_pose(
-                        primary_full_body_pose
-                    )
 
         return primary_full_body_pose
 
     def _get_secondary_pose(self) -> FullBodyPose:
         """Get the secondary full body pose from speech and face tracking offsets."""
         # Combine speech sway offsets + face tracking offsets for secondary pose
-        with self._state_lock:
-            secondary_offsets = [
-                self.state.speech_offsets[0] + self.state.face_tracking_offsets[0],
-                self.state.speech_offsets[1] + self.state.face_tracking_offsets[1],
-                self.state.speech_offsets[2] + self.state.face_tracking_offsets[2],
-                self.state.speech_offsets[3] + self.state.face_tracking_offsets[3],
-                self.state.speech_offsets[4] + self.state.face_tracking_offsets[4],
-                self.state.speech_offsets[5] + self.state.face_tracking_offsets[5],
-            ]
+        secondary_offsets = [
+            self.state.speech_offsets[0] + self.state.face_tracking_offsets[0],
+            self.state.speech_offsets[1] + self.state.face_tracking_offsets[1],
+            self.state.speech_offsets[2] + self.state.face_tracking_offsets[2],
+            self.state.speech_offsets[3] + self.state.face_tracking_offsets[3],
+            self.state.speech_offsets[4] + self.state.face_tracking_offsets[4],
+            self.state.speech_offsets[5] + self.state.face_tracking_offsets[5],
+        ]
 
         secondary_head_pose = create_head_pose(
             x=secondary_offsets[0],
@@ -444,12 +537,10 @@ class MovementManager:
         if self.camera_worker is not None:
             # Get face tracking offsets from camera worker thread
             offsets = self.camera_worker.get_face_tracking_offsets()
-            with self._state_lock:
-                self.state.face_tracking_offsets = offsets
+            self.state.face_tracking_offsets = offsets
         else:
             # No camera worker, use neutral offsets
-            with self._state_lock:
-                self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     def start(self) -> None:
         """Start the move worker loop in a thread."""
@@ -470,48 +561,63 @@ class MovementManager:
 
         Single set_target() call with pose fusion.
         """
-        logger.debug("Starting enhanced movement control loop (50Hz)")
+        logger.debug("Starting enhanced movement control loop (100Hz)")
 
         loop_count = 0
-        last_print_time = time.time()
+        prev_loop_start_perf = time.perf_counter()
+        freq_mean = 0.0
+        freq_m2 = 0.0
+        freq_min = float("inf")
+        freq_count = 0
+        last_freq = 0.0
+        print_interval_loops = max(1, int(self.target_frequency * 2))
+        potential_freq = 0.0
 
         while not self._stop_event.is_set():
-            loop_start_time = time.time()
+            loop_start_perf = time.perf_counter()
             loop_count += 1
             current_time = time.time()
 
-            # 1. Manage move queue (sequential primary moves)
+            if loop_count > 1:
+                period = loop_start_perf - prev_loop_start_perf
+                if period > 0:
+                    last_freq = 1.0 / period
+                    freq_count += 1
+                    delta = last_freq - freq_mean
+                    freq_mean += delta / freq_count
+                    freq_m2 += delta * (last_freq - freq_mean)
+                    freq_min = min(freq_min, last_freq)
+            prev_loop_start_perf = loop_start_perf
+
+            # 1. Poll external signals and commands
+            self._poll_signals(current_time)
+
+            # 2. Sequential move management
             self._manage_move_queue(current_time)
 
-            # 2. Manage breathing (automatic idle behavior)
+            # 3. Automatic behaviours (breathing)
             self._manage_breathing(current_time)
 
-            # 3. Update face tracking offsets
+            # 4. Update vision offsets
             self._update_face_tracking(current_time)
 
-            # 4. Get primary pose from current move or neutral
+            # 5. Build pose snapshots
             primary_full_body_pose = self._get_primary_pose(current_time)
-
-            # 5. Get secondary pose from speech and face tracking offsets
             secondary_full_body_pose = self._get_secondary_pose()
-
-            # 6. Combine primary and secondary poses
             global_full_body_pose = combine_full_body(
                 primary_full_body_pose, secondary_full_body_pose
             )
 
-            # 7. Extract pose components
+            # 6. Blend listening state for antennas
             head, antennas, body_yaw = global_full_body_pose
             now_monotonic = time.monotonic()
-            with self._state_lock:
-                listening = self._is_listening
-                listening_antennas = self._listening_antennas
-                blend = self._antenna_unfreeze_blend
-                blend_duration = self._antenna_blend_duration
-                last_update = self._last_listening_blend_time
-                self._last_listening_blend_time = now_monotonic
+            listening = self._is_listening
+            listening_antennas = self._listening_antennas
+            blend = self._antenna_unfreeze_blend
+            blend_duration = self._antenna_blend_duration
+            last_update = self._last_listening_blend_time
+            self._last_listening_blend_time = now_monotonic
 
-            # Blend antenna outputs back to the live motion when leaving listening mode
             if listening:
                 antennas_cmd = listening_antennas
                 new_blend = 0.0
@@ -526,18 +632,17 @@ class MovementManager:
                     listening_antennas[1] * (1.0 - new_blend) + antennas[1] * new_blend,
                 )
 
-            with self._state_lock:
-                if listening:
-                    self._antenna_unfreeze_blend = 0.0
-                else:
-                    self._antenna_unfreeze_blend = new_blend
-                    if new_blend >= 1.0:
-                        self._listening_antennas = (
-                            float(antennas[0]),
-                            float(antennas[1]),
-                        )
+            if listening:
+                self._antenna_unfreeze_blend = 0.0
+            else:
+                self._antenna_unfreeze_blend = new_blend
+                if new_blend >= 1.0:
+                    self._listening_antennas = (
+                        float(antennas[0]),
+                        float(antennas[1]),
+                    )
 
-            # 8. Single set_target call - the one and only place we control the robot
+            # 7. Single set_target call - the only control point
             try:
                 self.current_robot.set_target(
                     head=head, antennas=antennas_cmd, body_yaw=body_yaw
@@ -545,27 +650,38 @@ class MovementManager:
             except Exception as e:
                 logger.error(f"Failed to set robot target: {e}")
             else:
-                with self._state_lock:
-                    self._last_commanded_pose = clone_full_body_pose(
-                        (head, antennas_cmd, body_yaw)
-                    )
-
-            # 9. Calculate computation time and adjust sleep for 50Hz
-            computation_time = time.time() - loop_start_time
-            sleep_time = max(0, self.target_period - computation_time)
-
-            # 10. Print frequency info every 100 loops (~2 seconds)
-            if loop_count % 100 == 0:
-                elapsed = current_time - last_print_time
-                actual_freq = 100.0 / elapsed if elapsed > 0 else 0
-                potential_freq = (
-                    1.0 / computation_time if computation_time > 0 else float("inf")
+                self._last_commanded_pose = clone_full_body_pose(
+                    (head, antennas_cmd, body_yaw)
                 )
+
+            # 8. Timing bookkeeping + adaptive sleep for 100Hz
+            computation_time = time.perf_counter() - loop_start_perf
+            potential_freq = (
+                1.0 / computation_time if computation_time > 0 else float("inf")
+            )
+            sleep_time = max(0.0, self.target_period - computation_time)
+
+            self._publish_shared_state()
+
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+
+            # 9. Periodic telemetry
+            if loop_count % print_interval_loops == 0 and freq_count > 0:
+                variance = freq_m2 / freq_count if freq_count > 0 else 0.0
+                lowest = freq_min if freq_min != float("inf") else 0.0
                 logger.debug(
-                    f"Loop freq - Actual: {actual_freq:.1f}Hz, Potential: {potential_freq:.1f}Hz, Target: {self.target_frequency:.1f}Hz"
+                    "Loop freq - avg: %.2fHz, variance: %.4f, min: %.2fHz, last: %.2fHz, potential: %.2fHz, target: %.1fHz",
+                    freq_mean,
+                    variance,
+                    lowest,
+                    last_freq,
+                    potential_freq,
+                    self.target_frequency,
                 )
-                last_print_time = current_time
-
-            time.sleep(sleep_time)
+                freq_mean = 0.0
+                freq_m2 = 0.0
+                freq_min = float("inf")
+                freq_count = 0
 
         logger.debug("Movement control loop stopped")
