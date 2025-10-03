@@ -31,7 +31,7 @@ def main():
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation Demo")
 
-    robot = ReachyMini(use_sim=True)
+    robot = ReachyMini(use_sim=False)
 
     camera_worker, head_tracker, vision_manager = handle_vision_stuff(args, robot)
 
