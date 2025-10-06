@@ -186,7 +186,7 @@ class MovementState:
 
     def update_activity(self) -> None:
         """Update the last activity time."""
-        self.last_activity_time = time.time()
+        self.last_activity_time = time.monotonic()
 
 
 class MovementManager:
@@ -209,9 +209,12 @@ class MovementManager:
         self.head_tracker = head_tracker
         self.camera_worker = camera_worker
 
+        # Single timing source for durations
+        self._now = time.monotonic
+
         # Movement state
         self.state = MovementState()
-        self.state.last_activity_time = time.time()
+        self.state.last_activity_time = self._now()
         neutral_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
         self.state.last_primary_pose = (neutral_pose, (0.0, 0.0), 0.0)
 
@@ -232,7 +235,7 @@ class MovementManager:
         self._listening_antennas: Tuple[float, float] = self._last_commanded_pose[1]
         self._antenna_unfreeze_blend = 1.0
         self._antenna_blend_duration = 0.4  # seconds to blend back after listening
-        self._last_listening_blend_time = time.monotonic()
+        self._last_listening_blend_time = self._now()
 
         # Cross-thread signalling
         self._command_queue: Queue[tuple[str, Any]] = Queue()
@@ -305,7 +308,7 @@ class MovementManager:
         if listening:
             return False
 
-        current_time = time.time()
+        current_time = self._now()
         time_since_activity = current_time - last_activity
         return time_since_activity >= self.idle_inactivity_delay
 
@@ -396,7 +399,7 @@ class MovementManager:
             if self._is_listening == desired_state:
                 return
             self._is_listening = desired_state
-            self._last_listening_blend_time = time.monotonic()
+            self._last_listening_blend_time = self._now()
             if desired_state:
                 # Capture the last antenna command so we keep that pose during listening
                 self._listening_antennas = (
@@ -564,7 +567,7 @@ class MovementManager:
         logger.debug("Starting enhanced movement control loop (100Hz)")
 
         loop_count = 0
-        prev_loop_start_perf = time.perf_counter()
+        prev_loop_start = self._now()
         freq_mean = 0.0
         freq_m2 = 0.0
         freq_min = float("inf")
@@ -574,12 +577,12 @@ class MovementManager:
         potential_freq = 0.0
 
         while not self._stop_event.is_set():
-            loop_start_perf = time.perf_counter()
+            loop_start = self._now()
             loop_count += 1
-            current_time = time.time()
+            current_time = loop_start
 
             if loop_count > 1:
-                period = loop_start_perf - prev_loop_start_perf
+                period = loop_start - prev_loop_start
                 if period > 0:
                     last_freq = 1.0 / period
                     freq_count += 1
@@ -587,7 +590,7 @@ class MovementManager:
                     freq_mean += delta / freq_count
                     freq_m2 += delta * (last_freq - freq_mean)
                     freq_min = min(freq_min, last_freq)
-            prev_loop_start_perf = loop_start_perf
+            prev_loop_start = loop_start
 
             # 1. Poll external signals and commands
             self._poll_signals(current_time)
@@ -610,7 +613,7 @@ class MovementManager:
 
             # 6. Blend listening state for antennas
             head, antennas, body_yaw = global_full_body_pose
-            now_monotonic = time.monotonic()
+            now_monotonic = self._now()
             listening = self._is_listening
             listening_antennas = self._listening_antennas
             blend = self._antenna_unfreeze_blend
@@ -655,7 +658,7 @@ class MovementManager:
                 )
 
             # 8. Timing bookkeeping + adaptive sleep for 100Hz
-            computation_time = time.perf_counter() - loop_start_perf
+            computation_time = self._now() - loop_start
             potential_freq = (
                 1.0 / computation_time if computation_time > 0 else float("inf")
             )
