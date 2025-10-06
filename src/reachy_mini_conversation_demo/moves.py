@@ -587,6 +587,7 @@ class MovementManager:
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
+            self._thread = None
         logger.info("Move worker stopped")
 
     def working_loop(self) -> None:
