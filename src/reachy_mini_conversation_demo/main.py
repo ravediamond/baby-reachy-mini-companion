@@ -33,11 +33,10 @@ def main():
 
     robot = ReachyMini(use_sim=False)
 
-    camera_worker, head_tracker, vision_manager = handle_vision_stuff(args, robot)
+    camera_worker, _, vision_manager = handle_vision_stuff(args, robot)
 
     movement_manager = MovementManager(
         current_robot=robot,
-        head_tracker=head_tracker,
         camera_worker=camera_worker,
     )
 

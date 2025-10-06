@@ -259,12 +259,10 @@ class MovementManager:
     def __init__(
         self,
         current_robot: ReachyMini,
-        head_tracker=None,
         camera_worker=None,
     ):
         """Initialize movement manager."""
         self.current_robot = current_robot
-        self.head_tracker = head_tracker
         self.camera_worker = camera_worker
 
         # Single timing source for durations
@@ -354,17 +352,6 @@ class MovementManager:
         with self._speech_offsets_lock:
             self._pending_speech_offsets = offsets
             self._speech_offsets_dirty = True
-
-    def set_face_tracking_offsets(
-        self, offsets: Tuple[float, float, float, float, float, float]
-    ) -> None:
-        """Update face-tracking secondary offsets (x, y, z, roll, pitch, yaw).
-
-        Offsets are staged atomically and applied in the worker thread.
-        """
-        with self._face_offsets_lock:
-            self._pending_face_offsets = offsets
-            self._face_offsets_dirty = True
 
     def set_moving_state(self, duration: float) -> None:
         """Mark the robot as actively moving for the provided duration.
@@ -628,7 +615,7 @@ class MovementManager:
             degrees=False,
             mm=False,
         )
-        return (secondary_head_pose, (0, 0), 0)
+        return (secondary_head_pose, (0.0, 0.0), 0.0)
 
     def _compose_full_body_pose(self, current_time: float) -> FullBodyPose:
         """Compose primary and secondary poses into a single command pose."""
