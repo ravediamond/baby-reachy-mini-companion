@@ -768,9 +768,6 @@ class MovementManager:
 
             self._publish_shared_state()
 
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
             # 9) Periodic telemetry on loop frequency
             if loop_count % print_interval_loops == 0 and freq_count > 0:
                 variance = freq_m2 / freq_count if freq_count > 0 else 0.0
@@ -788,5 +785,8 @@ class MovementManager:
                 freq_m2 = 0.0
                 freq_min = float("inf")
                 freq_count = 0
+
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
         logger.debug("Movement control loop stopped")
