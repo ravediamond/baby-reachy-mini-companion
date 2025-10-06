@@ -1,10 +1,10 @@
 """Regression tests for the audio-driven head wobble behaviour."""
 
-import base64
 import math
-import threading
 import time
-from typing import Callable, List, Tuple
+import base64
+import threading
+from typing import List, Tuple, Callable
 
 import numpy as np
 

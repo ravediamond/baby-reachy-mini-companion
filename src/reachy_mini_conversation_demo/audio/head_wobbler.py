@@ -5,7 +5,7 @@ import queue
 import base64
 import logging
 import threading
-from typing import Optional, Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 

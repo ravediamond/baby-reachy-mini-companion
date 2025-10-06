@@ -35,11 +35,10 @@ from __future__ import annotations
 import time
 import logging
 import threading
-from typing import Tuple, Optional
+from queue import Empty, Queue
+from typing import Any, Tuple, Optional
 from collections import deque
 from dataclasses import dataclass
-from queue import Empty, Queue
-from typing import Any, Optional, Tuple
 
 import numpy as np
 
