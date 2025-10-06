@@ -326,7 +326,6 @@ class MovementManager:
         self._face_offsets_dirty = False
 
         self._shared_state_lock = threading.Lock()
-        self._shared_last_activity_time = self.state.last_activity_time
         self._shared_is_listening = self._is_listening
 
     def queue_move(self, move: Move) -> None:
@@ -374,19 +373,6 @@ class MovementManager:
         aware of manual motions. Thread-safe via the command queue.
         """
         self._command_queue.put(("set_moving_state", duration))
-
-    def is_idle(self):
-        """Return True when the robot has been inactive longer than the idle delay."""
-        with self._shared_state_lock:
-            last_activity = self._shared_last_activity_time
-            listening = self._shared_is_listening
-
-        if listening:
-            return False
-
-        current_time = self._now()
-        time_since_activity = current_time - last_activity
-        return time_since_activity >= self.idle_inactivity_delay
 
     def mark_user_activity(self) -> None:
         """Record external activity and postpone idle behaviours (thread-safe)."""
@@ -508,7 +494,6 @@ class MovementManager:
     def _publish_shared_state(self) -> None:
         """Expose idle-related state for external threads."""
         with self._shared_state_lock:
-            self._shared_last_activity_time = self.state.last_activity_time
             self._shared_is_listening = self._is_listening
 
     def _manage_move_queue(self, current_time: float) -> None:
@@ -807,27 +792,26 @@ class MovementManager:
             # 1) Poll external commands and apply pending offsets (atomic snapshot)
             self._poll_signals(loop_start)
 
-            # 2) Manage the primary move queue (start new move, end finished move)
-            # 3) Manage automatic idle behaviours (breathing)
+            # 2) Manage the primary move queue (start new move, end finished move, breathing)
             self._update_primary_motion(loop_start)
 
-            # 4) Update vision-based secondary offsets
+            # 3) Update vision-based secondary offsets
             self._update_face_tracking(loop_start)
 
-            # 5) Build primary and secondary full-body poses, then fuse them
+            # 4) Build primary and secondary full-body poses, then fuse them
             head, antennas, body_yaw = self._compose_full_body_pose(loop_start)
 
-            # 6) Apply listening antenna freeze or blend-back
+            # 5) Apply listening antenna freeze or blend-back
             antennas_cmd = self._calculate_blended_antennas(antennas)
 
-            # 7) Single set_target call - the only control point
+            # 6) Single set_target call - the only control point
             self._issue_control_command(head, antennas_cmd, body_yaw)
 
-            # 8) Adaptive sleep to align to next tick, then publish shared state
+            # 7) Adaptive sleep to align to next tick, then publish shared state
             sleep_time, freq_stats = self._schedule_next_tick(loop_start, freq_stats)
             self._publish_shared_state()
 
-            # 9) Periodic telemetry on loop frequency
+            # 8) Periodic telemetry on loop frequency
             self._maybe_log_frequency(loop_count, print_interval_loops, freq_stats)
 
             if sleep_time > 0:
