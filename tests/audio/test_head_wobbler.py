@@ -1,3 +1,5 @@
+"""Regression tests for the audio-driven head wobble behaviour."""
+
 import base64
 import math
 import threading
