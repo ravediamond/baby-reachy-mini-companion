@@ -323,7 +323,7 @@ class MovementManager:
                 if self.move_queue:
                     self.state.current_move = self.move_queue.popleft()
                     self.state.move_start_time = current_time
-                    logger.info(
+                    logger.debug(
                         f"Starting new move, duration: {self.state.current_move.duration}s"
                     )
 
@@ -348,7 +348,7 @@ class MovementManager:
                         )
                         self.move_queue.append(breathing_move)
                         self.state.update_activity()
-                        logger.info(
+                        logger.debug(
                             f"Started breathing after {time_since_activity:.1f}s of inactivity"
                         )
                     except Exception as e:
@@ -456,14 +456,14 @@ class MovementManager:
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
-        logger.info("Move worker started")
+        logger.debug("Move worker started")
 
     def stop(self) -> None:
         """Stop the move worker loop."""
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
-        logger.info("Move worker stopped")
+        logger.debug("Move worker stopped")
 
     def working_loop(self) -> None:
         """Control loop main movements - reproduces main_works.py control architecture.

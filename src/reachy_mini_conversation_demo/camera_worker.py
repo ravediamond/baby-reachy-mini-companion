@@ -83,14 +83,14 @@ class CameraWorker:
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
-        logger.info("Camera worker started")
+        logger.debug("Camera worker started")
 
     def stop(self) -> None:
         """Stop the camera worker loop."""
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
-        logger.info("Camera worker stopped")
+        logger.debug("Camera worker stopped")
 
     def working_loop(self) -> None:
         """Enable the camera worker loop.

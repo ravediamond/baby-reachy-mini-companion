@@ -51,7 +51,7 @@ def main():
         head_wobbler=head_wobbler,
     )
     current_file_path = os.path.dirname(os.path.abspath(__file__))
-    logger.info(f"Current file absolute path: {current_file_path}")
+    logger.debug(f"Current file absolute path: {current_file_path}")
     chatbot = gr.Chatbot(
         type="messages",
         resizable=True,
@@ -60,7 +60,7 @@ def main():
             os.path.join(current_file_path, "images", "reachymini_avatar.png"),
         ),
     )
-    logger.info(f"Chatbot avatar images: {chatbot.avatar_images}")
+    logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
     handler = OpenaiRealtimeHandler(deps)
     stream = Stream(

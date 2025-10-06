@@ -41,14 +41,14 @@ class HeadWobbler:
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
-        logger.info("Head wobbler started")
+        logger.debug("Head wobbler started")
 
     def stop(self) -> None:
         """Stop the head wobbler loop."""
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
-        logger.info("Head wobbler stopped")
+        logger.debug("Head wobbler stopped")
 
     def working_loop(self) -> None:
         """Convert audio deltas into head movement offsets."""
