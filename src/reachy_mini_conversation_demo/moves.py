@@ -52,6 +52,9 @@ from reachy_mini.utils.interpolation import (
 
 logger = logging.getLogger(__name__)
 
+# Configuration constants
+CONTROL_LOOP_FREQUENCY_HZ = 100.0  # Hz - Target frequency for the movement control loop
+
 # Type definitions
 FullBodyPose = Tuple[
     np.ndarray, Tuple[float, float], float
@@ -279,7 +282,7 @@ class MovementManager:
 
         # Configuration
         self.idle_inactivity_delay = 0.3  # seconds
-        self.target_frequency = 100.0  # Hz
+        self.target_frequency = CONTROL_LOOP_FREQUENCY_HZ
         self.target_period = 1.0 / self.target_frequency
 
         self._stop_event = threading.Event()
