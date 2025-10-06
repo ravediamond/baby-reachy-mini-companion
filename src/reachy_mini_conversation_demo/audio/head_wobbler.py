@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 class HeadWobbler:
     """Converts audio deltas (base64) into head movement offsets."""
 
-    def __init__(self, set_offsets):
+    def __init__(self, set_speech_offsets):
         """Initialize the head wobbler."""
-        self._apply_offsets = set_offsets
+        self._apply_offsets = set_speech_offsets
         self._base_ts: Optional[float] = None
         self._hops_done: int = 0
 

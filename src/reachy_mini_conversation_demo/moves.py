@@ -338,12 +338,6 @@ class MovementManager:
             self._pending_speech_offsets = offsets
             self._speech_offsets_dirty = True
 
-    def set_offsets(
-        self, offsets: Tuple[float, float, float, float, float, float]
-    ) -> None:
-        """Compatibility alias for :meth:`set_speech_offsets`."""
-        self.set_speech_offsets(offsets)
-
     def set_face_tracking_offsets(
         self, offsets: Tuple[float, float, float, float, float, float]
     ) -> None:
