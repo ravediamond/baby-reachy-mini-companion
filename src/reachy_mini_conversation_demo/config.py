@@ -1,6 +1,7 @@
-import os  # noqa: D100
+import os
 
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -15,7 +16,7 @@ def getenv_bool(key: str, default: bool = False) -> bool:
 
 class Config:
     """Configuration class for the conversation demo."""
-    
+
     # Required
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     if not OPENAI_API_KEY:
@@ -25,6 +26,7 @@ class Config:
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-realtime-preview")
     OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
     HF_HOME = os.getenv("HF_HOME", "./cache")
+    HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, falls back to hf auth login if not set
 
 
 config = Config()

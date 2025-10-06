@@ -1,16 +1,16 @@
-from __future__ import annotations  # noqa: D100
-
+from __future__ import annotations
 import abc
+import json
+import time
 import asyncio
 import inspect
-import json
 import logging
-import time
-from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
+from dataclasses import dataclass
 
 from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
+
 
 # from reachy_mini_conversation_demo.vision.processors import VisionManager
 
@@ -22,14 +22,14 @@ ENABLE_FACE_RECOGNITION = False
 try:
     from reachy_mini.motion.recorded_move import RecordedMoves
     from reachy_mini_dances_library.collection.dance import AVAILABLE_MOVES
-
     from reachy_mini_conversation_demo.dance_emotion_moves import (
+        GotoQueueMove,
         DanceQueueMove,
         EmotionQueueMove,
-        GotoQueueMove,
     )
 
     # Initialize recorded moves for emotions
+    # Note: huggingface_hub automatically reads HF_TOKEN from environment variables
     RECORDED_MOVES = RecordedMoves("pollen-robotics/reachy-mini-emotions-library")
     DANCE_AVAILABLE = True
     EMOTION_AVAILABLE = True
@@ -183,9 +183,7 @@ class MoveHead(Tool):
                     current_antennas[1],
                 ),  # Skip body_yaw
                 target_body_yaw=0,  # Reset body yaw
-                start_body_yaw=current_antennas[
-                    0
-                ],  # body_yaw is first in joint positions
+                start_body_yaw=current_antennas[0],  # body_yaw is first in joint positions
                 duration=deps.motion_duration_s,
             )
 
@@ -236,15 +234,11 @@ class Camera(Tool):
 
         # Use vision manager for processing if available
         if deps.vision_manager is not None:
-            result = await asyncio.to_thread(
-                deps.vision_manager.processor.process_image, frame, image_query
-            )
+            result = await asyncio.to_thread(deps.vision_manager.processor.process_image, frame, image_query)
             if isinstance(result, dict) and "error" in result:
                 return result
             return (
-                {"image_description": result}
-                if isinstance(result, str)
-                else {"error": "vision returned non-string"}
+                {"image_description": result} if isinstance(result, str) else {"error": "vision returned non-string"}
             )
         else:
             # Return base64 encoded image like main_works.py camera tool
@@ -388,8 +382,8 @@ class Dance(Tool):
         "properties": {
             "move": {
                 "type": "string",
-                "description": """Name of the move; use 'random' or omit for random. 
-                                    Here is a list of the available moves: 
+                "description": """Name of the move; use 'random' or omit for random.
+                                    Here is a list of the available moves:
                                         simple_nod: A simple, continuous up-and-down nodding motion.
                                         head_tilt_roll: A continuous side-to-side head roll (ear to shoulder).
                                         side_to_side_sway: A smooth, side-to-side sway of the entire head.
@@ -436,9 +430,7 @@ class Dance(Tool):
             move_name = random.choice(list(AVAILABLE_MOVES.keys()))
 
         if move_name not in AVAILABLE_MOVES:
-            return {
-                "error": f"Unknown dance move '{move_name}'. Available: {list(AVAILABLE_MOVES.keys())}"
-            }
+            return {"error": f"Unknown dance move '{move_name}'. Available: {list(AVAILABLE_MOVES.keys())}"}
 
         # Add dance moves to queue
         movement_manager = deps.movement_manager
@@ -523,9 +515,7 @@ class PlayEmotion(Tool):
         try:
             emotion_names = RECORDED_MOVES.list_moves()
             if emotion_name not in emotion_names:
-                return {
-                    "error": f"Unknown emotion '{emotion_name}'. Available: {emotion_names}"
-                }
+                return {"error": f"Unknown emotion '{emotion_name}'. Available: {emotion_names}"}
 
             # Add emotion to queue
             movement_manager = deps.movement_manager
@@ -604,9 +594,7 @@ class FaceRecognition(Tool):
             cv2.imwrite(temp_path, frame)
 
             # Use DeepFace to find face
-            results = await asyncio.to_thread(
-                DeepFace.find, img_path=temp_path, db_path="./pollen_faces"
-            )
+            results = await asyncio.to_thread(DeepFace.find, img_path=temp_path, db_path="./pollen_faces")
 
             if len(results) == 0:
                 return {"error": "Didn't recognize the face"}
@@ -681,9 +669,7 @@ def _safe_load_obj(args_json: str) -> dict[str, Any]:
         return {}
 
 
-async def dispatch_tool_call(
-    tool_name: str, args_json: str, deps: ToolDependencies
-) -> Dict[str, Any]:
+async def dispatch_tool_call(tool_name: str, args_json: str, deps: ToolDependencies) -> Dict[str, Any]:
     """Dispatch a tool call by name with JSON args and dependencies."""
     tool = ALL_TOOLS.get(tool_name)
 

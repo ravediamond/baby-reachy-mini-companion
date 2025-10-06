@@ -1,15 +1,16 @@
 """Moves head given audio samples."""
 
+import time
+import queue
 import base64
 import logging
-import queue
 import threading
-import time
 from typing import Optional, Tuple
 
 import numpy as np
 
 from reachy_mini_conversation_demo.audio.speech_tapper import HOP_MS, SwayRollRT
+
 
 SAMPLE_RATE = 24000
 MOVEMENT_LATENCY_S = 0.08  # seconds between audio and robot movement
@@ -25,9 +26,7 @@ class HeadWobbler:
         self._base_ts: Optional[float] = None
         self._hops_done: int = 0
 
-        self.audio_queue: queue.Queue[
-            Tuple[int, int, np.ndarray]
-        ] = queue.Queue()
+        self.audio_queue: queue.Queue[Tuple[int, int, np.ndarray]] = queue.Queue()
         self.sway = SwayRollRT()
 
         # Synchronization primitives
@@ -50,14 +49,14 @@ class HeadWobbler:
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
-        logger.info("Head wobbler started")
+        logger.debug("Head wobbler started")
 
     def stop(self) -> None:
         """Stop the head wobbler loop."""
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
-        logger.info("Head wobbler stopped")
+        logger.debug("Head wobbler stopped")
 
     def working_loop(self) -> None:
         """Convert audio deltas into head movement offsets."""

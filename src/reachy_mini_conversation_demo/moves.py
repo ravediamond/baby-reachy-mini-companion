@@ -32,23 +32,25 @@ Safety
 """
 
 from __future__ import annotations
-
+import time
 import logging
 import threading
-import time
+from typing import Tuple, Optional
 from collections import deque
 from dataclasses import dataclass
 from queue import Empty, Queue
 from typing import Any, Optional, Tuple
 
 import numpy as np
+
 from reachy_mini import ReachyMini
-from reachy_mini.motion.move import Move
 from reachy_mini.utils import create_head_pose
+from reachy_mini.motion.move import Move
 from reachy_mini.utils.interpolation import (
     compose_world_offset,
     linear_pose_interpolation,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +58,7 @@ logger = logging.getLogger(__name__)
 CONTROL_LOOP_FREQUENCY_HZ = 100.0  # Hz - Target frequency for the movement control loop
 
 # Type definitions
-FullBodyPose = Tuple[
-    np.ndarray, Tuple[float, float], float
-]  # (head_pose_4x4, antennas, body_yaw)
+FullBodyPose = Tuple[np.ndarray, Tuple[float, float], float]  # (head_pose_4x4, antennas, body_yaw)
 
 
 class BreathingMove(Move):
@@ -97,9 +97,7 @@ class BreathingMove(Move):
         """Duration property required by official Move interface."""
         return float("inf")  # Continuous breathing (never ends naturally)
 
-    def evaluate(
-        self, t: float
-    ) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
+    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
         """Evaluate breathing move at time t."""
         if t < self.interpolation_duration:
             # Phase 1: Interpolate to neutral base position
@@ -112,35 +110,26 @@ class BreathingMove(Move):
 
             # Interpolate antennas
             antennas = (
-                (1 - interpolation_t) * self.interpolation_start_antennas
-                + interpolation_t * self.neutral_antennas
-            )
+                1 - interpolation_t
+            ) * self.interpolation_start_antennas + interpolation_t * self.neutral_antennas
 
         else:
             # Phase 2: Breathing patterns from neutral base
             breathing_time = t - self.interpolation_duration
 
             # Gentle z-axis breathing
-            z_offset = self.breathing_z_amplitude * np.sin(
-                2 * np.pi * self.breathing_frequency * breathing_time
-            )
-            head_pose = create_head_pose(
-                x=0, y=0, z=z_offset, roll=0, pitch=0, yaw=0, degrees=True, mm=False
-            )
+            z_offset = self.breathing_z_amplitude * np.sin(2 * np.pi * self.breathing_frequency * breathing_time)
+            head_pose = create_head_pose(x=0, y=0, z=z_offset, roll=0, pitch=0, yaw=0, degrees=True, mm=False)
 
             # Antenna sway (opposite directions)
-            antenna_sway = self.antenna_sway_amplitude * np.sin(
-                2 * np.pi * self.antenna_frequency * breathing_time
-            )
+            antenna_sway = self.antenna_sway_amplitude * np.sin(2 * np.pi * self.antenna_frequency * breathing_time)
             antennas = np.array([antenna_sway, -antenna_sway])
 
         # Return in official Move interface format: (head_pose, antennas_array, body_yaw)
         return (head_pose, antennas, 0.0)
 
 
-def combine_full_body(
-    primary_pose: FullBodyPose, secondary_pose: FullBodyPose
-) -> FullBodyPose:
+def combine_full_body(primary_pose: FullBodyPose, secondary_pose: FullBodyPose) -> FullBodyPose:
     """Combine primary and secondary full body poses.
 
     Args:
@@ -157,9 +146,7 @@ def combine_full_body(
     # Combine head poses using compose_world_offset; the secondary pose must be an
     # offset expressed in the world frame (T_off_world) applied to the absolute
     # primary transform (T_abs).
-    combined_head = compose_world_offset(
-        primary_head, secondary_head, reorthonormalize=True
-    )
+    combined_head = compose_world_offset(primary_head, secondary_head, reorthonormalize=True)
 
     # Sum antennas and body_yaw
     combined_antennas = (
@@ -288,9 +275,7 @@ class MovementManager:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._is_listening = False
-        self._last_commanded_pose: FullBodyPose = clone_full_body_pose(
-            self.state.last_primary_pose
-        )
+        self._last_commanded_pose: FullBodyPose = clone_full_body_pose(self.state.last_primary_pose)
         self._listening_antennas: Tuple[float, float] = self._last_commanded_pose[1]
         self._antenna_unfreeze_blend = 1.0
         self._antenna_blend_duration = 0.4  # seconds to blend back after listening
@@ -348,9 +333,7 @@ class MovementManager:
         """
         self._command_queue.put(("clear_queue", None))
 
-    def set_speech_offsets(
-        self, offsets: Tuple[float, float, float, float, float, float]
-    ) -> None:
+    def set_speech_offsets(self, offsets: Tuple[float, float, float, float, float, float]) -> None:
         """Update speech-induced secondary offsets (x, y, z, roll, pitch, yaw).
 
         Offsets are interpreted as metres for translation and radians for
@@ -506,8 +489,7 @@ class MovementManager:
         """Manage the primary move queue (sequential execution)."""
         if self.state.current_move is None or (
             self.state.move_start_time is not None
-            and current_time - self.state.move_start_time
-            >= self.state.current_move.duration
+            and current_time - self.state.move_start_time >= self.state.current_move.duration
         ):
             self.state.current_move = None
             self.state.move_start_time = None
@@ -516,12 +498,8 @@ class MovementManager:
                 self.state.current_move = self.move_queue.popleft()
                 self.state.move_start_time = current_time
                 # Any real move cancels breathing mode flag
-                self._breathing_active = isinstance(
-                    self.state.current_move, BreathingMove
-                )
-                logger.info(
-                    f"Starting new move, duration: {self.state.current_move.duration}s"
-                )
+                self._breathing_active = isinstance(self.state.current_move, BreathingMove)
+                logger.info(f"Starting new move, duration: {self.state.current_move.duration}s")
 
     def _manage_breathing(self, current_time: float) -> None:
         """Manage automatic breathing when idle."""
@@ -553,18 +531,13 @@ class MovementManager:
                     self._breathing_active = False
                     logger.error("Failed to start breathing: %s", e)
 
-        if (
-            isinstance(self.state.current_move, BreathingMove)
-            and self.move_queue
-        ):
+        if isinstance(self.state.current_move, BreathingMove) and self.move_queue:
             self.state.current_move = None
             self.state.move_start_time = None
             self._breathing_active = False
             logger.info("Stopping breathing due to new move activity")
 
-        if self.state.current_move is not None and not isinstance(
-            self.state.current_move, BreathingMove
-        ):
+        if self.state.current_move is not None and not isinstance(self.state.current_move, BreathingMove):
             self._breathing_active = False
 
     def _get_primary_pose(self, current_time: float) -> FullBodyPose:
@@ -595,20 +568,14 @@ class MovementManager:
         else:
             # Otherwise reuse the last primary pose so we avoid jumps between moves
             self.state.is_playing_move = False
-            self.state.is_moving = (
-                current_time - self.state.moving_start < self.state.moving_for
-            )
+            self.state.is_moving = current_time - self.state.moving_start < self.state.moving_for
 
             if self.state.last_primary_pose is not None:
-                primary_full_body_pose = clone_full_body_pose(
-                    self.state.last_primary_pose
-                )
+                primary_full_body_pose = clone_full_body_pose(self.state.last_primary_pose)
             else:
                 neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
                 primary_full_body_pose = (neutral_head_pose, (0.0, 0.0), 0.0)
-                self.state.last_primary_pose = clone_full_body_pose(
-                    primary_full_body_pose
-                )
+                self.state.last_primary_pose = clone_full_body_pose(primary_full_body_pose)
 
         return primary_full_body_pose
 
@@ -647,9 +614,7 @@ class MovementManager:
         self._manage_move_queue(current_time)
         self._manage_breathing(current_time)
 
-    def _calculate_blended_antennas(
-        self, target_antennas: Tuple[float, float]
-    ) -> Tuple[float, float]:
+    def _calculate_blended_antennas(self, target_antennas: Tuple[float, float]) -> Tuple[float, float]:
         """Blend target antennas with listening freeze state and update blending."""
         now = self._now()
         listening = self._is_listening
@@ -669,10 +634,8 @@ class MovementManager:
             else:
                 new_blend = min(1.0, blend + dt / blend_duration)
             antennas_cmd = (
-                listening_antennas[0] * (1.0 - new_blend)
-                + target_antennas[0] * new_blend,
-                listening_antennas[1] * (1.0 - new_blend)
-                + target_antennas[1] * new_blend,
+                listening_antennas[0] * (1.0 - new_blend) + target_antennas[0] * new_blend,
+                listening_antennas[1] * (1.0 - new_blend) + target_antennas[1] * new_blend,
             )
 
         if listening:
@@ -687,9 +650,7 @@ class MovementManager:
 
         return antennas_cmd
 
-    def _issue_control_command(
-        self, head: np.ndarray, antennas: Tuple[float, float], body_yaw: float
-    ) -> None:
+    def _issue_control_command(self, head: np.ndarray, antennas: Tuple[float, float], body_yaw: float) -> None:
         """Send the fused pose to the robot with throttled error logging."""
         try:
             self.current_robot.set_target(head=head, antennas=antennas, body_yaw=body_yaw)
@@ -722,9 +683,7 @@ class MovementManager:
             stats.min_freq = min(stats.min_freq, stats.last_freq)
         return stats
 
-    def _schedule_next_tick(
-        self, loop_start: float, stats: LoopFrequencyStats
-    ) -> tuple[float, LoopFrequencyStats]:
+    def _schedule_next_tick(self, loop_start: float, stats: LoopFrequencyStats) -> tuple[float, LoopFrequencyStats]:
         """Compute sleep time to maintain target frequency and update potential freq."""
         computation_time = self._now() - loop_start
         stats.potential_freq = 1.0 / computation_time if computation_time > 0 else float("inf")
@@ -743,9 +702,7 @@ class MovementManager:
                 potential_freq=stats.potential_freq,
             )
 
-    def _maybe_log_frequency(
-        self, loop_count: int, print_interval_loops: int, stats: LoopFrequencyStats
-    ) -> None:
+    def _maybe_log_frequency(self, loop_count: int, print_interval_loops: int, stats: LoopFrequencyStats) -> None:
         """Emit frequency telemetry when enough loops have elapsed."""
         if loop_count % print_interval_loops != 0 or stats.count == 0:
             return
@@ -781,7 +738,7 @@ class MovementManager:
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
-        logger.info("Move worker started")
+        logger.debug("Move worker started")
 
     def stop(self) -> None:
         """Request the worker thread to stop and wait for it to exit."""
@@ -789,7 +746,8 @@ class MovementManager:
         if self._thread is not None:
             self._thread.join()
             self._thread = None
-        logger.info("Move worker stopped")
+        logger.debug("Move worker stopped")
+        logger.debug("Move worker stopped")
 
     def get_status(self) -> dict[str, Any]:
         """Return a lightweight status snapshot for observability."""
