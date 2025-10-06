@@ -3,10 +3,14 @@
 Working repo, we should turn this into a ReachyMini app at some point maybe ?
 
 ## Installation
+You can set up the project quickly using [uv](https://docs.astral.sh/uv/):
 
 ```bash
-pip install -e .
+uv venv --python 3.12.1  # Create a virtual environment with Python 3.12.1
+source .venv/bin/activate
+uv sync
 ```
+> Note: The `pyproject.toml` expects `reachy-mini-dances-library` to be located in the same directory as this project.
 
 ## Run
 
