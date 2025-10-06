@@ -237,6 +237,8 @@ class MovementManager:
         self._antenna_blend_duration = 0.4  # seconds to blend back after listening
         self._last_listening_blend_time = self._now()
         self._breathing_active = False  # true when breathing move is running or queued
+        self._listening_debounce_s = 0.15
+        self._last_listening_toggle_time = self._now()
 
         # Cross-thread signalling
         self._command_queue: Queue[tuple[str, Any]] = Queue()
@@ -398,16 +400,25 @@ class MovementManager:
             self.state.update_activity()
         elif command == "set_listening":
             desired_state = bool(payload)
+            now = self._now()
+            if now - self._last_listening_toggle_time < self._listening_debounce_s:
+                return
+            self._last_listening_toggle_time = now
+
             if self._is_listening == desired_state:
                 return
+
             self._is_listening = desired_state
-            self._last_listening_blend_time = self._now()
+            self._last_listening_blend_time = now
             if desired_state:
-                # Capture the last antenna command so we keep that pose during listening
+                # Freeze: snapshot current commanded antennas and reset blend
                 self._listening_antennas = (
                     float(self._last_commanded_pose[1][0]),
                     float(self._last_commanded_pose[1][1]),
                 )
+                self._antenna_unfreeze_blend = 0.0
+            else:
+                # Unfreeze: restart blending from frozen pose
                 self._antenna_unfreeze_blend = 0.0
             self.state.update_activity()
         else:
