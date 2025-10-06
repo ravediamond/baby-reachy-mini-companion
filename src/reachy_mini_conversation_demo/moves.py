@@ -239,6 +239,9 @@ class MovementManager:
         self._breathing_active = False  # true when breathing move is running or queued
         self._listening_debounce_s = 0.15
         self._last_listening_toggle_time = self._now()
+        self._last_set_target_err = 0.0
+        self._set_target_err_interval = 1.0  # seconds between error logs
+        self._set_target_err_suppressed = 0
 
         # Cross-thread signalling
         self._command_queue: Queue[tuple[str, Any]] = Queue()
@@ -678,7 +681,18 @@ class MovementManager:
                     head=head, antennas=antennas_cmd, body_yaw=body_yaw
                 )
             except Exception as e:
-                logger.error(f"Failed to set robot target: {e}")
+                now = self._now()
+                if now - self._last_set_target_err >= self._set_target_err_interval:
+                    msg = f"Failed to set robot target: {e}"
+                    if self._set_target_err_suppressed:
+                        msg += (
+                            f" (suppressed {self._set_target_err_suppressed} repeats)"
+                        )
+                        self._set_target_err_suppressed = 0
+                    logger.error(msg)
+                    self._last_set_target_err = now
+                else:
+                    self._set_target_err_suppressed += 1
             else:
                 self._last_commanded_pose = clone_full_body_pose(
                     (head, antennas_cmd, body_yaw)
