@@ -9,6 +9,7 @@ import numpy as np
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
 from openai import AsyncOpenAI
 
+from reachy_mini_conversation_demo.config import config
 from reachy_mini_conversation_demo.tools import (
     ALL_TOOL_SPECS,
     ToolDependencies,
@@ -45,7 +46,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
     async def start_up(self):
         """Start the handler."""
-        self.client = AsyncOpenAI()
+        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         async with self.client.beta.realtime.connect(model="gpt-realtime") as conn:
             await conn.session.update(
                 session={
