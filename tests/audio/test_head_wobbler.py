@@ -41,6 +41,7 @@ def _start_wobbler() -> Tuple[HeadWobbler, List[Tuple[float, Tuple[float, float,
 
 
 def test_reset_drops_pending_offsets() -> None:
+    """Reset should stop wobble output derived from pre-reset audio."""
     wobbler, captured = _start_wobbler()
     try:
         wobbler.feed(_make_audio_chunk(duration_s=0.35))
@@ -55,6 +56,7 @@ def test_reset_drops_pending_offsets() -> None:
 
 
 def test_reset_allows_future_offsets() -> None:
+    """After reset, fresh audio must still produce wobble offsets."""
     wobbler, captured = _start_wobbler()
     try:
         wobbler.feed(_make_audio_chunk(duration_s=0.35))
@@ -71,6 +73,7 @@ def test_reset_allows_future_offsets() -> None:
 
 
 def test_reset_during_inflight_chunk_keeps_worker(monkeypatch) -> None:
+    """Simulate reset during chunk processing to ensure the worker survives."""
     wobbler, captured = _start_wobbler()
     ready = threading.Event()
     release = threading.Event()
