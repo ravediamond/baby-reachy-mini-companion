@@ -324,7 +324,11 @@ class MovementManager:
         self._face_offsets_dirty = False
 
         self._shared_state_lock = threading.Lock()
+        self._shared_last_activity_time = self.state.last_activity_time
         self._shared_is_listening = self._is_listening
+        self._status_lock = threading.Lock()
+        self._freq_stats = LoopFrequencyStats()
+        self._freq_snapshot = LoopFrequencyStats()
 
     def queue_move(self, move: Move) -> None:
         """Queue a primary move to run after the currently executing one.
@@ -360,6 +364,17 @@ class MovementManager:
         aware of manual motions. Thread-safe via the command queue.
         """
         self._command_queue.put(("set_moving_state", duration))
+
+    def is_idle(self) -> bool:
+        """Return True when the robot has been inactive longer than the idle delay."""
+        with self._shared_state_lock:
+            last_activity = self._shared_last_activity_time
+            listening = self._shared_is_listening
+
+        if listening:
+            return False
+
+        return self._now() - last_activity >= self.idle_inactivity_delay
 
     def mark_user_activity(self) -> None:
         """Record external activity and postpone idle behaviours (thread-safe)."""
@@ -481,6 +496,7 @@ class MovementManager:
     def _publish_shared_state(self) -> None:
         """Expose idle-related state for external threads."""
         with self._shared_state_lock:
+            self._shared_last_activity_time = self.state.last_activity_time
             self._shared_is_listening = self._is_listening
 
     def _manage_move_queue(self, current_time: float) -> None:
@@ -686,7 +702,8 @@ class MovementManager:
             else:
                 self._set_target_err_suppressed += 1
         else:
-            self._last_commanded_pose = clone_full_body_pose((head, antennas, body_yaw))
+            with self._status_lock:
+                self._last_commanded_pose = clone_full_body_pose((head, antennas, body_yaw))
 
     def _update_frequency_stats(
         self, loop_start: float, prev_loop_start: float, stats: LoopFrequencyStats
@@ -710,6 +727,18 @@ class MovementManager:
         stats.potential_freq = 1.0 / computation_time if computation_time > 0 else float("inf")
         sleep_time = max(0.0, self.target_period - computation_time)
         return sleep_time, stats
+
+    def _record_frequency_snapshot(self, stats: LoopFrequencyStats) -> None:
+        """Store a thread-safe snapshot of current frequency statistics."""
+        with self._status_lock:
+            self._freq_snapshot = LoopFrequencyStats(
+                mean=stats.mean,
+                m2=stats.m2,
+                min_freq=stats.min_freq,
+                count=stats.count,
+                last_freq=stats.last_freq,
+                potential_freq=stats.potential_freq,
+            )
 
     def _maybe_log_frequency(
         self, loop_count: int, print_interval_loops: int, stats: LoopFrequencyStats
@@ -743,6 +772,9 @@ class MovementManager:
 
     def start(self) -> None:
         """Start the worker thread that drives the 100 Hz control loop."""
+        if self._thread is not None and self._thread.is_alive():
+            logger.warning("Move worker already running; start() ignored")
+            return
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.working_loop, daemon=True)
         self._thread.start()
@@ -756,6 +788,41 @@ class MovementManager:
             self._thread = None
         logger.info("Move worker stopped")
 
+    def get_status(self) -> dict[str, Any]:
+        """Return a lightweight status snapshot for observability."""
+        with self._status_lock:
+            pose_snapshot = clone_full_body_pose(self._last_commanded_pose)
+            freq_snapshot = LoopFrequencyStats(
+                mean=self._freq_snapshot.mean,
+                m2=self._freq_snapshot.m2,
+                min_freq=self._freq_snapshot.min_freq,
+                count=self._freq_snapshot.count,
+                last_freq=self._freq_snapshot.last_freq,
+                potential_freq=self._freq_snapshot.potential_freq,
+            )
+
+        head_matrix = pose_snapshot[0].tolist() if pose_snapshot else None
+        antennas = pose_snapshot[1] if pose_snapshot else None
+        body_yaw = pose_snapshot[2] if pose_snapshot else None
+
+        return {
+            "queue_size": len(self.move_queue),
+            "is_listening": self._is_listening,
+            "breathing_active": self._breathing_active,
+            "last_commanded_pose": {
+                "head": head_matrix,
+                "antennas": antennas,
+                "body_yaw": body_yaw,
+            },
+            "loop_frequency": {
+                "last": freq_snapshot.last_freq,
+                "mean": freq_snapshot.mean,
+                "min": freq_snapshot.min_freq,
+                "potential": freq_snapshot.potential_freq,
+                "samples": freq_snapshot.count,
+            },
+        }
+
     def working_loop(self) -> None:
         """Control loop main movements - reproduces main_works.py control architecture.
 
@@ -766,7 +833,7 @@ class MovementManager:
         loop_count = 0
         prev_loop_start = self._now()
         print_interval_loops = max(1, int(self.target_frequency * 2))
-        freq_stats = LoopFrequencyStats()
+        freq_stats = self._freq_stats
 
         while not self._stop_event.is_set():
             loop_start = self._now()
@@ -797,6 +864,7 @@ class MovementManager:
             # 7) Adaptive sleep to align to next tick, then publish shared state
             sleep_time, freq_stats = self._schedule_next_tick(loop_start, freq_stats)
             self._publish_shared_state()
+            self._record_frequency_snapshot(freq_stats)
 
             # 8) Periodic telemetry on loop frequency
             self._maybe_log_frequency(loop_count, print_interval_loops, freq_stats)
