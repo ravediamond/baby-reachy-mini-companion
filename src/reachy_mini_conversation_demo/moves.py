@@ -1,5 +1,4 @@
-"""
-Movement system with sequential primary moves and additive secondary moves.
+"""Movement system with sequential primary moves and additive secondary moves.
 
 Design overview
 - Primary moves (emotions, dances, goto, breathing) are mutually exclusive and run
@@ -28,7 +27,7 @@ Units and frames
 
 Safety
 - Listening freezes antennas, then blends them back on unfreeze.
-- Breathing is guarded to avoid duplicate enqueues.
+- Interpolations and blends are used to avoid jumps at all times.
 - `set_target` errors are rate-limited in logs.
 """
 
