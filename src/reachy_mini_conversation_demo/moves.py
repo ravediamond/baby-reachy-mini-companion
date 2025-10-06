@@ -215,6 +215,25 @@ class MovementState:
         self.last_activity_time = time.monotonic()
 
 
+@dataclass
+class LoopFrequencyStats:
+    """Track rolling loop frequency statistics."""
+
+    mean: float = 0.0
+    m2: float = 0.0
+    min_freq: float = float("inf")
+    count: int = 0
+    last_freq: float = 0.0
+    potential_freq: float = 0.0
+
+    def reset(self) -> None:
+        """Reset accumulators while keeping the last potential frequency."""
+        self.mean = 0.0
+        self.m2 = 0.0
+        self.min_freq = float("inf")
+        self.count = 0
+
+
 class MovementManager:
     """Coordinate sequential moves, additive offsets, and robot output at 100 Hz.
 
@@ -229,8 +248,7 @@ class MovementManager:
     Timing:
     - All elapsed-time calculations rely on `time.monotonic()` through `self._now`
       to avoid wall-clock jumps.
-    - The loop attempts 100 Hz by sleeping toward the next absolute tick to limit
-      drift.
+    - The loop attempts 100 Hz
 
     Concurrency:
     - External threads communicate via `_command_queue` messages.
@@ -627,6 +645,17 @@ class MovementManager:
         )
         return (secondary_head_pose, (0, 0), 0)
 
+    def _compose_full_body_pose(self, current_time: float) -> FullBodyPose:
+        """Compose primary and secondary poses into a single command pose."""
+        primary = self._get_primary_pose(current_time)
+        secondary = self._get_secondary_pose()
+        return combine_full_body(primary, secondary)
+
+    def _update_primary_motion(self, current_time: float) -> None:
+        """Advance queue state and idle behaviours for this tick."""
+        self._manage_move_queue(current_time)
+        self._manage_breathing(current_time)
+
     def _calculate_blended_antennas(
         self, target_antennas: Tuple[float, float]
     ) -> Tuple[float, float]:
@@ -667,6 +696,69 @@ class MovementManager:
 
         return antennas_cmd
 
+    def _issue_control_command(
+        self, head: np.ndarray, antennas: Tuple[float, float], body_yaw: float
+    ) -> None:
+        """Send the fused pose to the robot with throttled error logging."""
+        try:
+            self.current_robot.set_target(head=head, antennas=antennas, body_yaw=body_yaw)
+        except Exception as e:
+            now = self._now()
+            if now - self._last_set_target_err >= self._set_target_err_interval:
+                msg = f"Failed to set robot target: {e}"
+                if self._set_target_err_suppressed:
+                    msg += f" (suppressed {self._set_target_err_suppressed} repeats)"
+                    self._set_target_err_suppressed = 0
+                logger.error(msg)
+                self._last_set_target_err = now
+            else:
+                self._set_target_err_suppressed += 1
+        else:
+            self._last_commanded_pose = clone_full_body_pose((head, antennas, body_yaw))
+
+    def _update_frequency_stats(
+        self, loop_start: float, prev_loop_start: float, stats: LoopFrequencyStats
+    ) -> LoopFrequencyStats:
+        """Update frequency statistics based on the current loop start time."""
+        period = loop_start - prev_loop_start
+        if period > 0:
+            stats.last_freq = 1.0 / period
+            stats.count += 1
+            delta = stats.last_freq - stats.mean
+            stats.mean += delta / stats.count
+            stats.m2 += delta * (stats.last_freq - stats.mean)
+            stats.min_freq = min(stats.min_freq, stats.last_freq)
+        return stats
+
+    def _schedule_next_tick(
+        self, loop_start: float, stats: LoopFrequencyStats
+    ) -> tuple[float, LoopFrequencyStats]:
+        """Compute sleep time to maintain target frequency and update potential freq."""
+        computation_time = self._now() - loop_start
+        stats.potential_freq = 1.0 / computation_time if computation_time > 0 else float("inf")
+        sleep_time = max(0.0, self.target_period - computation_time)
+        return sleep_time, stats
+
+    def _maybe_log_frequency(
+        self, loop_count: int, print_interval_loops: int, stats: LoopFrequencyStats
+    ) -> None:
+        """Emit frequency telemetry when enough loops have elapsed."""
+        if loop_count % print_interval_loops != 0 or stats.count == 0:
+            return
+
+        variance = stats.m2 / stats.count if stats.count > 0 else 0.0
+        lowest = stats.min_freq if stats.min_freq != float("inf") else 0.0
+        logger.debug(
+            "Loop freq - avg: %.2fHz, variance: %.4f, min: %.2fHz, last: %.2fHz, potential: %.2fHz, target: %.1fHz",
+            stats.mean,
+            variance,
+            lowest,
+            stats.last_freq,
+            stats.potential_freq,
+            self.target_frequency,
+        )
+        stats.reset()
+
     def _update_face_tracking(self, current_time: float) -> None:
         """Get face tracking offsets from camera worker thread."""
         if self.camera_worker is not None:
@@ -701,102 +793,42 @@ class MovementManager:
 
         loop_count = 0
         prev_loop_start = self._now()
-        freq_mean = 0.0
-        freq_m2 = 0.0
-        freq_min = float("inf")
-        freq_count = 0
-        last_freq = 0.0
         print_interval_loops = max(1, int(self.target_frequency * 2))
-        potential_freq = 0.0
+        freq_stats = LoopFrequencyStats()
 
         while not self._stop_event.is_set():
             loop_start = self._now()
             loop_count += 1
-            current_time = loop_start
 
             if loop_count > 1:
-                period = loop_start - prev_loop_start
-                if period > 0:
-                    last_freq = 1.0 / period
-                    freq_count += 1
-                    delta = last_freq - freq_mean
-                    freq_mean += delta / freq_count
-                    freq_m2 += delta * (last_freq - freq_mean)
-                    freq_min = min(freq_min, last_freq)
+                freq_stats = self._update_frequency_stats(loop_start, prev_loop_start, freq_stats)
             prev_loop_start = loop_start
 
             # 1) Poll external commands and apply pending offsets (atomic snapshot)
-            self._poll_signals(current_time)
+            self._poll_signals(loop_start)
 
             # 2) Manage the primary move queue (start new move, end finished move)
-            self._manage_move_queue(current_time)
-
             # 3) Manage automatic idle behaviours (breathing)
-            self._manage_breathing(current_time)
+            self._update_primary_motion(loop_start)
 
             # 4) Update vision-based secondary offsets
-            self._update_face_tracking(current_time)
+            self._update_face_tracking(loop_start)
 
             # 5) Build primary and secondary full-body poses, then fuse them
-            primary_full_body_pose = self._get_primary_pose(current_time)
-            secondary_full_body_pose = self._get_secondary_pose()
-            global_full_body_pose = combine_full_body(
-                primary_full_body_pose, secondary_full_body_pose
-            )
+            head, antennas, body_yaw = self._compose_full_body_pose(loop_start)
 
             # 6) Apply listening antenna freeze or blend-back
-            head, antennas, body_yaw = global_full_body_pose
             antennas_cmd = self._calculate_blended_antennas(antennas)
 
             # 7) Single set_target call - the only control point
-            try:
-                self.current_robot.set_target(
-                    head=head, antennas=antennas_cmd, body_yaw=body_yaw
-                )
-            except Exception as e:
-                now = self._now()
-                if now - self._last_set_target_err >= self._set_target_err_interval:
-                    msg = f"Failed to set robot target: {e}"
-                    if self._set_target_err_suppressed:
-                        msg += (
-                            f" (suppressed {self._set_target_err_suppressed} repeats)"
-                        )
-                        self._set_target_err_suppressed = 0
-                    logger.error(msg)
-                    self._last_set_target_err = now
-                else:
-                    self._set_target_err_suppressed += 1
-            else:
-                self._last_commanded_pose = clone_full_body_pose(
-                    (head, antennas_cmd, body_yaw)
-                )
+            self._issue_control_command(head, antennas_cmd, body_yaw)
 
             # 8) Adaptive sleep to align to next tick, then publish shared state
-            computation_time = self._now() - loop_start
-            potential_freq = (
-                1.0 / computation_time if computation_time > 0 else float("inf")
-            )
-            sleep_time = max(0.0, self.target_period - computation_time)
-
+            sleep_time, freq_stats = self._schedule_next_tick(loop_start, freq_stats)
             self._publish_shared_state()
 
             # 9) Periodic telemetry on loop frequency
-            if loop_count % print_interval_loops == 0 and freq_count > 0:
-                variance = freq_m2 / freq_count if freq_count > 0 else 0.0
-                lowest = freq_min if freq_min != float("inf") else 0.0
-                logger.debug(
-                    "Loop freq - avg: %.2fHz, variance: %.4f, min: %.2fHz, last: %.2fHz, potential: %.2fHz, target: %.1fHz",
-                    freq_mean,
-                    variance,
-                    lowest,
-                    last_freq,
-                    potential_freq,
-                    self.target_frequency,
-                )
-                freq_mean = 0.0
-                freq_m2 = 0.0
-                freq_min = float("inf")
-                freq_count = 0
+            self._maybe_log_frequency(loop_count, print_interval_loops, freq_stats)
 
             if sleep_time > 0:
                 time.sleep(sleep_time)
