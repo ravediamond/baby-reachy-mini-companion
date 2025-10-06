@@ -41,7 +41,7 @@ def main():
         camera_worker=camera_worker,
     )
 
-    head_wobbler = HeadWobbler(set_offsets=movement_manager.set_offsets)
+    head_wobbler = HeadWobbler(set_speech_offsets=movement_manager.set_speech_offsets)
 
     deps = ToolDependencies(
         reachy_mini=robot,
