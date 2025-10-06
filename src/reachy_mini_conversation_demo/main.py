@@ -5,17 +5,17 @@ import os
 import gradio as gr
 from fastapi import FastAPI
 from fastrtc import Stream
-from reachy_mini import ReachyMini
 
-from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
+from reachy_mini import ReachyMini
 from reachy_mini_conversation_demo.moves import MovementManager
-from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
 from reachy_mini_conversation_demo.tools import ToolDependencies
 from reachy_mini_conversation_demo.utils import (
-    handle_vision_stuff,
     parse_args,
     setup_logger,
+    handle_vision_stuff,
 )
+from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
+from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
 
 
 def update_chatbot(chatbot: list[dict], response: dict):
@@ -51,7 +51,7 @@ def main():
         head_wobbler=head_wobbler,
     )
     current_file_path = os.path.dirname(os.path.abspath(__file__))
-    logger.info(f"Current file absolute path: {current_file_path}")
+    logger.debug(f"Current file absolute path: {current_file_path}")
     chatbot = gr.Chatbot(
         type="messages",
         resizable=True,
@@ -60,7 +60,7 @@ def main():
             os.path.join(current_file_path, "images", "reachymini_avatar.png"),
         ),
     )
-    logger.info(f"Chatbot avatar images: {chatbot.avatar_images}")
+    logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
     handler = OpenaiRealtimeHandler(deps)
     stream = Stream(
