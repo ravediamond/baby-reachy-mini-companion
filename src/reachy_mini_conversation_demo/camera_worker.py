@@ -25,16 +25,27 @@ logger = logging.getLogger(__name__)
 class CameraWorker:
     """Thread-safe camera worker with frame buffering and face tracking."""
 
-    def __init__(self, reachy_mini: ReachyMini, head_tracker=None):
+    def __init__(self, reachy_mini: ReachyMini, head_tracker=None, use_sim: bool = False):
         """Initialize."""
         self.reachy_mini = reachy_mini
         self.head_tracker = head_tracker
+        self.use_sim = use_sim
 
         # Thread-safe frame storage
         self.latest_frame: Optional[np.ndarray] = None
         self.frame_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
+
+        # Local camera for simulation mode
+        self.local_camera: Optional[cv2.VideoCapture] = None
+        if self.use_sim:
+            self.local_camera = cv2.VideoCapture(0)
+            if not self.local_camera.isOpened():
+                logger.error("Failed to open local camera in simulation mode")
+                self.local_camera = None
+            else:
+                logger.info("Local camera opened for simulation mode")
 
         # Face tracking state
         self.is_head_tracking_enabled = True
@@ -92,6 +103,12 @@ class CameraWorker:
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
+
+        # Release local camera if it was opened
+        if self.local_camera is not None:
+            self.local_camera.release()
+            logger.debug("Local camera released")
+
         logger.debug("Camera worker stopped")
 
     def working_loop(self) -> None:
@@ -108,7 +125,15 @@ class CameraWorker:
         while not self._stop_event.is_set():
             try:
                 current_time = time.time()
-                frame = self.reachy_mini.media.get_frame()
+
+                # Get frame from local camera if in simulation mode, otherwise from robot
+                if self.use_sim and self.local_camera is not None:
+                    ret, frame = self.local_camera.read()
+                    if not ret:
+                        frame = None
+                        logger.warning("Failed to read frame from local camera")
+                else:
+                    frame = self.reachy_mini.media.get_frame()
 
                 if frame is not None:
                     # Thread-safe frame storage

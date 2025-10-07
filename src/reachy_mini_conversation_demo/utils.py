@@ -13,7 +13,7 @@ def parse_args():
         "--head-tracker",
         choices=["yolo", "mediapipe", None],
         default=None,
-        help="Choose head tracker (default: mediapipe)",
+        help="Choose head tracker (default: None)",
     )
     parser.add_argument("--no-camera", default=False, action="store_true", help="Disable camera usage")
     parser.add_argument("--headless", default=False, action="store_true", help="Run in headless mode")
@@ -23,11 +23,13 @@ def parse_args():
 
 def handle_vision_stuff(args, current_robot):
     """Initialize camera, head tracker and camera worker."""
+    logger = logging.getLogger(__name__)
     camera_worker = None
     head_tracker = None
     vision_manager = None
     if not args.no_camera:
-        if args.head_tracker is not None:
+        # Head tracking is disabled in simulation mode
+        if args.head_tracker is not None and not args.sim:
             if args.head_tracker == "yolo":
                 from reachy_mini_conversation_demo.vision.yolo_head_tracker import (
                     HeadTracker,
@@ -39,8 +41,12 @@ def handle_vision_stuff(args, current_robot):
                 from reachy_mini_toolbox.vision import HeadTracker
 
                 head_tracker = HeadTracker()
+        elif args.head_tracker is not None and args.sim:
+            logger.warning(
+                f"Head tracking (--head-tracker {args.head_tracker}) is disabled in simulation mode (--sim)"
+            )
 
-        camera_worker = CameraWorker(current_robot, head_tracker)
+        camera_worker = CameraWorker(current_robot, head_tracker, use_sim=args.sim)
 
     return camera_worker, head_tracker, vision_manager
 
