@@ -59,13 +59,21 @@ reachy-mini-conversation-demo
 | Option | Values | Default | Description |
 |--------|--------|---------|-------------|
 | `--sim` | *(flag)* | off | Run in **simulation mode** (no physical robot required). |
-| `--vision` | *(flag)* | off | Enable the **vision system** (must be paired with `--vision-provider`). |
-| `--vision-provider` | `local`, `openai` | `local` | Select vision backend:<br>• **local** → Hugging Face VLM (SmolVLM2) runs on your machine.<br>• **openai** → OpenAI multimodal models via API (requires `OPENAI_API_KEY`). |
-| `--head-tracking` | *(flag)* | off | Enable **head tracking** (ignored when `--sim` is active). |
+| `--head-tracker` | `yolo`, `mediapipe` | `None` | Enable **head tracking** using the specified tracker:<br>• **yolo** → YOLO-based head tracker.<br>• **mediapipe** → MediaPipe-based head tracker.<br>*(Automatically disabled when `--sim` is active)* |
+| `--no-camera` | *(flag)* | off | Disable **camera usage** entirely. |
+| `--headless` | *(flag)* | off | **⚠️ Under construction** - Run in headless mode (currently not implemented). |
 | `--debug` | *(flag)* | off | Enable **debug logging** (default log level is INFO). |
 
 ## Examples
-- Simulated run with OpenAI Vision:
+- Simulated run:
 ```
-reachy-mini-conversation-demo --sim --vision --vision-provider=openai
+reachy-mini-conversation-demo --sim
+```
+- Run with YOLO head tracking:
+```
+reachy-mini-conversation-demo --head-tracker yolo
+```
+- Run with MediaPipe head tracking and debug logging:
+```
+reachy-mini-conversation-demo --head-tracker mediapipe --debug
 ```
