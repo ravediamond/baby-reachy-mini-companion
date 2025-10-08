@@ -69,15 +69,15 @@ def main():
     handler = OpenaiRealtimeHandler(deps)
     local_stream = LocalStream(handler)
 
-    stream = fastrtc.Stream(
-        handler=handler,
-        mode="send-receive",
-        modality="audio",
-        additional_inputs=[chatbot],
-        additional_outputs=[chatbot],
-        additional_outputs_handler=update_chatbot,
-        ui_args={"title": "Talk with Reachy Mini"},
-    )
+    # stream = fastrtc.Stream(
+    #     handler=handler,
+    #     mode="send-receive",
+    #     modality="audio",
+    #     additional_inputs=[chatbot],
+    #     additional_outputs=[chatbot],
+    #     additional_outputs_handler=update_chatbot,
+    #     ui_args={"title": "Talk with Reachy Mini"},
+    # )
 
     # app = fastrtc.FastAPI()
     # app = gr.mount_gradio_app(app, stream.ui, path="/")
