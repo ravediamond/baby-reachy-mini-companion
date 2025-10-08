@@ -4,13 +4,9 @@ Conversational demo for the Reachy Mini robot combining OpenAI's realtime APIs, 
 
 ## Overview
 - Real-time audio conversation loop powered by the OpenAI realtime API and `fastrtc` for low-latency streaming.
-- Motion control queue that blends scripted dances, recorded emotions, idle breathing, and speech-reactive head wobbling.
-- Optional camera worker with YOLO or MediaPipe-based head tracking and LLM-accessible scene capture.
-
-## Features
-- Async tool dispatch integrates robot motion, camera capture, and optional facial recognition helpers.
-- Gradio web UI provides audio chat and transcript display.
-- Movement manager keeps real-time control in a dedicated thread with safeguards against abrupt pose changes.
+- Layered motion system queues primary moves (dances, emotions, goto poses, breathing) while blending speech-reactive wobble and face-tracking.
+- Camera capture can route to OpenAI multimodal vision or stay on-device with SmolVLM2 local analysis.
+- Async tool dispatch integrates robot motion, camera capture, and optional facial-recognition helpers through a Gradio web UI with live transcripts.
 
 ## Installation
 
@@ -47,7 +43,7 @@ pip install -e .
 Install optional extras depending on the feature set you need:
 
 ```bash
-# Vision stacks (choose at least one if you plan to run head tracking)
+# Vision stacks (choose at least one if you plan to run face tracking)
 pip install -e .[local_vision]
 pip install -e .[yolo_vision]
 pip install -e .[mediapipe_vision]
@@ -57,16 +53,16 @@ pip install -e .[all_vision]        # installs every vision extra
 pip install -e .[dev]
 ```
 
-Some wheels (e.g. PyTorch) are large and require compatible CUDA or CPU builds. Expect the `local_vision` extra to take significantly more disk space than YOLO or MediaPipe.
+Some wheels (e.g. PyTorch) are large and require compatible CUDA or CPU builds—make sure your platform matches the binaries pulled in by each extra.
 
 ## Optional dependency groups
 
 | Extra | Purpose | Notes |
 |-------|---------|-------|
-| `local_vision` | Run the local VLM (SmolVLM2) through PyTorch/Transformers. | GPU recommended; installs large packages (~2 GB).
+| `local_vision` | Run the local VLM (SmolVLM2) through PyTorch/Transformers. | GPU recommended; ensure compatible PyTorch builds for your platform.
 | `yolo_vision` | YOLOv8 tracking via `ultralytics` and `supervision`. | CPU friendly; supports the `--head-tracker yolo` option.
 | `mediapipe_vision` | Lightweight landmark tracking with MediaPipe. | Works on CPU; enables `--head-tracker mediapipe`.
-| `all_vision` | Convenience alias installing every vision extra. | Only use if you need to experiment with all providers.
+| `all_vision` | Convenience alias installing every vision extra. | Install when you want the flexibility to experiment with every provider.
 | `dev` | Developer tooling (`pytest`, `ruff`). | Add on top of either base or `all_vision` environments.
 
 ## Configuration
@@ -89,19 +85,19 @@ Activate your virtual environment, ensure the Reachy Mini robot (or simulator) i
 reachy-mini-conversation-demo
 ```
 
-The app starts a Gradio UI served locally (http://127.0.0.1:7860/). When running on a headless host, use `--headless`.
+The app starts a Gradio UI served locally (http://127.0.0.1:7860/). When running on a headless host, use `--headless`. With a camera attached, captured frames can be analysed remotely through OpenAI multimodal models or locally via the YOLO/MediaPipe pipelines depending on the extras you installed.
 
 ### CLI options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--head-tracker {yolo,mediapipe}` | `None` | Select a head-tracking backend when a camera is available. Requires the matching optional extra. |
-| `--no-camera` | `False` | Run without camera capture or head tracking. |
+| `--head-tracker {yolo,mediapipe}` | `None` | Select a face-tracking backend when a camera is available. Requires the matching optional extra. |
+| `--no-camera` | `False` | Run without camera capture or face tracking. |
 | `--headless` | `False` | Suppress launching the Gradio UI (useful on remote machines). |
 | `--debug` | `False` | Enable verbose logging for troubleshooting. |
 
 ### Examples
-- Run on hardware with MediaPipe head tracking:
+- Run on hardware with MediaPipe face tracking:
 
   ```bash
   reachy-mini-conversation-demo --head-tracker mediapipe
@@ -133,7 +129,5 @@ The app starts a Gradio UI served locally (http://127.0.0.1:7860/). When running
 - Execute the test suite: `pytest`.
 - When iterating on robot motions, keep the control loop responsive—offload blocking work using the helpers in `tools.py`.
 
-
 ## License
-
 Apache 2.0
