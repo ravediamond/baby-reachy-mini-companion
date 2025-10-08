@@ -7,7 +7,7 @@ import gi
 
 gi.require_version("Gst", "1.0")
 gi.require_version("GstApp", "1.0")
-from gi.repository import Gst, GLib  # noqa: E402
+from gi.repository import Gst, GLib, GstApp  # noqa: E402
 
 
 class GstPlayer:
@@ -159,7 +159,6 @@ class GstRecorder:
         self._thread_bus_calls.start()
 
     def get_sample(self):
-        """Return next audio sample as bytes, or None if no sample available."""
         sample = self.appsink.pull_sample()
         data = None
         if isinstance(sample, Gst.Sample):

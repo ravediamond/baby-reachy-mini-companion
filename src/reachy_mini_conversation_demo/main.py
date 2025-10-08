@@ -3,8 +3,8 @@
 import os
 
 import gradio as gr
-from fastapi import FastAPI
-from fastrtc import Stream
+import fastrtc
+
 
 from reachy_mini import ReachyMini
 from reachy_mini_conversation_demo.moves import MovementManager
@@ -14,6 +14,7 @@ from reachy_mini_conversation_demo.utils import (
     setup_logger,
     handle_vision_stuff,
 )
+from reachy_mini_conversation_demo.console import LocalStream
 from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
 from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
 
@@ -66,7 +67,9 @@ def main():
     logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
     handler = OpenaiRealtimeHandler(deps)
-    stream = Stream(
+    local_stream = LocalStream(handler)
+
+    stream = fastrtc.Stream(
         handler=handler,
         mode="send-receive",
         modality="audio",
@@ -76,8 +79,8 @@ def main():
         ui_args={"title": "Talk with Reachy Mini"},
     )
 
-    app = FastAPI()
-    app = gr.mount_gradio_app(app, stream.ui, path="/")
+    # app = fastrtc.FastAPI()
+    # app = gr.mount_gradio_app(app, stream.ui, path="/")
 
     # Each async service → its own thread/loop
     movement_manager.start()
@@ -86,10 +89,11 @@ def main():
         camera_worker.start()
 
     try:
-        stream.ui.launch()
+        local_stream.start()
+        # stream.ui.launch()
     except KeyboardInterrupt:
         logger.info("Exiting...")
-
+        local_stream.stop()
     finally:
         movement_manager.stop()
         head_wobbler.stop()
