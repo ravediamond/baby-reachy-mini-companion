@@ -8,7 +8,6 @@ from reachy_mini_conversation_demo.camera_worker import CameraWorker
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser("Reachy Mini Conversation Demo")
-    parser.add_argument("--sim", action="store_true", help="Run in simulation mode")
     parser.add_argument(
         "--head-tracker",
         choices=["yolo", "mediapipe", None],
@@ -28,8 +27,7 @@ def handle_vision_stuff(args, current_robot):
     head_tracker = None
     vision_manager = None
     if not args.no_camera:
-        # Head tracking is disabled in simulation mode
-        if args.head_tracker is not None and not args.sim:
+        if args.head_tracker is not None:
             if args.head_tracker == "yolo":
                 from reachy_mini_conversation_demo.vision.yolo_head_tracker import (
                     HeadTracker,
@@ -41,12 +39,8 @@ def handle_vision_stuff(args, current_robot):
                 from reachy_mini_toolbox.vision import HeadTracker
 
                 head_tracker = HeadTracker()
-        elif args.head_tracker is not None and args.sim:
-            logger.warning(
-                f"Head tracking (--head-tracker {args.head_tracker}) is disabled in simulation mode (--sim)"
-            )
 
-        camera_worker = CameraWorker(current_robot, head_tracker, use_sim=args.sim)
+        camera_worker = CameraWorker(current_robot, head_tracker)
 
     return camera_worker, head_tracker, vision_manager
 

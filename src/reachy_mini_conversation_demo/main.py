@@ -32,11 +32,7 @@ def main():
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation Demo")
 
-    # In simulation mode, disable robot's media system since we use local camera/mic
-    if args.sim:
-        robot = ReachyMini(use_sim=True, media_backend="no_media")
-    else:
-        robot = ReachyMini(use_sim=False)
+    robot = ReachyMini()
 
     camera_worker, _, vision_manager = handle_vision_stuff(args, robot)
 
