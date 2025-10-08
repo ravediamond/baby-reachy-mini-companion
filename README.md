@@ -58,16 +58,12 @@ reachy-mini-conversation-demo
 
 | Option | Values | Default | Description |
 |--------|--------|---------|-------------|
-| `--head-tracker` | `yolo`, `mediapipe` | `None` | Enable **head tracking** using the specified tracker:<br>• **yolo** → YOLO-based head tracker.<br>• **mediapipe** → MediaPipe-based head tracker.<br>*(Automatically disabled when `--sim` is active)* |
+| `--head-tracker` | `yolo`, `mediapipe` | `None` | Enable **head tracking** using the specified tracker:<br>• **yolo** → YOLO-based head tracker.<br>• **mediapipe** → MediaPipe-based head tracker.<br> |
 | `--no-camera` | *(flag)* | off | Disable **camera usage** entirely. |
 | `--gradio` | *(flag)* | off | **⚠️ Under construction** - Open Gradio interface (currently not implemented). |
 | `--debug` | *(flag)* | off | Enable **debug logging** (default log level is INFO). |
 
 ## Examples
-- Simulated run:
-```
-reachy-mini-conversation-demo --sim
-```
 - Run with YOLO head tracking:
 ```
 reachy-mini-conversation-demo --head-tracker yolo
