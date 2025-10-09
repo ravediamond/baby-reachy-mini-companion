@@ -32,6 +32,9 @@ def main():
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation Demo")
 
+    if args.no_camera and args.head_tracker is not None:
+        logger.warning("Head tracking is not activated due to --no-camera.")
+
     robot = ReachyMini()
 
     camera_worker, _, vision_manager = handle_vision_stuff(args, robot)
