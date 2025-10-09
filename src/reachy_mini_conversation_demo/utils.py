@@ -22,7 +22,6 @@ def parse_args():
 
 def handle_vision_stuff(args, current_robot):
     """Initialize camera, head tracker and camera worker."""
-    logger = logging.getLogger(__name__)
     camera_worker = None
     head_tracker = None
     vision_manager = None
