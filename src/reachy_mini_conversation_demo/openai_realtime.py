@@ -27,8 +27,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         """Initialize the handler."""
         super().__init__(
             expected_layout="mono",
-            output_sample_rate=24000,
-            input_sample_rate=24000,
+            output_sample_rate=24000,  # openai outputs
+            input_sample_rate=16000,  # respeaker output
         )
         self.deps = deps
 
