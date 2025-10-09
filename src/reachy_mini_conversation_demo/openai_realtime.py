@@ -169,7 +169,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         )
                     )
 
-                    if tool_name == "camera":
+                    if tool_name == "camera" and "b64_im" in tool_result:
                         b64_im = json.dumps(tool_result["b64_im"])
                         await self.connection.conversation.item.create(
                             item={
