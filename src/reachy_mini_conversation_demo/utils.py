@@ -8,15 +8,14 @@ from reachy_mini_conversation_demo.camera_worker import CameraWorker
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser("Reachy Mini Conversation Demo")
-    parser.add_argument("--sim", action="store_true", help="Run in simulation mode")
     parser.add_argument(
         "--head-tracker",
         choices=["yolo", "mediapipe", None],
         default=None,
-        help="Choose head tracker (default: mediapipe)",
+        help="Choose head tracker (default: None)",
     )
     parser.add_argument("--no-camera", default=False, action="store_true", help="Disable camera usage")
-    parser.add_argument("--headless", default=False, action="store_true", help="Run in headless mode")
+    parser.add_argument("--gradio", default=False, action="store_true", help="Open gradio interface")
     parser.add_argument("--debug", default=False, action="store_true", help="Enable debug logging")
     return parser.parse_args()
 

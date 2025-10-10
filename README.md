@@ -93,8 +93,9 @@ The app starts a Gradio UI served locally (http://127.0.0.1:7860/). When running
 |--------|---------|-------------|
 | `--head-tracker {yolo,mediapipe}` | `None` | Select a face-tracking backend when a camera is available. Requires the matching optional extra. |
 | `--no-camera` | `False` | Run without camera capture or face tracking. |
-| `--headless` | `False` | Suppress launching the Gradio UI (useful on remote machines). |
+| `--gradio` | `False` | Launch the Gradio web UI. Without this flag, runs in console mode. Required when running in simulation mode. |
 | `--debug` | `False` | Enable verbose logging for troubleshooting. |
+
 
 ### Examples
 - Run on hardware with MediaPipe face tracking:

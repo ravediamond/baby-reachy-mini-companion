@@ -27,8 +27,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         """Initialize the handler."""
         super().__init__(
             expected_layout="mono",
-            output_sample_rate=24000,
-            input_sample_rate=24000,
+            output_sample_rate=24000,  # openai outputs
+            input_sample_rate=16000,  # respeaker output
         )
         self.deps = deps
 
@@ -169,7 +169,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         )
                     )
 
-                    if tool_name == "camera":
+                    if tool_name == "camera" and "b64_im" in tool_result:
                         b64_im = json.dumps(tool_result["b64_im"])
                         await self.connection.conversation.item.create(
                             item={

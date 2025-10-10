@@ -92,6 +92,7 @@ class CameraWorker:
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join()
+
         logger.debug("Camera worker stopped")
 
     def working_loop(self) -> None:
@@ -108,6 +109,8 @@ class CameraWorker:
         while not self._stop_event.is_set():
             try:
                 current_time = time.time()
+
+                # Get frame from robot
                 frame = self.reachy_mini.media.get_frame()
 
                 if frame is not None:

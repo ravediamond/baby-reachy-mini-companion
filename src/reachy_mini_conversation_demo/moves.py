@@ -498,7 +498,7 @@ class MovementManager:
                 self.state.move_start_time = current_time
                 # Any real move cancels breathing mode flag
                 self._breathing_active = isinstance(self.state.current_move, BreathingMove)
-                logger.info(f"Starting new move, duration: {self.state.current_move.duration}s")
+                logger.debug(f"Starting new move, duration: {self.state.current_move.duration}s")
 
     def _manage_breathing(self, current_time: float) -> None:
         """Manage automatic breathing when idle."""
@@ -525,7 +525,7 @@ class MovementManager:
                         interpolation_duration=1.0,
                     )
                     self.move_queue.append(breathing_move)
-                    logger.info("Started breathing after %.1fs of inactivity", idle_for)
+                    logger.debug("Started breathing after %.1fs of inactivity", idle_for)
                 except Exception as e:
                     self._breathing_active = False
                     logger.error("Failed to start breathing: %s", e)
