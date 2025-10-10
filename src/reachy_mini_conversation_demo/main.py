@@ -1,6 +1,7 @@
 """Entrypoint for the Reachy Mini conversation demo."""
 
 import os
+import sys
 
 import gradio as gr
 from fastapi import FastAPI
@@ -36,6 +37,12 @@ def main():
         logger.warning("Head tracking is not activated due to --no-camera.")
 
     robot = ReachyMini()
+    
+    # Check if running in simulation mode without --gradio
+    if robot.client.get_status()["simulation_enabled"] and not args.gradio:
+        logger.error("Simulation mode requires Gradio interface. Please use --gradio flag when running in simulation mode.")
+        robot.client.disconnect()
+        sys.exit(1)
 
     camera_worker, _, vision_manager = handle_vision_stuff(args, robot)
 
