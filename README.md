@@ -54,18 +54,25 @@ pip install -e .[dev]
 reachy-mini-conversation-demo
 ```
 
-## Runtime Options
+## Command line arguments
 
 | Option | Values | Default | Description |
 |--------|--------|---------|-------------|
-| `--sim` | *(flag)* | off | Run in **simulation mode** (no physical robot required). |
-| `--vision` | *(flag)* | off | Enable the **vision system** (must be paired with `--vision-provider`). |
-| `--vision-provider` | `local`, `openai` | `local` | Select vision backend:<br>• **local** → Hugging Face VLM (SmolVLM2) runs on your machine.<br>• **openai** → OpenAI multimodal models via API (requires `OPENAI_API_KEY`). |
-| `--head-tracking` | *(flag)* | off | Enable **head tracking** (ignored when `--sim` is active). |
+| `--head-tracker` | `yolo`, `mediapipe` | `None` | Enable **head tracking** using the specified tracker:<br>• **yolo** → YOLO-based head tracker.<br>• **mediapipe** → MediaPipe-based head tracker.<br> |
+| `--no-camera` | *(flag)* | off | Disable **camera usage** entirely. |
+| `--gradio` | *(flag)* | off | Launch with **Gradio web interface** for browser-based interaction. Required when running in simulation mode. |
 | `--debug` | *(flag)* | off | Enable **debug logging** (default log level is INFO). |
 
 ## Examples
-- Simulated run with OpenAI Vision:
+- Run with YOLO head tracking:
 ```
-reachy-mini-conversation-demo --sim --vision --vision-provider=openai
+reachy-mini-conversation-demo --head-tracker yolo
+```
+- Run with MediaPipe head tracking and debug logging:
+```
+reachy-mini-conversation-demo --head-tracker mediapipe --debug
+```
+- Run with Gradio web interface:
+```
+reachy-mini-conversation-demo --gradio
 ```
