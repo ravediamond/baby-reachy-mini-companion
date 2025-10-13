@@ -19,14 +19,19 @@ logger = logging.getLogger(__name__)
 class LocalStream:
     """LocalStream using Reachy Mini's recorder/player."""
 
-    def __init__(self, handler: OpenaiRealtimeHandler, robot: ReachyMini):
-        """Initialize the stream with an OpenAI realtime handler and pipelines."""
-        self.handler = handler
+    def __init__(self, deps, robot: ReachyMini):
+        """Initialize the stream with tool dependencies and robot.
+
+        Args:
+            deps: ToolDependencies for the handler
+            robot: ReachyMini robot instance
+
+        """
         self._robot = robot
         self._stop_event = asyncio.Event()
         self._tasks = []
-        # Allow the handler to flush the player queue when appropriate.
-        self.handler._clear_queue = self.clear_queue  # type: ignore[assignment]
+        # Create handler with callback to this instance's clear_audio_queue method
+        self.handler = OpenaiRealtimeHandler(deps, clear_audio_queue_callback=self.clear_audio_queue)
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops."""
@@ -69,7 +74,7 @@ class LocalStream:
         self._robot.media.stop_recording()
         self._robot.media.stop_playing()
 
-    def clear_queue(self) -> None:
+    def clear_audio_queue(self) -> None:
         """Flush the player's appsrc to drop any queued audio immediately."""
         logger.info("User intervention: flushing player queue")
         self.handler.output_queue = asyncio.Queue()

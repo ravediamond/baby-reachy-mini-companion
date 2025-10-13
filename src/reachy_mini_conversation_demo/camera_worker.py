@@ -229,7 +229,7 @@ class CameraWorker:
                 time.sleep(0.01)
 
             except Exception as e:
-                logger.error(f"Camera worker error: {e}")
+                logger.exception(f"Camera worker error: {e}")
                 time.sleep(0.1)  # Longer sleep on error
 
         logger.debug("Camera worker thread exited")
