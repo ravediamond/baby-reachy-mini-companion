@@ -50,8 +50,8 @@ class LocalStream:
 
         asyncio.run(runner())
 
-    def stop(self) -> None:
-        """Stop the stream and underlying GStreamer pipelines.
+    def close(self) -> None:
+        """Stop the stream and underlying media pipelines.
 
         This method:
         - Sets the stop event to signal async loops to terminate
