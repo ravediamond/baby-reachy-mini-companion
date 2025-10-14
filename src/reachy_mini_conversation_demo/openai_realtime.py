@@ -147,7 +147,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         logger.debug("Tool '%s' executed successfully", tool_name)
                         logger.debug("Tool result: %s", tool_result)
                     except Exception as e:
-                        logger.exception("Tool '%s' failed", tool_name)
+                        logger.error("Tool '%s' failed", tool_name)
                         tool_result = {"error": str(e)}
 
                     # send the tool result back
