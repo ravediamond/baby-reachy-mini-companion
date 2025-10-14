@@ -36,8 +36,6 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         self.connection = None
         self.output_queue = asyncio.Queue()
 
-        self._pending_calls: dict[str, dict] = {}
-
         self.last_activity_time = asyncio.get_event_loop().time()
         self.start_time = asyncio.get_event_loop().time()
         self.is_idle_tool_call = False
@@ -115,33 +113,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     )
 
                 # ---- tool-calling plumbing ----
-                # 1) model announces a function call item; capture name + call_id
-                if event.type == "response.output_item.added":
-                    item = getattr(event, "item", None)
-                    if item and getattr(item, "type", "") == "function_call":
-                        call_id = getattr(item, "call_id", None)
-                        name = getattr(item, "name", None)
-                        if call_id and name:
-                            self._pending_calls[call_id] = {
-                                "name": name,
-                                "args_buf": "",
-                            }
-
-                # 2) model streams JSON arguments; buffer them by call_id
-                if event.type == "response.function_call_arguments.delta":
-                    call_id = getattr(event, "call_id", None)
-                    delta = getattr(event, "delta", "")
-                    if call_id in self._pending_calls:
-                        self._pending_calls[call_id]["args_buf"] += delta
-
-                # 3) when args done, execute Python tool, send function_call_output, then trigger a new response
                 if event.type == "response.function_call_arguments.done":
+                    tool_name = getattr(event, "name", None)
+                    args_json_str = getattr(event, "arguments", None)
                     call_id = getattr(event, "call_id", None)
-                    tool_call_info = self._pending_calls.get(call_id)
-                    if not tool_call_info:
-                        continue
-                    tool_name = tool_call_info["name"]
-                    args_json_str = tool_call_info["args_buf"] or "{}"
 
                     try:
                         tool_result = await dispatch_tool_call(tool_name, args_json_str, self.deps)
@@ -171,7 +146,11 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     )
 
                     if tool_name == "camera" and "b64_im" in tool_result:
-                        b64_im = json.dumps(tool_result["b64_im"])
+                        # use raw base64, don't json.dumps (which adds quotes)
+                        b64_im = tool_result["b64_im"]
+                        if not isinstance(b64_im, str):
+                            logger.warning("Unexpected type for b64_im: %s", type(b64_im))
+                            b64_im = str(b64_im)
                         await self.connection.conversation.item.create(
                             item={
                                 "type": "message",
@@ -209,8 +188,6 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
                     # re synchronize the head wobble after a tool call that may have taken some time
                     self.deps.head_wobbler.reset()
-                    # cleanup
-                    self._pending_calls.pop(call_id, None)
 
                 # server error
                 if event.type == "error":
