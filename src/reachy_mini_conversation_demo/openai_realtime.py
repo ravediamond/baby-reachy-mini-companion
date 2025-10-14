@@ -235,7 +235,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     err = getattr(event, "error", None)
                     msg = getattr(err, "message", str(err) if err else "unknown error")
                     err_code = getattr(err, "code", None)
-                    
+
                     # Handle concurrent response error gracefully
                     if err_code == "conversation_already_has_active_response":
                         logger.warning(
@@ -287,10 +287,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
     async def _safe_create_response(self, **kwargs) -> None:
         """Safely create a response, queuing if one is already in progress.
-        
+
         Args:
             **kwargs: Arguments to pass to connection.response.create()
-        
+
         """
         if self._response_in_progress:
             logger.debug("Response already in progress, queuing request (expected during rapid tool calls)")
