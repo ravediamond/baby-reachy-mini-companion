@@ -24,28 +24,19 @@ logger = logging.getLogger(__name__)
 class OpenaiRealtimeHandler(AsyncStreamHandler):
     """An OpenAI realtime handler for fastrtc Stream."""
 
-    def __init__(self, deps: ToolDependencies, clear_audio_queue_callback=None):
-        """Initialize the handler.
-
-        Args:
-            deps: Tool dependencies for executing tools
-            clear_audio_queue_callback: Optional callback to clear the audio queue when speech starts
-
-        """
+    def __init__(self, deps: ToolDependencies):
+        """Initialize the handler."""
         super().__init__(
             expected_layout="mono",
             output_sample_rate=24000,  # openai outputs
             input_sample_rate=16000,  # respeaker output
         )
         self.deps = deps
-        self._clear_audio_queue_callback = clear_audio_queue_callback
 
         self.connection = None
         self.output_queue = asyncio.Queue()
 
         self._pending_calls: dict[str, dict] = {}
-        self._response_in_progress = False
-        self._pending_response_queue = asyncio.Queue()
 
         self.last_activity_time = asyncio.get_event_loop().time()
         self.start_time = asyncio.get_event_loop().time()
@@ -53,7 +44,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
     def copy(self):
         """Create a copy of the handler."""
-        return OpenaiRealtimeHandler(self.deps, self._clear_audio_queue_callback)
+        return OpenaiRealtimeHandler(self.deps)
 
     async def start_up(self):
         """Start the handler."""
@@ -81,8 +72,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             async for event in self.connection:
                 logger.debug(f"OpenAI event: {event.type}")
                 if event.type == "input_audio_buffer.speech_started":
-                    if self._clear_audio_queue_callback:
-                        self._clear_audio_queue_callback()
+                    self.clear_queue()
                     self.deps.head_wobbler.reset()
                     self.deps.movement_manager.set_listening(True)
                     logger.debug("User speech started")
@@ -97,21 +87,12 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     self.deps.head_wobbler.reset()
 
                 if event.type == "response.created":
-                    logger.debug("response created")
-                    self._response_in_progress = True
+                    logger.debug("Response created")
 
                 if event.type == "response.done":
                     # Doesn't mean the audio is done playing
-                    logger.debug("response done")
-                    self._response_in_progress = False
-                    # Process any queued response requests
-                    if not self._pending_response_queue.empty():
-                        queued_params = await self._pending_response_queue.get()
-                        logger.debug("Processing queued response request")
-                        try:
-                            await self.connection.response.create(**queued_params)
-                        except Exception as e:
-                            logger.error(f"Failed to create queued response: {e}")
+                    logger.debug("Response done")
+                    pass
 
                 if event.type == "conversation.item.input_audio_transcription.completed":
                     logger.debug(f"User transcript: {event.transcript}")
@@ -217,7 +198,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         )
 
                     if not self.is_idle_tool_call:
-                        await self._safe_create_response(
+                        await self.connection.response.create(
                             response={
                                 "instructions": "Use the tool result just returned and answer concisely in speech."
                             }
@@ -234,18 +215,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type == "error":
                     err = getattr(event, "error", None)
                     msg = getattr(err, "message", str(err) if err else "unknown error")
-                    err_code = getattr(err, "code", None)
-
-                    # Handle concurrent response error gracefully
-                    if err_code == "conversation_already_has_active_response":
-                        logger.warning(
-                            "Attempted to create response while one is in progress. "
-                            "This is expected during rapid tool calls and will be handled automatically."
-                        )
-                        # Don't send error to user for this specific case
-                    else:
-                        logger.error("Realtime error: %s (raw=%s)", msg, err)
-                        await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
+                    logger.error("Realtime error: %s (raw=%s)", msg, err)
+                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
 
     # Microphone receive
     async def receive(self, frame: tuple[int, np.ndarray]) -> None:
@@ -285,27 +256,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         dt = datetime.fromtimestamp(current_time)
         return f"[{dt.strftime('%Y-%m-%d %H:%M:%S')} | +{elapsed_seconds:.1f}s]"
 
-    async def _safe_create_response(self, **kwargs) -> None:
-        """Safely create a response, queuing if one is already in progress.
 
-        Args:
-            **kwargs: Arguments to pass to connection.response.create()
-
-        """
-        if self._response_in_progress:
-            logger.debug("Response already in progress, queuing request (expected during rapid tool calls)")
-            await self._pending_response_queue.put(kwargs)
-        else:
-            try:
-                await self.connection.response.create(**kwargs)
-            except Exception as e:
-                error_msg = str(e)
-                if "conversation_already_has_active_response" in error_msg:
-                    logger.warning("Race condition detected, queuing response request")
-                    await self._pending_response_queue.put(kwargs)
-                else:
-                    logger.error(f"Failed to create response: {e}")
-                    raise
 
     async def send_idle_signal(self, idle_duration) -> None:
         """Send an idle signal to the openai server."""
@@ -322,7 +273,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 "content": [{"type": "input_text", "text": timestamp_msg}],
             }
         )
-        await self._safe_create_response(
+        await self.connection.response.create(
             response={
                 "modalities": ["text"],
                 "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
