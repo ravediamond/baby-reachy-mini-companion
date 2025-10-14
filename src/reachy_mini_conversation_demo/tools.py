@@ -36,14 +36,14 @@ except ImportError as e:
     EMOTION_AVAILABLE = False
 
 
-def all_concrete_subclasses(base):
+def get_concrete_subclasses(base):
     """Recursively find all concrete (non-abstract) subclasses of a base class."""
     result = []
     for cls in base.__subclasses__():
         if not inspect.isabstract(cls):
             result.append(cls)
         # recurse into subclasses
-        result.extend(all_concrete_subclasses(cls))
+        result.extend(get_concrete_subclasses(cls))
     return result
 
 
@@ -157,7 +157,7 @@ class MoveHead(Tool):
             return {"status": f"looking {direction}"}
 
         except Exception as e:
-            logger.exception("move_head failed")
+            logger.error("move_head failed")
             return {"error": f"move_head failed: {type(e).__name__}: {e}"}
 
 
@@ -198,11 +198,15 @@ class Camera(Tool):
 
         # Use vision manager for processing if available
         if deps.vision_manager is not None:
-            result = await asyncio.to_thread(deps.vision_manager.processor.process_image, frame, image_query)
-            if isinstance(result, dict) and "error" in result:
-                return result
+            vision_result = await asyncio.to_thread(
+                deps.vision_manager.processor.process_image, frame, image_query
+            )
+            if isinstance(vision_result, dict) and "error" in vision_result:
+                return vision_result
             return (
-                {"image_description": result} if isinstance(result, str) else {"error": "vision returned non-string"}
+                {"image_description": vision_result}
+                if isinstance(vision_result, str)
+                else {"error": "vision returned non-string"}
             )
         else:
             # Return base64 encoded image like main_works.py camera tool
@@ -341,12 +345,12 @@ def get_available_emotions_and_descriptions() -> str:
         return "Emotions not available"
 
     try:
-        names = RECORDED_MOVES.list_moves()
-        ret = "Available emotions:\n"
-        for name in names:
+        emotion_names = RECORDED_MOVES.list_moves()
+        output = "Available emotions:\n"
+        for name in emotion_names:
             description = RECORDED_MOVES.get(name).description
-            ret += f" - {name}: {description}\n"
-        return ret
+            output += f" - {name}: {description}\n"
+        return output
     except Exception as e:
         return f"Error getting emotions: {e}"
 
@@ -448,15 +452,15 @@ class DoNothing(Tool):
 # Registry & specs (dynamic)
 
 # List of available tool classes
-ALL_TOOLS: Dict[str, Tool] = {cls.name: cls() for cls in all_concrete_subclasses(Tool)}
+ALL_TOOLS: Dict[str, Tool] = {cls.name: cls() for cls in get_concrete_subclasses(Tool)}
 ALL_TOOL_SPECS = [tool.spec() for tool in ALL_TOOLS.values()]
 
 
 # Dispatcher
 def _safe_load_obj(args_json: str) -> dict[str, Any]:
     try:
-        obj = json.loads(args_json or "{}")
-        return obj if isinstance(obj, dict) else {}
+        parsed_args = json.loads(args_json or "{}")
+        return parsed_args if isinstance(parsed_args, dict) else {}
     except Exception:
         logger.warning("bad args_json=%r", args_json)
         return {}
