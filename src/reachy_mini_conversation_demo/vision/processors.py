@@ -1,7 +1,6 @@
 import os
 import time
 import base64
-import asyncio
 import logging
 import threading
 from typing import Any, Dict, Optional
@@ -214,44 +213,57 @@ class VisionManager:
         self.processor = VisionProcessor(self.vision_config)
 
         self._last_processed_time = 0
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
 
         # Initialize processor
         if not self.processor.initialize():
             logger.error("Failed to initialize vision processor")
             raise RuntimeError("Vision processor initialization failed")
 
-    async def enable(self, stop_event: threading.Event):
+    def start(self) -> None:
+        """Start the vision processing loop in a thread."""
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._working_loop, daemon=True)
+        self._thread.start()
+        logger.info("Local vision processing started")
+
+    def stop(self) -> None:
+        """Stop the vision processing loop."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join()
+        logger.info("Local vision processing stopped")
+
+    def _working_loop(self) -> None:
         """Vision processing loop (runs in separate thread)."""
-        while not stop_event.is_set():
+        while not self._stop_event.is_set():
             try:
                 current_time = time.time()
 
                 if current_time - self._last_processed_time >= self.vision_interval:
                     frame = self.camera.get_latest_frame()
                     if frame is not None:
-                        description = await asyncio.to_thread(
-                            lambda: self.processor.process_image(
-                                frame, "Briefly describe what you see in one sentence."
-                            )
+                        description = self.processor.process_image(
+                            frame, "Briefly describe what you see in one sentence."
                         )
 
                         # Only update if we got a valid response
                         if description and not description.startswith(("Vision", "Failed", "Error")):
                             self._last_processed_time = current_time
-
-                            logger.info(f"Vision update: {description}")
+                            logger.debug(f"Vision update: {description}")
                         else:
                             logger.warning(f"Invalid vision response: {description}")
 
-                await asyncio.sleep(1.0)  # Check every second
+                time.sleep(1.0)  # Check every second
 
             except Exception:
                 logger.exception("Vision processing loop error")
-                await asyncio.sleep(5.0)  # Longer sleep on error
+                time.sleep(5.0)  # Longer sleep on error
 
         logger.info("Vision loop finished")
 
-    async def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status information."""
         return {
             "last_processed": self._last_processed_time,

@@ -99,6 +99,8 @@ def main():
     head_wobbler.start()
     if camera_worker:
         camera_worker.start()
+    if vision_manager:
+        vision_manager.start()
 
     try:
         stream_manager.launch()
@@ -113,6 +115,8 @@ def main():
         head_wobbler.stop()
         if camera_worker:
             camera_worker.stop()
+        if vision_manager:
+            vision_manager.stop()
 
         # prevent connection to keep alive some threads
         robot.client.disconnect()

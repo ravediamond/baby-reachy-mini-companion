@@ -16,7 +16,6 @@ dependencies = [
     "gradio>=5.49.0",
     "huggingface_hub>=0.34.4",
     "opencv-python>=4.12.0.88",
-    "num2words",
 
     #Environment variables
     "python-dotenv",
@@ -31,7 +30,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-local_vision = ["torch", "transformers"]
+local_vision = ["torch", "transformers", "num2words"]
 yolo_vision = ["ultralytics", "supervision"]
 mediapipe_vision = ["mediapipe>=0.10.14"]
 all_vision = [
