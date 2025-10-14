@@ -136,11 +136,11 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 # 3) when args done, execute Python tool, send function_call_output, then trigger a new response
                 if event.type == "response.function_call_arguments.done":
                     call_id = getattr(event, "call_id", None)
-                    info = self._pending_calls.get(call_id)
-                    if not info:
+                    tool_call_info = self._pending_calls.get(call_id)
+                    if not tool_call_info:
                         continue
-                    tool_name = info["name"]
-                    args_json_str = info["args_buf"] or "{}"
+                    tool_name = tool_call_info["name"]
+                    args_json_str = tool_call_info["args_buf"] or "{}"
 
                     try:
                         tool_result = await dispatch_tool_call(tool_name, args_json_str, self.deps)
