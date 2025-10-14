@@ -1,6 +1,7 @@
 # Reachy Mini conversation demo
 
 Conversational demo for the Reachy Mini robot combining OpenAI's realtime APIs, vision pipelines, and choreographed motion libraries.
+
 ![Reachy Mini Dance](src/reachy_mini_conversation_demo/images/reachy_mini_dance.gif)
 
 ## Overview
