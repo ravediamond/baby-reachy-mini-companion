@@ -3610,8 +3610,8 @@ dev = [
 
 [[package]]
 name = "reachy-mini-dances-library"
-version = "0.1.2"
-source = { git = "ssh://git@github.com/pollen-robotics/reachy_mini_dances_library?rev=main#871c0bcd66ab6038b8edbbf3a4756f355c29052a" }
+version = "0.2.0"
+source = { git = "ssh://git@github.com/pollen-robotics/reachy_mini_dances_library?rev=main#a6bab591d754b949b833547a2926dee29e89b672" }
 dependencies = [
     { name = "reachy-mini" },
 ]
