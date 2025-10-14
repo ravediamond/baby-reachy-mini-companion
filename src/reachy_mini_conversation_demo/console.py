@@ -26,7 +26,7 @@ class LocalStream:
         self._stop_event = asyncio.Event()
         self._tasks = []
         # Allow the handler to flush the player queue when appropriate.
-        self.handler._clear_queue = self.clear_queue  # type: ignore[assignment]
+        self.handler._clear_queue = self.clear_audio_queue  # type: ignore[assignment]
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops."""

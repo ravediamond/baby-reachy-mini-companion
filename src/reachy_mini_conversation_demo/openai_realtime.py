@@ -72,7 +72,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             async for event in self.connection:
                 logger.debug(f"OpenAI event: {event.type}")
                 if event.type == "input_audio_buffer.speech_started":
-                    self.clear_queue()
+                    if hasattr(self, '_clear_queue'):
+                        self._clear_queue()
                     self.deps.head_wobbler.reset()
                     self.deps.movement_manager.set_listening(True)
                     logger.debug("User speech started")
