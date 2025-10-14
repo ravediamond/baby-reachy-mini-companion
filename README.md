@@ -7,7 +7,7 @@ Conversational demo for the Reachy Mini robot combining OpenAI's realtime APIs, 
 - Real-time audio conversation loop powered by the OpenAI realtime API and `fastrtc` for low-latency streaming.
 - Local vision processing using SmolVLM2 model running on-device (CPU/GPU/MPS).
 - Layered motion system queues primary moves (dances, emotions, goto poses, breathing) while blending speech-reactive wobble and face-tracking.
-- Async tool dispatch integrates robot motion, camera capture, and optional facial-recognition helpers through a Gradio web UI with live transcripts.
+- Async tool dispatch integrates robot motion, camera capture, and optional face-tracking capabilities through a Gradio web UI with live transcripts.
 
 ## Installation
 
@@ -93,7 +93,7 @@ By default, the app runs in console mode for direct audio interaction. Use the `
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--head-tracker {yolo,mediapipe}` | `None` | Select a face-tracking backend when a camera is available. Requires the matching optional extra. |
+| `--head-tracker {yolo,mediapipe}` | `None` | Select a face-tracking backend when a camera is available. YOLO is implemented locally, MediaPipe comes from the `reachy_mini_toolbox` package. Requires the matching optional extra. |
 | `--no-camera` | `False` | Run without camera capture or face tracking. |
 | `--gradio` | `False` | Launch the Gradio web UI. Without this flag, runs in console mode. Required when running in simulation mode. |
 | `--debug` | `False` | Enable verbose logging for troubleshooting. |
@@ -118,7 +118,7 @@ By default, the app runs in console mode for direct audio interaction. Use the `
 |------|--------|--------------|
 | `move_head` | Queue a head pose change (left/right/up/down/front). | Core install only. |
 | `camera` | Capture the latest camera frame and optionally query a vision backend. | Requires camera worker; vision analysis depends on selected extras. |
-| `head_tracking` | Enable or disable face-tracking offsets. | Camera worker with configured head tracker. |
+| `head_tracking` | Enable or disable face-tracking offsets (not facial recognition - only detects and tracks face position). | Camera worker with configured head tracker. |
 | `dance` | Queue a dance from `reachy_mini_dances_library`. | Core install only. |
 | `stop_dance` | Clear queued dances. | Core install only. |
 | `play_emotion` | Play a recorded emotion clip via Hugging Face assets. | Needs `HF_TOKEN` for the recorded emotions dataset. |
