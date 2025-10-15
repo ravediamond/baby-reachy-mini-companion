@@ -12,6 +12,9 @@ Conversational demo for the Reachy Mini robot combining OpenAI's realtime APIs, 
 
 ## Installation
 
+> [!IMPORTANT]
+> Windows support is currently experimental and has not been extensively tested. Use with caution.
+
 ### Using uv
 You can set up the project quickly using [uv](https://docs.astral.sh/uv/):
 
