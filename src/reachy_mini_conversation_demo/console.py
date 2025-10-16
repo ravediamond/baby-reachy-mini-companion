@@ -24,9 +24,9 @@ class LocalStream:
         self.handler = handler
         self._robot = robot
         self._stop_event = asyncio.Event()
-        self._tasks = []
+        self._tasks: list[asyncio.Task[None]] = []
         # Allow the handler to flush the player queue when appropriate.
-        self.handler._clear_queue = self.clear_audio_queue  # type: ignore[assignment]
+        self.handler._clear_queue = self.clear_audio_queue
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops."""
@@ -105,12 +105,12 @@ class LocalStream:
             elif isinstance(handler_output, tuple):
                 input_sample_rate, audio_frame = handler_output
                 device_sample_rate = self._robot.media.get_audio_samplerate()
-                audio_frame = audio_to_float32(audio_frame.squeeze())
+                audio_frame_float = audio_to_float32(audio_frame.squeeze())
                 if input_sample_rate != device_sample_rate:
-                    audio_frame = librosa.resample(
-                        audio_frame, orig_sr=input_sample_rate, target_sr=device_sample_rate
+                    audio_frame_float = librosa.resample(
+                        audio_frame_float, orig_sr=input_sample_rate, target_sr=device_sample_rate,
                     )
-                self._robot.media.push_audio_sample(audio_frame)
+                self._robot.media.push_audio_sample(audio_frame_float)
 
             else:
                 logger.debug("Ignoring output type=%s", type(handler_output).__name__)

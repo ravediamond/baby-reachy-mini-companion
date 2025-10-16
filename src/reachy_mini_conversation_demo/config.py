@@ -13,13 +13,13 @@ if not env_file.exists():
     raise RuntimeError(
         ".env file not found. Please create one based on .env.example:\n"
         "  cp .env.example .env\n"
-        "Then add your OPENAI_API_KEY to the .env file."
+        "Then add your OPENAI_API_KEY to the .env file.",
     )
 
 # Load .env and verify it was loaded successfully
 if not load_dotenv():
     raise RuntimeError(
-        "Failed to load .env file. Please ensure the file is readable and properly formatted."
+        "Failed to load .env file. Please ensure the file is readable and properly formatted.",
     )
 
 logger.info("Configuration loaded from .env file")
@@ -33,11 +33,11 @@ class Config:
     if OPENAI_API_KEY is None:
         raise RuntimeError(
             "OPENAI_API_KEY is not set in .env file. Please add it:\n"
-            "  OPENAI_API_KEY=your_api_key_here"
+            "  OPENAI_API_KEY=your_api_key_here",
         )
     if not OPENAI_API_KEY.strip():
         raise RuntimeError(
-            "OPENAI_API_KEY is empty in .env file. Please provide a valid API key."
+            "OPENAI_API_KEY is empty in .env file. Please provide a valid API key.",
         )
 
     # Optional

@@ -2,12 +2,14 @@ import json
 import base64
 import asyncio
 import logging
+from typing import Any
 from datetime import datetime
 
 import numpy as np
 import gradio as gr
 from openai import AsyncOpenAI
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item
+from numpy.typing import NDArray
 
 from reachy_mini_conversation_demo.tools import (
     ALL_TOOL_SPECS,
@@ -33,18 +35,18 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         )
         self.deps = deps
 
-        self.connection = None
-        self.output_queue = asyncio.Queue()
+        self.connection: Any | None = None
+        self.output_queue: asyncio.Queue[tuple[int, NDArray[np.int16]] | AdditionalOutputs] = asyncio.Queue()
 
         self.last_activity_time = asyncio.get_event_loop().time()
         self.start_time = asyncio.get_event_loop().time()
         self.is_idle_tool_call = False
 
-    def copy(self):
+    def copy(self) -> "OpenaiRealtimeHandler":
         """Create a copy of the handler."""
         return OpenaiRealtimeHandler(self.deps)
 
-    async def start_up(self):
+    async def start_up(self) -> None:
         """Start the handler."""
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         async with self.client.beta.realtime.connect(model=config.MODEL_NAME) as conn:
@@ -59,10 +61,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     },
                     "voice": "ballad",
                     "instructions": SESSION_INSTRUCTIONS,
-                    "tools": ALL_TOOL_SPECS,
+                    "tools": ALL_TOOL_SPECS,  # type: ignore[typeddict-item]
                     "tool_choice": "auto",
                     "temperature": 0.7,
-                }
+                },
             )
 
             # Manage event received from the openai server
@@ -70,9 +72,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             async for event in self.connection:
                 logger.debug(f"OpenAI event: {event.type}")
                 if event.type == "input_audio_buffer.speech_started":
-                    if hasattr(self, '_clear_queue'):
+                    if hasattr(self, "_clear_queue") and callable(self._clear_queue):
                         self._clear_queue()
-                    self.deps.head_wobbler.reset()
+                    if self.deps.head_wobbler is not None:
+                        self.deps.head_wobbler.reset()
                     self.deps.movement_manager.set_listening(True)
                     logger.debug("User speech started")
 
@@ -83,7 +86,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type in ("response.audio.completed", "response.completed"):
                     # Doesn't seem to be called
                     logger.debug("response completed")
-                    self.deps.head_wobbler.reset()
+                    if self.deps.head_wobbler is not None:
+                        self.deps.head_wobbler.reset()
 
                 if event.type == "response.created":
                     logger.debug("Response created")
@@ -91,7 +95,6 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type == "response.done":
                     # Doesn't mean the audio is done playing
                     logger.debug("Response done")
-                    pass
 
                 if event.type == "conversation.item.input_audio_transcription.completed":
                     logger.debug(f"User transcript: {event.transcript}")
@@ -102,7 +105,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": event.transcript}))
 
                 if event.type == "response.audio.delta":
-                    self.deps.head_wobbler.feed(event.delta)
+                    if self.deps.head_wobbler is not None:
+                        self.deps.head_wobbler.feed(event.delta)
                     self.last_activity_time = asyncio.get_event_loop().time()
                     logger.debug("last activity time updated to %s", self.last_activity_time)
                     await self.output_queue.put(
@@ -118,6 +122,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     args_json_str = getattr(event, "arguments", None)
                     call_id = getattr(event, "call_id", None)
 
+                    if not isinstance(tool_name, str) or not isinstance(args_json_str, str):
+                        logger.error("Invalid tool call: tool_name=%s, args=%s", tool_name, args_json_str)
+                        continue
+
                     try:
                         tool_result = await dispatch_tool_call(tool_name, args_json_str, self.deps)
                         logger.debug("Tool '%s' executed successfully", tool_name)
@@ -127,22 +135,23 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                         tool_result = {"error": str(e)}
 
                     # send the tool result back
-                    await self.connection.conversation.item.create(
-                        item={
-                            "type": "function_call_output",
-                            "call_id": call_id,
-                            "output": json.dumps(tool_result),
-                        }
-                    )
+                    if isinstance(call_id, str):
+                        await self.connection.conversation.item.create(
+                            item={
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": json.dumps(tool_result),
+                            },
+                        )
 
                     await self.output_queue.put(
                         AdditionalOutputs(
                             {
                                 "role": "assistant",
                                 "content": json.dumps(tool_result),
-                                "metadata": {"title": "🛠️ Used tool " + tool_name, "status": "done"},
+                                "metadata": {"title": f"🛠️ Used tool {tool_name}", "status": "done"},
                             },
-                        )
+                        ),
                     )
 
                     if tool_name == "camera" and "b64_im" in tool_result:
@@ -157,37 +166,39 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 "role": "user",
                                 "content": [
                                     {
-                                        "type": "input_image",
+                                        "type": "input_image",  # type: ignore[typeddict-item]
                                         "image_url": f"data:image/jpeg;base64,{b64_im}",
-                                    }
+                                    },
                                 ],
-                            }
+                            },
                         )
                         logger.info("Added camera image to conversation")
 
-                        np_img = self.deps.camera_worker.get_latest_frame()
-                        img = gr.Image(value=np_img)
+                        if self.deps.camera_worker is not None:
+                            np_img = self.deps.camera_worker.get_latest_frame()
+                            img = gr.Image(value=np_img)
 
-                        await self.output_queue.put(
-                            AdditionalOutputs(
-                                {
-                                    "role": "assistant",
-                                    "content": img,
-                                }
+                            await self.output_queue.put(
+                                AdditionalOutputs(
+                                    {
+                                        "role": "assistant",
+                                        "content": img,
+                                    },
+                                ),
                             )
-                        )
 
                     if not self.is_idle_tool_call:
                         await self.connection.response.create(
                             response={
-                                "instructions": "Use the tool result just returned and answer concisely in speech."
-                            }
+                                "instructions": "Use the tool result just returned and answer concisely in speech.",
+                            },
                         )
                     else:
                         self.is_idle_tool_call = False
 
                     # re synchronize the head wobble after a tool call that may have taken some time
-                    self.deps.head_wobbler.reset()
+                    if self.deps.head_wobbler is not None:
+                        self.deps.head_wobbler.reset()
 
                 # server error
                 if event.type == "error":
@@ -197,7 +208,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
 
     # Microphone receive
-    async def receive(self, frame: tuple[int, np.ndarray]) -> None:
+    async def receive(self, frame: tuple[int, NDArray[np.int16]]) -> None:
         """Receive audio frame from the microphone and send it to the openai server."""
         if not self.connection:
             return
@@ -205,9 +216,9 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         array = array.squeeze()
         audio_message = base64.b64encode(array.tobytes()).decode("utf-8")
         # Fills the input audio buffer to be sent to the server
-        await self.connection.input_audio_buffer.append(audio=audio_message)  # type: ignore
+        await self.connection.input_audio_buffer.append(audio=audio_message)
 
-    async def emit(self) -> tuple[int, np.ndarray] | AdditionalOutputs | None:
+    async def emit(self) -> tuple[int, NDArray[np.int16]] | AdditionalOutputs | None:
         """Emit audio frame to be played by the speaker."""
         # sends to the stream the stuff put in the output queue by the openai event handler
         # This is called periodically by the fastrtc Stream
@@ -219,7 +230,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
             self.last_activity_time = asyncio.get_event_loop().time()  # avoid repeated resets
 
-        return await wait_for_item(self.output_queue)
+        return await wait_for_item(self.output_queue)  # type: ignore[no-any-return]
 
     async def shutdown(self) -> None:
         """Shutdown the handler."""
@@ -227,7 +238,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             await self.connection.close()
             self.connection = None
 
-    def format_timestamp(self):
+    def format_timestamp(self) -> str:
         """Format current timestamp with date, time and elapsed seconds."""
         current_time = asyncio.get_event_loop().time()
         elapsed_seconds = current_time - self.start_time
@@ -236,7 +247,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
 
 
-    async def send_idle_signal(self, idle_duration) -> None:
+    async def send_idle_signal(self, idle_duration: float) -> None:
         """Send an idle signal to the openai server."""
         logger.debug("Sending idle signal")
         self.is_idle_tool_call = True
@@ -249,12 +260,12 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 "type": "message",
                 "role": "user",
                 "content": [{"type": "input_text", "text": timestamp_msg}],
-            }
+            },
         )
         await self.connection.response.create(
             response={
                 "modalities": ["text"],
                 "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
                 "tool_choice": "required",
-            }
+            },
         )
