@@ -12,6 +12,9 @@ Conversational demo for the Reachy Mini robot combining OpenAI's realtime APIs, 
 
 ## Installation
 
+> [!IMPORTANT]
+> Windows support is currently experimental and has not been extensively tested. Use with caution.
+
 ### Using uv
 You can set up the project quickly using [uv](https://docs.astral.sh/uv/):
 
@@ -34,7 +37,7 @@ You can combine extras or include dev dependencies:
 uv sync --extra all_vision --group dev
 ```
 
-### Using pip (test on Ubuntu 24.04)
+### Using pip
 
 ```bash
 python -m venv .venv # Create a virtual environment

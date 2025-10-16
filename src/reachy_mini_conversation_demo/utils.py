@@ -3,7 +3,6 @@ import argparse
 import warnings
 
 from reachy_mini_conversation_demo.camera_worker import CameraWorker
-from reachy_mini_conversation_demo.vision.processors import initialize_vision_manager
 
 
 def parse_args():
@@ -16,7 +15,12 @@ def parse_args():
         help="Choose head tracker (default: None)",
     )
     parser.add_argument("--no-camera", default=False, action="store_true", help="Disable camera usage")
-    parser.add_argument("--local-vision", default=False, action="store_true", help="Use local vision model instead of gpt-realtime vision")
+    parser.add_argument(
+        "--local-vision",
+        default=False,
+        action="store_true",
+        help="Use local vision model instead of gpt-realtime vision",
+    )
     parser.add_argument("--gradio", default=False, action="store_true", help="Open gradio interface")
     parser.add_argument("--debug", default=False, action="store_true", help="Enable debug logging")
     return parser.parse_args()
@@ -37,9 +41,11 @@ def handle_vision_stuff(args, current_robot):
         if args.head_tracker is not None:
             if args.head_tracker == "yolo":
                 from reachy_mini_conversation_demo.vision.yolo_head_tracker import HeadTracker
+
                 head_tracker = HeadTracker()
             elif args.head_tracker == "mediapipe":
                 from reachy_mini_toolbox.vision import HeadTracker
+
                 head_tracker = HeadTracker()
 
         # Initialize camera worker
@@ -47,9 +53,18 @@ def handle_vision_stuff(args, current_robot):
 
         # Initialize vision manager only if local vision is requested
         if args.local_vision:
-            vision_manager = initialize_vision_manager(camera_worker)
+            try:
+                from reachy_mini_conversation_demo.vision.processors import initialize_vision_manager
+
+                vision_manager = initialize_vision_manager(camera_worker)
+            except ImportError as e:
+                raise ImportError(
+                    "To use --local-vision, please install the extra dependencies: pip install '.[local_vision]'"
+                ) from e
         else:
-            logging.getLogger(__name__).info("Using gpt-realtime for vision (default). Use --local-vision for local processing.")
+            logging.getLogger(__name__).info(
+                "Using gpt-realtime for vision (default). Use --local-vision for local processing."
+            )
 
     return camera_worker, head_tracker, vision_manager
 
