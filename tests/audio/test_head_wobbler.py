@@ -4,7 +4,8 @@ import math
 import time
 import base64
 import threading
-from typing import List, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 
 import numpy as np
 
@@ -31,10 +32,10 @@ def _wait_for(predicate: Callable[[], bool], timeout: float = 0.6) -> bool:
     return False
 
 
-def _start_wobbler() -> Tuple[HeadWobbler, List[Tuple[float, Tuple[float, float, float, float, float, float]]]]:
-    captured: List[Tuple[float, Tuple[float, float, float, float, float, float]]] = []
+def _start_wobbler() -> tuple[HeadWobbler, list[tuple[float, tuple[float, float, float, float, float, float]]]]:
+    captured: list[tuple[float, tuple[float, float, float, float, float, float]]] = []
 
-    def capture(offsets: Tuple[float, float, float, float, float, float]) -> None:
+    def capture(offsets: tuple[float, float, float, float, float, float]) -> None:
         captured.append((time.time(), offsets))
 
     wobbler = HeadWobbler(set_speech_offsets=capture)
@@ -74,7 +75,7 @@ def test_reset_allows_future_offsets() -> None:
         wobbler.stop()
 
 
-def test_reset_during_inflight_chunk_keeps_worker(monkeypatch) -> None:
+def test_reset_during_inflight_chunk_keeps_worker(monkeypatch: Any) -> None:
     """Simulate reset during chunk processing to ensure the worker survives."""
     wobbler, captured = _start_wobbler()
     ready = threading.Event()

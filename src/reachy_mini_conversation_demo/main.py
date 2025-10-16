@@ -2,6 +2,7 @@
 
 import os
 import sys
+from typing import Any
 
 import gradio as gr
 from fastapi import FastAPI
@@ -20,13 +21,13 @@ from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
 from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
 
 
-def update_chatbot(chatbot: list[dict], response: dict):
+def update_chatbot(chatbot: list[dict[str, Any]], response: dict[str, Any]) -> list[dict[str, Any]]:
     """Update the chatbot with AdditionalOutputs."""
     chatbot.append(response)
     return chatbot
 
 
-def main():
+def main() -> None:
     """Entrypoint for the Reachy Mini conversation demo."""
     args = parse_args()
 
@@ -41,7 +42,7 @@ def main():
     # Check if running in simulation mode without --gradio
     if robot.client.get_status()["simulation_enabled"] and not args.gradio:
         logger.error(
-            "Simulation mode requires Gradio interface. Please use --gradio flag when running in simulation mode."
+            "Simulation mode requires Gradio interface. Please use --gradio flag when running in simulation mode.",
         )
         robot.client.disconnect()
         sys.exit(1)
@@ -76,7 +77,7 @@ def main():
 
     handler = OpenaiRealtimeHandler(deps)
 
-    stream_manager = None
+    stream_manager: gr.Blocks | LocalStream | None = None
 
     if args.gradio:
         stream = Stream(

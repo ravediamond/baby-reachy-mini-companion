@@ -1,16 +1,16 @@
 from __future__ import annotations
 import logging
-from typing import Tuple, Optional
+from typing import Any
 
 import numpy as np
 
 
 try:
     from supervision import Detections
-    from ultralytics import YOLO
+    from ultralytics import YOLO  # type: ignore[attr-defined]
 except ImportError as e:
     raise ImportError(
-        "To use YOLO head tracker, please install the extra dependencies: pip install '.[yolo_vision]'"
+        "To use YOLO head tracker, please install the extra dependencies: pip install '.[yolo_vision]'",
     ) from e
 from huggingface_hub import hf_hub_download
 
@@ -48,7 +48,7 @@ class HeadTracker:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
 
-    def _select_best_face(self, detections: Detections) -> Optional[int]:
+    def _select_best_face(self, detections: Detections) -> int | None:
         """Select the best face based on confidence and area (largest face with highest confidence).
 
         Args:
@@ -59,6 +59,10 @@ class HeadTracker:
 
         """
         if detections.xyxy.shape[0] == 0:
+            return None
+
+        # Check if confidence is available
+        if detections.confidence is None:
             return None
 
         # Filter by confidence threshold
@@ -78,9 +82,9 @@ class HeadTracker:
 
         # Return index of best face
         best_idx = valid_indices[np.argmax(scores)]
-        return best_idx
+        return int(best_idx)
 
-    def _bbox_to_mp_coords(self, bbox: np.ndarray, w: int, h: int) -> np.ndarray:
+    def _bbox_to_mp_coords(self, bbox: np.ndarray[Any, Any], w: int, h: int) -> np.ndarray[Any, Any]:
         """Convert bounding box center to MediaPipe-style coordinates [-1, 1].
 
         Args:
@@ -101,7 +105,7 @@ class HeadTracker:
 
         return np.array([norm_x, norm_y], dtype=np.float32)
 
-    def get_head_position(self, img: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[float]]:
+    def get_head_position(self, img: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any] | None, float | None]:
         """Get head position from face detection.
 
         Args:
@@ -125,9 +129,10 @@ class HeadTracker:
                 return None, None
 
             bbox = detections.xyxy[face_idx]
-            confidence = detections.confidence[face_idx]
 
-            logger.debug(f"Face detected with confidence: {confidence:.2f}")
+            if detections.confidence is not None:
+                confidence = detections.confidence[face_idx]
+                logger.debug(f"Face detected with confidence: {confidence:.2f}")
 
             # Get face center in [-1, 1] coordinates
             face_center = self._bbox_to_mp_coords(bbox, w, h)

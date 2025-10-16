@@ -6,9 +6,10 @@ and executed sequentially by the MovementManager.
 
 from __future__ import annotations
 import logging
-from typing import Tuple
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from reachy_mini.motion.move import Move
 from reachy_mini.motion.recorded_move import RecordedMoves
@@ -18,7 +19,7 @@ from reachy_mini_dances_library.dance_move import DanceMove
 logger = logging.getLogger(__name__)
 
 
-class DanceQueueMove(Move):
+class DanceQueueMove(Move):  # type: ignore[misc]
     """Wrapper for dance moves to work with the movement queue system."""
 
     def __init__(self, move_name: str):
@@ -29,9 +30,9 @@ class DanceQueueMove(Move):
     @property
     def duration(self) -> float:
         """Duration property required by official Move interface."""
-        return self.dance_move.duration
+        return float(self.dance_move.duration)
 
-    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
         """Evaluate dance move at time t."""
         try:
             # Get the pose from the dance move
@@ -52,7 +53,7 @@ class DanceQueueMove(Move):
             return (neutral_head_pose, np.array([0.0, 0.0]), 0.0)
 
 
-class EmotionQueueMove(Move):
+class EmotionQueueMove(Move):  # type: ignore[misc]
     """Wrapper for emotion moves to work with the movement queue system."""
 
     def __init__(self, emotion_name: str, recorded_moves: RecordedMoves):
@@ -63,9 +64,9 @@ class EmotionQueueMove(Move):
     @property
     def duration(self) -> float:
         """Duration property required by official Move interface."""
-        return self.emotion_move.duration
+        return float(self.emotion_move.duration)
 
-    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
         """Evaluate emotion move at time t."""
         try:
             # Get the pose from the emotion move
@@ -86,17 +87,17 @@ class EmotionQueueMove(Move):
             return (neutral_head_pose, np.array([0.0, 0.0]), 0.0)
 
 
-class GotoQueueMove(Move):
+class GotoQueueMove(Move):  # type: ignore[misc]
     """Wrapper for goto moves to work with the movement queue system."""
 
     def __init__(
         self,
-        target_head_pose: np.ndarray,
-        start_head_pose: np.ndarray = None,
-        target_antennas: Tuple[float, float] = (0, 0),
-        start_antennas: Tuple[float, float] = None,
+        target_head_pose: NDArray[np.floating[Any]],
+        start_head_pose: NDArray[np.floating[Any]] | None = None,
+        target_antennas: tuple[float, float] = (0, 0),
+        start_antennas: tuple[float, float] | None = None,
         target_body_yaw: float = 0,
-        start_body_yaw: float = None,
+        start_body_yaw: float | None = None,
         duration: float = 1.0,
     ):
         """Initialize a GotoQueueMove."""
@@ -113,7 +114,7 @@ class GotoQueueMove(Move):
         """Duration property required by official Move interface."""
         return self._duration
 
-    def evaluate(self, t: float) -> tuple[np.ndarray | None, np.ndarray | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
         """Evaluate goto move at time t using linear interpolation."""
         try:
             from reachy_mini.utils import create_head_pose
@@ -136,7 +137,7 @@ class GotoQueueMove(Move):
                 [
                     self.start_antennas[0] + (self.target_antennas[0] - self.start_antennas[0]) * t_clamped,
                     self.start_antennas[1] + (self.target_antennas[1] - self.start_antennas[1]) * t_clamped,
-                ]
+                ],
             )
 
             # Interpolate body yaw
