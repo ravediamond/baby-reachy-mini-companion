@@ -2,7 +2,15 @@
 
 Conversational demo for the Reachy Mini robot combining OpenAI's realtime APIs, vision pipelines, and choreographed motion libraries.
 
-![Reachy Mini Dance](src/reachy_mini_conversation_demo/images/reachy_mini_dance.gif)
+![Reachy Mini Dance](docs/assets/reachy_mini_dance.gif)
+
+## Architecture
+
+The demo follows a layered architecture connecting the user, AI services, and robot hardware:
+
+<p align="center">
+  <img src="docs/assets/conversation_demo_arch.svg" alt="Architecture Diagram" width="600"/>
+</p>
 
 ## Overview
 - Real-time audio conversation loop powered by the OpenAI realtime API and `fastrtc` for low-latency streaming.
