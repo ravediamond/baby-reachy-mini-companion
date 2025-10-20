@@ -32,7 +32,7 @@ class DanceQueueMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return float(self.dance_move.duration)
 
-    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.float64] | None, NDArray[np.float64] | None, float | None]:
         """Evaluate dance move at time t."""
         try:
             # Get the pose from the dance move
@@ -50,7 +50,7 @@ class DanceQueueMove(Move):  # type: ignore[misc]
             from reachy_mini.utils import create_head_pose
 
             neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-            return (neutral_head_pose, np.array([0.0, 0.0]), 0.0)
+            return (neutral_head_pose, np.array([0.0, 0.0], dtype=np.float64), 0.0)
 
 
 class EmotionQueueMove(Move):  # type: ignore[misc]
@@ -66,7 +66,7 @@ class EmotionQueueMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return float(self.emotion_move.duration)
 
-    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.float64] | None, NDArray[np.float64] | None, float | None]:
         """Evaluate emotion move at time t."""
         try:
             # Get the pose from the emotion move
@@ -84,7 +84,7 @@ class EmotionQueueMove(Move):  # type: ignore[misc]
             from reachy_mini.utils import create_head_pose
 
             neutral_head_pose = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
-            return (neutral_head_pose, np.array([0.0, 0.0]), 0.0)
+            return (neutral_head_pose, np.array([0.0, 0.0], dtype=np.float64), 0.0)
 
 
 class GotoQueueMove(Move):  # type: ignore[misc]
@@ -114,7 +114,7 @@ class GotoQueueMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return self._duration
 
-    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.float64] | None, NDArray[np.float64] | None, float | None]:
         """Evaluate goto move at time t using linear interpolation."""
         try:
             from reachy_mini.utils import create_head_pose
@@ -138,6 +138,7 @@ class GotoQueueMove(Move):  # type: ignore[misc]
                     self.start_antennas[0] + (self.target_antennas[0] - self.start_antennas[0]) * t_clamped,
                     self.start_antennas[1] + (self.target_antennas[1] - self.start_antennas[1]) * t_clamped,
                 ],
+                dtype=np.float64,
             )
 
             # Interpolate body yaw
@@ -147,6 +148,7 @@ class GotoQueueMove(Move):  # type: ignore[misc]
 
         except Exception as e:
             logger.error(f"Error evaluating goto move at t={t}: {e}")
-            # Return target pose on error - convert antennas to numpy array
-            target_antennas_array = np.array([self.target_antennas[0], self.target_antennas[1]])
-            return (self.target_head_pose, target_antennas_array, self.target_body_yaw)
+            # Return target pose on error - convert to float64
+            target_head_pose_f64 = self.target_head_pose.astype(np.float64)
+            target_antennas_array = np.array([self.target_antennas[0], self.target_antennas[1]], dtype=np.float64)
+            return (target_head_pose_f64, target_antennas_array, self.target_body_yaw)

@@ -97,7 +97,7 @@ class BreathingMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return float("inf")  # Continuous breathing (never ends naturally)
 
-    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
+    def evaluate(self, t: float) -> tuple[NDArray[np.float64] | None, NDArray[np.float64] | None, float | None]:
         """Evaluate breathing move at time t."""
         if t < self.interpolation_duration:
             # Phase 1: Interpolate to neutral base position
@@ -112,7 +112,7 @@ class BreathingMove(Move):  # type: ignore[misc]
             antennas_interp = (
                 1 - interpolation_t
             ) * self.interpolation_start_antennas + interpolation_t * self.neutral_antennas
-            antennas = antennas_interp.astype(np.float32)
+            antennas = antennas_interp.astype(np.float64)
 
         else:
             # Phase 2: Breathing patterns from neutral base
@@ -124,7 +124,7 @@ class BreathingMove(Move):  # type: ignore[misc]
 
             # Antenna sway (opposite directions)
             antenna_sway = self.antenna_sway_amplitude * np.sin(2 * np.pi * self.antenna_frequency * breathing_time)
-            antennas = np.array([antenna_sway, -antenna_sway], dtype=np.float32)
+            antennas = np.array([antenna_sway, -antenna_sway], dtype=np.float64)
 
         # Return in official Move interface format: (head_pose, antennas_array, body_yaw)
         return (head_pose, antennas, 0.0)

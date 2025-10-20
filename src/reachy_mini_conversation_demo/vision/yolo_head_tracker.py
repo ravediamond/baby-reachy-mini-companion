@@ -1,8 +1,9 @@
 from __future__ import annotations
 import logging
-from typing import Any, Tuple
+from typing import Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 try:
@@ -84,7 +85,7 @@ class HeadTracker:
         best_idx = valid_indices[np.argmax(scores)]
         return int(best_idx)
 
-    def _bbox_to_mp_coords(self, bbox: np.ndarray[Any, Any], w: int, h: int) -> np.ndarray[Any, Any]:
+    def _bbox_to_mp_coords(self, bbox: NDArray[np.float32], w: int, h: int) -> NDArray[np.float32]:
         """Convert bounding box center to MediaPipe-style coordinates [-1, 1].
 
         Args:
@@ -105,7 +106,7 @@ class HeadTracker:
 
         return np.array([norm_x, norm_y], dtype=np.float32)
 
-    def get_head_position(self, img: np.ndarray[Any, Any]) -> Tuple[np.ndarray[Any, Any] | None, float | None]:
+    def get_head_position(self, img: NDArray[np.uint8]) -> Tuple[NDArray[np.float32] | None, float | None]:
         """Get head position from face detection.
 
         Args:

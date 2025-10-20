@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from transformers import AutoProcessor, AutoModelForImageTextToText
 from huggingface_hub import snapshot_download
 
@@ -90,7 +91,7 @@ class VisionProcessor:
 
     def process_image(
         self,
-        cv2_image: np.ndarray[Any, Any],
+        cv2_image: NDArray[np.uint8],
         prompt: str = "Briefly describe what you see in one sentence.",
     ) -> str:
         """Process CV2 image and return description with retry logic."""
