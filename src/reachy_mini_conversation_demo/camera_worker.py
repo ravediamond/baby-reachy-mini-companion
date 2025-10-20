@@ -9,7 +9,7 @@ Ported from main_works.py camera_worker() function to provide:
 import time
 import logging
 import threading
-from typing import Any
+from typing import Any, List, Tuple
 
 import cv2
 import numpy as np
@@ -39,7 +39,7 @@ class CameraWorker:
 
         # Face tracking state
         self.is_head_tracking_enabled = True
-        self.face_tracking_offsets: list[float] = [
+        self.face_tracking_offsets: List[float] = [
             0.0,
             0.0,
             0.0,
@@ -52,7 +52,7 @@ class CameraWorker:
         # Face tracking timing variables (same as main_works.py)
         self.last_face_detected_time: float | None = None
         self.interpolation_start_time: float | None = None
-        self.interpolation_start_pose: NDArray[np.floating[Any]] | None = None
+        self.interpolation_start_pose: NDArray[np.float32] | None = None
         self.face_lost_delay = 2.0  # seconds to wait before starting interpolation
         self.interpolation_duration = 1.0  # seconds to interpolate back to neutral
 
@@ -70,7 +70,7 @@ class CameraWorker:
 
     def get_face_tracking_offsets(
         self,
-    ) -> tuple[float, float, float, float, float, float]:
+    ) -> Tuple[float, float, float, float, float, float]:
         """Get current face tracking offsets (thread-safe)."""
         with self.face_tracking_lock:
             offsets = self.face_tracking_offsets
@@ -188,11 +188,12 @@ class CameraWorker:
                                     current_translation = self.face_tracking_offsets[:3]
                                     current_rotation_euler = self.face_tracking_offsets[3:]
                                     # Convert to 4x4 pose matrix
-                                    self.interpolation_start_pose = np.eye(4)
-                                    self.interpolation_start_pose[:3, 3] = current_translation
-                                    self.interpolation_start_pose[:3, :3] = R.from_euler(
+                                    pose_matrix = np.eye(4, dtype=np.float32)
+                                    pose_matrix[:3, 3] = current_translation
+                                    pose_matrix[:3, :3] = R.from_euler(
                                         "xyz", current_rotation_euler,
                                     ).as_matrix()
+                                    self.interpolation_start_pose = pose_matrix
 
                             # Calculate interpolation progress (t from 0 to 1)
                             elapsed_interpolation = current_time - self.interpolation_start_time

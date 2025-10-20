@@ -36,7 +36,7 @@ import time
 import logging
 import threading
 from queue import Empty, Queue
-from typing import Any
+from typing import Any, Dict, Tuple
 from collections import deque
 from dataclasses import dataclass
 
@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 CONTROL_LOOP_FREQUENCY_HZ = 100.0  # Hz - Target frequency for the movement control loop
 
 # Type definitions
-FullBodyPose = tuple[NDArray[np.floating[Any]], tuple[float, float], float]  # (head_pose_4x4, antennas, body_yaw)
+FullBodyPose = Tuple[NDArray[np.float32], Tuple[float, float], float]  # (head_pose_4x4, antennas, body_yaw)
 
 
 class BreathingMove(Move):  # type: ignore[misc]
@@ -66,8 +66,8 @@ class BreathingMove(Move):  # type: ignore[misc]
 
     def __init__(
         self,
-        interpolation_start_pose: NDArray[np.floating[Any]],
-        interpolation_start_antennas: tuple[float, float],
+        interpolation_start_pose: NDArray[np.float32],
+        interpolation_start_antennas: Tuple[float, float],
         interpolation_duration: float = 1.0,
     ):
         """Initialize breathing move.
@@ -97,7 +97,7 @@ class BreathingMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return float("inf")  # Continuous breathing (never ends naturally)
 
-    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
+    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
         """Evaluate breathing move at time t."""
         if t < self.interpolation_duration:
             # Phase 1: Interpolate to neutral base position
@@ -109,9 +109,10 @@ class BreathingMove(Move):  # type: ignore[misc]
             )
 
             # Interpolate antennas
-            antennas = (
+            antennas_interp = (
                 1 - interpolation_t
             ) * self.interpolation_start_antennas + interpolation_t * self.neutral_antennas
+            antennas = antennas_interp.astype(np.float32)
 
         else:
             # Phase 2: Breathing patterns from neutral base
@@ -123,7 +124,7 @@ class BreathingMove(Move):  # type: ignore[misc]
 
             # Antenna sway (opposite directions)
             antenna_sway = self.antenna_sway_amplitude * np.sin(2 * np.pi * self.antenna_frequency * breathing_time)
-            antennas = np.array([antenna_sway, -antenna_sway])
+            antennas = np.array([antenna_sway, -antenna_sway], dtype=np.float32)
 
         # Return in official Move interface format: (head_pose, antennas_array, body_yaw)
         return (head_pose, antennas, 0.0)
@@ -174,7 +175,7 @@ class MovementState:
     last_activity_time: float = 0.0
 
     # Secondary move state (offsets)
-    speech_offsets: tuple[float, float, float, float, float, float] = (
+    speech_offsets: Tuple[float, float, float, float, float, float] = (
         0.0,
         0.0,
         0.0,
@@ -182,7 +183,7 @@ class MovementState:
         0.0,
         0.0,
     )
-    face_tracking_offsets: tuple[float, float, float, float, float, float] = (
+    face_tracking_offsets: Tuple[float, float, float, float, float, float] = (
         0.0,
         0.0,
         0.0,
@@ -243,7 +244,7 @@ class MovementManager:
     def __init__(
         self,
         current_robot: ReachyMini,
-        camera_worker: Any = None,
+        camera_worker: "Any" = None,
     ):
         """Initialize movement manager."""
         self.current_robot = current_robot
@@ -270,7 +271,7 @@ class MovementManager:
         self._thread: threading.Thread | None = None
         self._is_listening = False
         self._last_commanded_pose: FullBodyPose = clone_full_body_pose(self.state.last_primary_pose)
-        self._listening_antennas: tuple[float, float] = self._last_commanded_pose[1]
+        self._listening_antennas: Tuple[float, float] = self._last_commanded_pose[1]
         self._antenna_unfreeze_blend = 1.0
         self._antenna_blend_duration = 0.4  # seconds to blend back after listening
         self._last_listening_blend_time = self._now()
@@ -282,9 +283,9 @@ class MovementManager:
         self._set_target_err_suppressed = 0
 
         # Cross-thread signalling
-        self._command_queue: Queue[tuple[str, Any]] = Queue()
+        self._command_queue: "Queue[Tuple[str, Any]]" = Queue()
         self._speech_offsets_lock = threading.Lock()
-        self._pending_speech_offsets: tuple[float, float, float, float, float, float] = (
+        self._pending_speech_offsets: Tuple[float, float, float, float, float, float] = (
             0.0,
             0.0,
             0.0,
@@ -295,7 +296,7 @@ class MovementManager:
         self._speech_offsets_dirty = False
 
         self._face_offsets_lock = threading.Lock()
-        self._pending_face_offsets: tuple[float, float, float, float, float, float] = (
+        self._pending_face_offsets: Tuple[float, float, float, float, float, float] = (
             0.0,
             0.0,
             0.0,
@@ -327,7 +328,7 @@ class MovementManager:
         """
         self._command_queue.put(("clear_queue", None))
 
-    def set_speech_offsets(self, offsets: tuple[float, float, float, float, float, float]) -> None:
+    def set_speech_offsets(self, offsets: Tuple[float, float, float, float, float, float]) -> None:
         """Update speech-induced secondary offsets (x, y, z, roll, pitch, yaw).
 
         Offsets are interpreted as metres for translation and radians for
@@ -384,7 +385,7 @@ class MovementManager:
 
     def _apply_pending_offsets(self) -> None:
         """Apply the most recent speech/face offset updates."""
-        speech_offsets: tuple[float, float, float, float, float, float] | None = None
+        speech_offsets: Tuple[float, float, float, float, float, float] | None = None
         with self._speech_offsets_lock:
             if self._speech_offsets_dirty:
                 speech_offsets = self._pending_speech_offsets
@@ -394,7 +395,7 @@ class MovementManager:
             self.state.speech_offsets = speech_offsets
             self.state.update_activity()
 
-        face_offsets: tuple[float, float, float, float, float, float] | None = None
+        face_offsets: Tuple[float, float, float, float, float, float] | None = None
         with self._face_offsets_lock:
             if self._face_offsets_dirty:
                 face_offsets = self._pending_face_offsets
@@ -595,7 +596,7 @@ class MovementManager:
         self._manage_move_queue(current_time)
         self._manage_breathing(current_time)
 
-    def _calculate_blended_antennas(self, target_antennas: tuple[float, float]) -> tuple[float, float]:
+    def _calculate_blended_antennas(self, target_antennas: Tuple[float, float]) -> Tuple[float, float]:
         """Blend target antennas with listening freeze state and update blending."""
         now = self._now()
         listening = self._is_listening
@@ -631,7 +632,7 @@ class MovementManager:
 
         return antennas_cmd
 
-    def _issue_control_command(self, head: NDArray[np.floating[Any]], antennas: tuple[float, float], body_yaw: float) -> None:
+    def _issue_control_command(self, head: NDArray[np.float32], antennas: Tuple[float, float], body_yaw: float) -> None:
         """Send the fused pose to the robot with throttled error logging."""
         try:
             self.current_robot.set_target(head=head, antennas=antennas, body_yaw=body_yaw)
@@ -729,7 +730,7 @@ class MovementManager:
             self._thread = None
         logger.debug("Move worker stopped")
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Return a lightweight status snapshot for observability."""
         with self._status_lock:
             pose_snapshot = clone_full_body_pose(self._last_commanded_pose)

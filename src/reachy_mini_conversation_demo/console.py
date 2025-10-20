@@ -5,6 +5,7 @@ records mic frames to the handler and plays handler audio frames to the speaker.
 
 import asyncio
 import logging
+from typing import List
 
 import librosa
 from fastrtc import AdditionalOutputs, audio_to_int16, audio_to_float32
@@ -24,7 +25,7 @@ class LocalStream:
         self.handler = handler
         self._robot = robot
         self._stop_event = asyncio.Event()
-        self._tasks: list[asyncio.Task[None]] = []
+        self._tasks: List[asyncio.Task[None]] = []
         # Allow the handler to flush the player queue when appropriate.
         self.handler._clear_queue = self.clear_audio_queue
 

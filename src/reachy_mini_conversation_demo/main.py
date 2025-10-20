@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Any
+from typing import Any, Dict, List
 
 import gradio as gr
 from fastapi import FastAPI
@@ -21,7 +21,7 @@ from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
 from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
 
 
-def update_chatbot(chatbot: list[dict[str, Any]], response: dict[str, Any]) -> list[dict[str, Any]]:
+def update_chatbot(chatbot: List[Dict[str, Any]], response: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Update the chatbot with AdditionalOutputs."""
     chatbot.append(response)
     return chatbot

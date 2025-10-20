@@ -2,7 +2,7 @@ import json
 import base64
 import asyncio
 import logging
-from typing import Any
+from typing import Any, Tuple
 from datetime import datetime
 
 import numpy as np
@@ -36,7 +36,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         self.deps = deps
 
         self.connection: Any | None = None
-        self.output_queue: asyncio.Queue[tuple[int, NDArray[np.int16]] | AdditionalOutputs] = asyncio.Queue()
+        self.output_queue: "asyncio.Queue[Tuple[int, NDArray[np.int16]] | AdditionalOutputs]" = asyncio.Queue()
 
         self.last_activity_time = asyncio.get_event_loop().time()
         self.start_time = asyncio.get_event_loop().time()
@@ -208,7 +208,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
 
     # Microphone receive
-    async def receive(self, frame: tuple[int, NDArray[np.int16]]) -> None:
+    async def receive(self, frame: Tuple[int, NDArray[np.int16]]) -> None:
         """Receive audio frame from the microphone and send it to the openai server."""
         if not self.connection:
             return
@@ -218,7 +218,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         # Fills the input audio buffer to be sent to the server
         await self.connection.input_audio_buffer.append(audio=audio_message)
 
-    async def emit(self) -> tuple[int, NDArray[np.int16]] | AdditionalOutputs | None:
+    async def emit(self) -> Tuple[int, NDArray[np.int16]] | AdditionalOutputs | None:
         """Emit audio frame to be played by the speaker."""
         # sends to the stream the stuff put in the output queue by the openai event handler
         # This is called periodically by the fastrtc Stream

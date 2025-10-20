@@ -6,7 +6,7 @@ and executed sequentially by the MovementManager.
 
 from __future__ import annotations
 import logging
-from typing import Any
+from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -32,7 +32,7 @@ class DanceQueueMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return float(self.dance_move.duration)
 
-    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
+    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
         """Evaluate dance move at time t."""
         try:
             # Get the pose from the dance move
@@ -66,7 +66,7 @@ class EmotionQueueMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return float(self.emotion_move.duration)
 
-    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
+    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
         """Evaluate emotion move at time t."""
         try:
             # Get the pose from the emotion move
@@ -92,10 +92,10 @@ class GotoQueueMove(Move):  # type: ignore[misc]
 
     def __init__(
         self,
-        target_head_pose: NDArray[np.floating[Any]],
-        start_head_pose: NDArray[np.floating[Any]] | None = None,
-        target_antennas: tuple[float, float] = (0, 0),
-        start_antennas: tuple[float, float] | None = None,
+        target_head_pose: NDArray[np.float32],
+        start_head_pose: NDArray[np.float32] | None = None,
+        target_antennas: Tuple[float, float] = (0, 0),
+        start_antennas: Tuple[float, float] | None = None,
         target_body_yaw: float = 0,
         start_body_yaw: float | None = None,
         duration: float = 1.0,
@@ -114,7 +114,7 @@ class GotoQueueMove(Move):  # type: ignore[misc]
         """Duration property required by official Move interface."""
         return self._duration
 
-    def evaluate(self, t: float) -> tuple[NDArray[np.floating[Any]] | None, NDArray[np.floating[Any]] | None, float | None]:
+    def evaluate(self, t: float) -> Tuple[NDArray[np.float32] | None, NDArray[np.float32] | None, float | None]:
         """Evaluate goto move at time t using linear interpolation."""
         try:
             from reachy_mini.utils import create_head_pose

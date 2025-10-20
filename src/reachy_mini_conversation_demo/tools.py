@@ -4,7 +4,7 @@ import json
 import asyncio
 import inspect
 import logging
-from typing import Any, Literal
+from typing import Any, Dict, List, Tuple, Literal
 from dataclasses import dataclass
 
 from reachy_mini import ReachyMini
@@ -36,9 +36,9 @@ except ImportError as e:
     EMOTION_AVAILABLE = False
 
 
-def get_concrete_subclasses(base: type[Tool]) -> list[type[Tool]]:
+def get_concrete_subclasses(base: type[Tool]) -> List[type[Tool]]:
     """Recursively find all concrete (non-abstract) subclasses of a base class."""
-    result: list[type[Tool]] = []
+    result: List[type[Tool]] = []
     for cls in base.__subclasses__():
         if not inspect.isabstract(cls):
             result.append(cls)
@@ -76,9 +76,9 @@ class Tool(abc.ABC):
 
     name: str
     description: str
-    parameters_schema: dict[str, Any]
+    parameters_schema: Dict[str, Any]
 
-    def spec(self) -> dict[str, Any]:
+    def spec(self) -> Dict[str, Any]:
         """Return the function spec for LLM consumption."""
         return {
             "type": "function",
@@ -88,7 +88,7 @@ class Tool(abc.ABC):
         }
 
     @abc.abstractmethod
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Async tool execution entrypoint."""
         raise NotImplementedError
 
@@ -113,7 +113,7 @@ class MoveHead(Tool):
     }
 
     # mapping: direction -> args for create_head_pose
-    DELTAS: dict[str, tuple[int, int, int, int, int, int]] = {
+    DELTAS: Dict[str, Tuple[int, int, int, int, int, int]] = {
         "left": (0, 0, 0, 0, 0, 40),
         "right": (0, 0, 0, 0, 0, -40),
         "up": (0, 0, 0, 0, -30, 0),
@@ -121,7 +121,7 @@ class MoveHead(Tool):
         "front": (0, 0, 0, 0, 0, 0),
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Move head in a given direction."""
         direction_raw = kwargs.get("direction")
         if not isinstance(direction_raw, str):
@@ -180,7 +180,7 @@ class Camera(Tool):
         "required": ["question"],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Take a picture with the camera and ask a question about it."""
         image_query = (kwargs.get("question") or "").strip()
         if not image_query:
@@ -234,7 +234,7 @@ class HeadTracking(Tool):
         "required": ["start"],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Enable or disable head tracking."""
         enable = bool(kwargs.get("start"))
 
@@ -290,7 +290,7 @@ class Dance(Tool):
         "required": [],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Play a named or random dance move once (or repeat). Non-blocking."""
         if not DANCE_AVAILABLE:
             return {"error": "Dance system not available"}
@@ -333,7 +333,7 @@ class StopDance(Tool):
         "required": ["dummy"],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Stop the current dance move."""
         logger.info("Tool call: stop_dance")
         movement_manager = deps.movement_manager
@@ -375,7 +375,7 @@ class PlayEmotion(Tool):
         "required": ["emotion"],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Play a pre-recorded emotion."""
         if not EMOTION_AVAILABLE:
             return {"error": "Emotion system not available"}
@@ -420,7 +420,7 @@ class StopEmotion(Tool):
         "required": ["dummy"],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Stop the current emotion."""
         logger.info("Tool call: stop_emotion")
         movement_manager = deps.movement_manager
@@ -444,7 +444,7 @@ class DoNothing(Tool):
         "required": [],
     }
 
-    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Do nothing - stay still and silent."""
         reason = kwargs.get("reason", "just chilling")
         logger.info("Tool call: do_nothing reason=%s", reason)
@@ -454,12 +454,12 @@ class DoNothing(Tool):
 # Registry & specs (dynamic)
 
 # List of available tool classes
-ALL_TOOLS: dict[str, Tool] = {cls.name: cls() for cls in get_concrete_subclasses(Tool)}  # type: ignore[type-abstract]
+ALL_TOOLS: Dict[str, Tool] = {cls.name: cls() for cls in get_concrete_subclasses(Tool)}  # type: ignore[type-abstract]
 ALL_TOOL_SPECS = [tool.spec() for tool in ALL_TOOLS.values()]
 
 
 # Dispatcher
-def _safe_load_obj(args_json: str) -> dict[str, Any]:
+def _safe_load_obj(args_json: str) -> Dict[str, Any]:
     try:
         parsed_args = json.loads(args_json or "{}")
         return parsed_args if isinstance(parsed_args, dict) else {}
@@ -468,7 +468,7 @@ def _safe_load_obj(args_json: str) -> dict[str, Any]:
         return {}
 
 
-async def dispatch_tool_call(tool_name: str, args_json: str, deps: ToolDependencies) -> dict[str, Any]:
+async def dispatch_tool_call(tool_name: str, args_json: str, deps: ToolDependencies) -> Dict[str, Any]:
     """Dispatch a tool call by name with JSON args and dependencies."""
     tool = ALL_TOOLS.get(tool_name)
 

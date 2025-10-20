@@ -3,7 +3,7 @@ import time
 import base64
 import logging
 import threading
-from typing import Any
+from typing import Any, Dict
 from dataclasses import dataclass
 
 import cv2
@@ -60,7 +60,7 @@ class VisionProcessor:
         """Load model and processor onto the selected device."""
         try:
             logger.info(f"Loading SmolVLM2 model on {self.device} (HF_HOME={config.HF_HOME})")
-            self.processor = AutoProcessor.from_pretrained(self.model_path)
+            self.processor = AutoProcessor.from_pretrained(self.model_path)  # type: ignore[no-untyped-call]
 
             # Select dtype depending on device
             if self.device == "cuda":
@@ -70,14 +70,14 @@ class VisionProcessor:
             else:
                 dtype = torch.float32
 
-            model_kwargs = {"dtype": dtype}
+            model_kwargs: Dict[str, Any] = {"dtype": dtype}
 
             # flash_attention_2 is CUDA-only; skip on MPS/CPU
             if self.device == "cuda":
                 model_kwargs["_attn_implementation"] = "flash_attention_2"
 
             # Load model weights
-            self.model = AutoModelForImageTextToText.from_pretrained(self.model_path, **model_kwargs).to(self.device)
+            self.model = AutoModelForImageTextToText.from_pretrained(self.model_path, **model_kwargs).to(self.device)  # type: ignore[arg-type]
 
             if self.model is not None:
                 self.model.eval()
@@ -190,7 +190,7 @@ class VisionProcessor:
         # Fallback: return the full text cleaned up
         return full_text.strip()
 
-    def get_model_info(self) -> dict[str, Any]:
+    def get_model_info(self) -> Dict[str, Any]:
         """Get information about the loaded model."""
         return {
             "initialized": self._initialized,
@@ -264,7 +264,7 @@ class VisionManager:
 
         logger.info("Vision loop finished")
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status information."""
         return {
             "last_processed": self._last_processed_time,
