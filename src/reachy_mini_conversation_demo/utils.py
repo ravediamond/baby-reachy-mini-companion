@@ -1,11 +1,13 @@
 import logging
 import argparse
 import warnings
+from typing import Any, Tuple
 
+from reachy_mini import ReachyMini
 from reachy_mini_conversation_demo.camera_worker import CameraWorker
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser("Reachy Mini Conversation Demo")
     parser.add_argument(
@@ -26,7 +28,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def handle_vision_stuff(args, current_robot):
+def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> Tuple[CameraWorker | None, Any, Any]:
     """Initialize camera, head tracker, camera worker, and vision manager.
 
     By default, vision is handled by gpt-realtime model when camera tool is used.
@@ -44,7 +46,7 @@ def handle_vision_stuff(args, current_robot):
 
                 head_tracker = HeadTracker()
             elif args.head_tracker == "mediapipe":
-                from reachy_mini_toolbox.vision import HeadTracker
+                from reachy_mini_toolbox.vision import HeadTracker  # type: ignore[no-redef]
 
                 head_tracker = HeadTracker()
 
@@ -59,17 +61,17 @@ def handle_vision_stuff(args, current_robot):
                 vision_manager = initialize_vision_manager(camera_worker)
             except ImportError as e:
                 raise ImportError(
-                    "To use --local-vision, please install the extra dependencies: pip install '.[local_vision]'"
+                    "To use --local-vision, please install the extra dependencies: pip install '.[local_vision]'",
                 ) from e
         else:
             logging.getLogger(__name__).info(
-                "Using gpt-realtime for vision (default). Use --local-vision for local processing."
+                "Using gpt-realtime for vision (default). Use --local-vision for local processing.",
             )
 
     return camera_worker, head_tracker, vision_manager
 
 
-def setup_logger(debug):
+def setup_logger(debug: bool) -> logging.Logger:
     """Setups the logger."""
     log_level = "DEBUG" if debug else "INFO"
     logging.basicConfig(
