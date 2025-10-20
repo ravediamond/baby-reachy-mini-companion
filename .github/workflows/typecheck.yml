@@ -22,8 +22,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - name: Install dev deps (locked)
-        run: uv sync --frozen --group dev
+      - name: Install deps (locked) incl. vision extras
+        run: uv sync --frozen --group dev --extra all_vision
 
       - name: Run mypy
         run: uv run mypy --pretty --show-error-codes .
