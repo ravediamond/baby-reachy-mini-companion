@@ -4,7 +4,8 @@ import math
 import time
 import base64
 import threading
-from typing import List, Tuple, Callable
+from typing import Any, List, Tuple
+from collections.abc import Callable
 
 import numpy as np
 
@@ -74,7 +75,7 @@ def test_reset_allows_future_offsets() -> None:
         wobbler.stop()
 
 
-def test_reset_during_inflight_chunk_keeps_worker(monkeypatch) -> None:
+def test_reset_during_inflight_chunk_keeps_worker(monkeypatch: Any) -> None:
     """Simulate reset during chunk processing to ensure the worker survives."""
     wobbler, captured = _start_wobbler()
     ready = threading.Event()
