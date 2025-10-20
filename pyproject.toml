@@ -100,7 +100,3 @@ ignore_missing_imports = true
 strict = true
 show_error_codes = true
 warn_unused_ignores = true
-
-[[tool.mypy.overrides]]
-module = "reachy_mini_conversation_demo.*"
-disable_error_code = ["misc"]
