@@ -238,14 +238,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             await self.connection.close()
             self.connection = None
 
-    def format_timestamp(self):
+    def format_timestamp(self) -> str:
         """Format current timestamp with date, time, and elapsed seconds."""
         loop_time = asyncio.get_event_loop().time()  # monotonic
         elapsed_seconds = loop_time - self.start_time
         dt = datetime.now()  # wall-clock
         return f"[{dt.strftime('%Y-%m-%d %H:%M:%S')} | +{elapsed_seconds:.1f}s]"
 
-    async def send_idle_signal(self, idle_duration) -> None:
+    async def send_idle_signal(self, idle_duration: float) -> None:
         """Send an idle signal to the openai server."""
         logger.debug("Sending idle signal")
         self.is_idle_tool_call = True
