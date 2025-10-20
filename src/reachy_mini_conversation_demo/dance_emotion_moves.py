@@ -19,7 +19,7 @@ from reachy_mini_dances_library.dance_move import DanceMove
 logger = logging.getLogger(__name__)
 
 
-class DanceQueueMove(Move):
+class DanceQueueMove(Move):  # type: ignore
     """Wrapper for dance moves to work with the movement queue system."""
 
     def __init__(self, move_name: str):
@@ -53,7 +53,7 @@ class DanceQueueMove(Move):
             return (neutral_head_pose, np.array([0.0, 0.0], dtype=np.float64), 0.0)
 
 
-class EmotionQueueMove(Move):
+class EmotionQueueMove(Move):  # type: ignore
     """Wrapper for emotion moves to work with the movement queue system."""
 
     def __init__(self, emotion_name: str, recorded_moves: RecordedMoves):
@@ -87,7 +87,7 @@ class EmotionQueueMove(Move):
             return (neutral_head_pose, np.array([0.0, 0.0], dtype=np.float64), 0.0)
 
 
-class GotoQueueMove(Move):
+class GotoQueueMove(Move):  # type: ignore
     """Wrapper for goto moves to work with the movement queue system."""
 
     def __init__(

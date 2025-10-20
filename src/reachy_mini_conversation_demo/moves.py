@@ -61,7 +61,7 @@ CONTROL_LOOP_FREQUENCY_HZ = 100.0  # Hz - Target frequency for the movement cont
 FullBodyPose = Tuple[NDArray[np.float32], Tuple[float, float], float]  # (head_pose_4x4, antennas, body_yaw)
 
 
-class BreathingMove(Move):
+class BreathingMove(Move):  # type: ignore
     """Breathing move with interpolation to neutral and then continuous breathing patterns."""
 
     def __init__(
