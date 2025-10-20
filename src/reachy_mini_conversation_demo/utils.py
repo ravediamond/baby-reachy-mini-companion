@@ -1,7 +1,7 @@
 import logging
 import argparse
 import warnings
-from typing import Any
+from typing import Any, Tuple
 
 from reachy_mini import ReachyMini
 from reachy_mini_conversation_demo.camera_worker import CameraWorker
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> tuple[CameraWorker | None, Any, Any]:
+def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> Tuple[CameraWorker | None, Any, Any]:
     """Initialize camera, head tracker, camera worker, and vision manager.
 
     By default, vision is handled by gpt-realtime model when camera tool is used.

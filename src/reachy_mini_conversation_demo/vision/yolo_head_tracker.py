@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 
@@ -105,7 +105,7 @@ class HeadTracker:
 
         return np.array([norm_x, norm_y], dtype=np.float32)
 
-    def get_head_position(self, img: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any] | None, float | None]:
+    def get_head_position(self, img: np.ndarray[Any, Any]) -> Tuple[np.ndarray[Any, Any] | None, float | None]:
         """Get head position from face detection.
 
         Args:

@@ -5,7 +5,7 @@ import queue
 import base64
 import logging
 import threading
-from typing import Any
+from typing import Tuple
 from collections.abc import Callable
 
 import numpy as np
@@ -22,13 +22,13 @@ logger = logging.getLogger(__name__)
 class HeadWobbler:
     """Converts audio deltas (base64) into head movement offsets."""
 
-    def __init__(self, set_speech_offsets: Callable[[tuple[float, float, float, float, float, float]], None]) -> None:
+    def __init__(self, set_speech_offsets: Callable[[Tuple[float, float, float, float, float, float]], None]) -> None:
         """Initialize the head wobbler."""
         self._apply_offsets = set_speech_offsets
         self._base_ts: float | None = None
         self._hops_done: int = 0
 
-        self.audio_queue: queue.Queue[tuple[int, int, NDArray[Any]]] = queue.Queue()
+        self.audio_queue: "queue.Queue[Tuple[int, int, NDArray[np.int16]]]" = queue.Queue()
         self.sway = SwayRollRT()
 
         # Synchronization primitives

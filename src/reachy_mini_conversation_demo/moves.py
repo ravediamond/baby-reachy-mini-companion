@@ -665,7 +665,7 @@ class MovementManager:
             stats.min_freq = min(stats.min_freq, stats.last_freq)
         return stats
 
-    def _schedule_next_tick(self, loop_start: float, stats: LoopFrequencyStats) -> tuple[float, LoopFrequencyStats]:
+    def _schedule_next_tick(self, loop_start: float, stats: LoopFrequencyStats) -> Tuple[float, LoopFrequencyStats]:
         """Compute sleep time to maintain target frequency and update potential freq."""
         computation_time = self._now() - loop_start
         stats.potential_freq = 1.0 / computation_time if computation_time > 0 else float("inf")
