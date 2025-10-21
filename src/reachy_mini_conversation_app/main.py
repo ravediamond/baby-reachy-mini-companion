@@ -9,16 +9,16 @@ from fastapi import FastAPI
 from fastrtc import Stream
 
 from reachy_mini import ReachyMini
-from reachy_mini_conversation_demo.moves import MovementManager
-from reachy_mini_conversation_demo.tools import ToolDependencies
-from reachy_mini_conversation_demo.utils import (
+from reachy_mini_conversation_app.moves import MovementManager
+from reachy_mini_conversation_app.tools import ToolDependencies
+from reachy_mini_conversation_app.utils import (
     parse_args,
     setup_logger,
     handle_vision_stuff,
 )
-from reachy_mini_conversation_demo.console import LocalStream
-from reachy_mini_conversation_demo.openai_realtime import OpenaiRealtimeHandler
-from reachy_mini_conversation_demo.audio.head_wobbler import HeadWobbler
+from reachy_mini_conversation_app.console import LocalStream
+from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
+from reachy_mini_conversation_app.audio.head_wobbler import HeadWobbler
 
 
 def update_chatbot(chatbot: List[Dict[str, Any]], response: Dict[str, Any]) -> List[Dict[str, Any]]:
