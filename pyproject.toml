@@ -47,7 +47,7 @@ dev = [
 ]
 
 [project.scripts]
-reachy-mini-conversation-demo = "reachy_mini_conversation_app.main:main"
+reachy-mini-conversation-app = "reachy_mini_conversation_app.main:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
