@@ -9,7 +9,7 @@ from reachy_mini_conversation_app.camera_worker import CameraWorker
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser("Reachy Mini Conversation Demo")
+    parser = argparse.ArgumentParser("Reachy Mini Conversation App")
     parser.add_argument(
         "--head-tracker",
         choices=["yolo", "mediapipe", None],

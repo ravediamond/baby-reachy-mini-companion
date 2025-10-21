@@ -1,4 +1,4 @@
-"""Entrypoint for the Reachy Mini conversation demo."""
+"""Entrypoint for the Reachy Mini conversation app."""
 
 import os
 import sys
@@ -28,11 +28,11 @@ def update_chatbot(chatbot: List[Dict[str, Any]], response: Dict[str, Any]) -> L
 
 
 def main() -> None:
-    """Entrypoint for the Reachy Mini conversation demo."""
+    """Entrypoint for the Reachy Mini conversation app."""
     args = parse_args()
 
     logger = setup_logger(args.debug)
-    logger.info("Starting Reachy Mini Conversation Demo")
+    logger.info("Starting Reachy Mini Conversation App")
 
     if args.no_camera and args.head_tracker is not None:
         logger.warning("Head tracking is not activated due to --no-camera.")
