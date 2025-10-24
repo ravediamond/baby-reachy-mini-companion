@@ -237,6 +237,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 ),
                             )
 
+                    # if this tool call was triggered by an idle signal, don't make the robot speak
+                    # for other tool calls, let the robot reply out loud
                     if self.is_idle_tool_call:
                         self.is_idle_tool_call = False
                     else:
@@ -307,7 +309,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         elapsed_seconds = loop_time - self.start_time
         dt = datetime.now()  # wall-clock
         return f"[{dt.strftime('%Y-%m-%d %H:%M:%S')} | +{elapsed_seconds:.1f}s]"
-    
+
     async def send_idle_signal(self, idle_duration: float) -> None:
         """Send an idle signal to the openai server."""
         logger.debug("Sending idle signal")
