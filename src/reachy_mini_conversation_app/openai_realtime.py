@@ -35,6 +35,13 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         )
         self.deps = deps
 
+        # Add resampling ratio
+        self.target_input_rate = 24000  # OpenAI requirement
+        self.resample_ratio = self.target_input_rate / self.input_sample_rate
+        
+        # Buffer for accumulating partial samples during resampling
+        self.resample_buffer = np.array([], dtype=np.int16)
+
         self.connection: Any | None = None
         self.output_queue: "asyncio.Queue[Tuple[int, NDArray[np.int16]] | AdditionalOutputs]" = asyncio.Queue()
 
@@ -46,26 +53,58 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         """Create a copy of the handler."""
         return OpenaiRealtimeHandler(self.deps)
 
+    def resample_audio(self, audio: NDArray[np.int16]) -> NDArray[np.int16]:
+        """Resample audio using linear interpolation."""
+        if self.input_sample_rate == self.target_input_rate:
+            return audio
+        
+        # Use numpy's interp for simple linear resampling
+        input_length = len(audio)
+        output_length = int(input_length * self.resample_ratio)
+        
+        input_time = np.arange(input_length)
+        output_time = np.linspace(0, input_length - 1, output_length)
+        
+        resampled = np.interp(output_time, input_time, audio.astype(np.float32))
+        return resampled.astype(np.int16)
+
     async def start_up(self) -> None:
         """Start the handler."""
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
-        async with self.client.beta.realtime.connect(model=config.MODEL_NAME) as conn:
-            await conn.session.update(
-                session={
-                    "turn_detection": {
-                        "type": "server_vad",
+        async with self.client.realtime.connect(model=config.MODEL_NAME) as conn:
+            try:
+                await conn.session.update(
+                    session={
+                        "type": "realtime",
+                        "instructions": SESSION_INSTRUCTIONS,
+                        "audio": {
+                            "input": {
+                                "format": {
+                                    "type": "audio/pcm",
+                                    "rate": self.target_input_rate,
+                                },
+                                "transcription": {
+                                    "model": "whisper-1",
+                                    "language": "en",
+                                },
+                            },
+                            "output": {
+                                "format": {
+                                    "type": "audio/pcm",
+                                    "rate": self.output_sample_rate,
+                                },
+                                "voice": "cedar",
+                            },
+                        },
+                        "tools": ALL_TOOL_SPECS,
+                        "tool_choice": "auto",
                     },
-                    "input_audio_transcription": {
-                        "model": "whisper-1",
-                        "language": "en",
-                    },
-                    "voice": "ballad",
-                    "instructions": SESSION_INSTRUCTIONS,
-                    "tools": ALL_TOOL_SPECS,  # type: ignore[typeddict-item]
-                    "tool_choice": "auto",
-                    "temperature": 0.7,
-                },
-            )
+                )
+            except Exception:
+                logger.exception("Realtime session.update failed; aborting startup")
+                return
+
+            logger.info("Realtime session updated successfully")
 
             # Manage event received from the openai server
             self.connection = conn
@@ -81,10 +120,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
                 if event.type == "input_audio_buffer.speech_stopped":
                     self.deps.movement_manager.set_listening(False)
-                    logger.debug("User speech stopped")
-
-                if event.type in ("response.audio.completed", "response.completed"):
-                    # Doesn't seem to be called
+                    logger.debug("User speech stopped - server will auto-commit with VAD")
+                
+                if event.type in (
+                    "response.audio.done",            # GA
+                    "response.output_audio.done",     # GA alias
+                    "response.audio.completed",       # legacy (for safety)
+                    "response.completed",             # text-only completion
+                ):
                     logger.debug("response completed")
                     if self.deps.head_wobbler is not None:
                         self.deps.head_wobbler.reset()
@@ -96,15 +139,21 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     # Doesn't mean the audio is done playing
                     logger.debug("Response done")
 
+                if event.type == "conversation.item.input_audio_transcription.partial":
+                    logger.debug(f"User partial transcript: {event.transcript}")
+                    await self.output_queue.put(
+                        AdditionalOutputs({"role": "user_partial", "content": event.transcript})
+                    )
+
                 if event.type == "conversation.item.input_audio_transcription.completed":
                     logger.debug(f"User transcript: {event.transcript}")
                     await self.output_queue.put(AdditionalOutputs({"role": "user", "content": event.transcript}))
 
-                if event.type == "response.audio_transcript.done":
+                if event.type in ("response.audio_transcript.done", "response.output_audio_transcript.done"):
                     logger.debug(f"Assistant transcript: {event.transcript}")
                     await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": event.transcript}))
 
-                if event.type == "response.audio.delta":
+                if event.type in ("response.audio.delta", "response.output_audio.delta"):
                     if self.deps.head_wobbler is not None:
                         self.deps.head_wobbler.feed(event.delta)
                     self.last_activity_time = asyncio.get_event_loop().time()
@@ -115,6 +164,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                             np.frombuffer(base64.b64decode(event.delta), dtype=np.int16).reshape(1, -1),
                         ),
                     )
+
 
                 # ---- tool-calling plumbing ----
                 if event.type == "response.function_call_arguments.done":
@@ -187,14 +237,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 ),
                             )
 
-                    if not self.is_idle_tool_call:
+                    if self.is_idle_tool_call:
+                        self.is_idle_tool_call = False
+                    else:
                         await self.connection.response.create(
                             response={
                                 "instructions": "Use the tool result just returned and answer concisely in speech.",
                             },
                         )
-                    else:
-                        self.is_idle_tool_call = False
 
                     # re synchronize the head wobble after a tool call that may have taken some time
                     if self.deps.head_wobbler is not None:
@@ -204,8 +254,13 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type == "error":
                     err = getattr(event, "error", None)
                     msg = getattr(err, "message", str(err) if err else "unknown error")
-                    logger.error("Realtime error: %s (raw=%s)", msg, err)
-                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
+                    code = getattr(err, "code", "")
+                    
+                    logger.error("Realtime error [%s]: %s (raw=%s)", code, msg, err)
+                    
+                    # Only show user-facing errors, not internal state errors
+                    if code not in ("input_audio_buffer_commit_empty", "conversation_already_has_active_response"):
+                        await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
 
     # Microphone receive
     async def receive(self, frame: Tuple[int, NDArray[np.int16]]) -> None:
@@ -214,8 +269,12 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             return
         _, array = frame
         array = array.squeeze()
+
+        # Resample if needed
+        if self.input_sample_rate != self.target_input_rate:
+            array = self.resample_audio(array)
+
         audio_message = base64.b64encode(array.tobytes()).decode("utf-8")
-        # Fills the input audio buffer to be sent to the server
         await self.connection.input_audio_buffer.append(audio=audio_message)
 
     async def emit(self) -> Tuple[int, NDArray[np.int16]] | AdditionalOutputs | None:
@@ -226,7 +285,11 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         # Handle idle
         idle_duration = asyncio.get_event_loop().time() - self.last_activity_time
         if idle_duration > 15.0 and self.deps.movement_manager.is_idle():
-            await self.send_idle_signal(idle_duration)
+            try:
+                await self.send_idle_signal(idle_duration)
+            except Exception as e:
+                logger.warning("Idle signal skipped (connection closed?): %s", e)
+                return None
 
             self.last_activity_time = asyncio.get_event_loop().time()  # avoid repeated resets
 
@@ -249,21 +312,39 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         """Send an idle signal to the openai server."""
         logger.debug("Sending idle signal")
         self.is_idle_tool_call = True
-        timestamp_msg = f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] You've been idle for a while. Feel free to get creative - dance, show an emotion, look around, do nothing, or just be yourself!"
+        timestamp_msg = (
+            f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] "
+            "You've been idle for a while."
+        )
         if not self.connection:
             logger.debug("No connection, cannot send idle signal")
             return
-        await self.connection.conversation.item.create(
-            item={
-                "type": "message",
-                "role": "user",
-                "content": [{"type": "input_text", "text": timestamp_msg}],
-            },
-        )
-        await self.connection.response.create(
-            response={
-                "modalities": ["text"],
-                "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
-                "tool_choice": "required",
-            },
-        )
+
+        try:
+            await self.connection.conversation.item.create(
+                item={
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": timestamp_msg}],
+                },
+            )
+
+            allowed = [
+                "move_head", "camera", "head_tracking",
+                "dance", "stop_dance", "play_emotion",
+                "stop_emotion", "do_nothing",
+            ]
+
+            await self.connection.response.create(
+                response={
+                    "instructions": (
+                        "You MUST respond with function calls only—no speech or text. "
+                        "Pick exactly one of these tools and call it with sensible args: "
+                        + ", ".join(allowed)
+                        + ". Prefer small, varied motions; occasionally choose 'do_nothing'."
+                    ),
+                    "tool_choice": "required",
+                },
+            )
+        except Exception as e:
+            logger.warning("Idle signal failed (connection closed?): %s", e)
