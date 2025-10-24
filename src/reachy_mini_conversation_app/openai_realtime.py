@@ -38,7 +38,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         # Add resampling ratio
         self.target_input_rate = 24000  # OpenAI requirement
         self.resample_ratio = self.target_input_rate / self.input_sample_rate
-        
+
         # Buffer for accumulating partial samples during resampling
         self.resample_buffer = np.array([], dtype=np.int16)
 
@@ -57,14 +57,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         """Resample audio using linear interpolation."""
         if self.input_sample_rate == self.target_input_rate:
             return audio
-        
+
         # Use numpy's interp for simple linear resampling
         input_length = len(audio)
         output_length = int(input_length * self.resample_ratio)
-        
+
         input_time = np.arange(input_length)
         output_time = np.linspace(0, input_length - 1, output_length)
-        
+
         resampled = np.interp(output_time, input_time, audio.astype(np.float32))
         return resampled.astype(np.int16)
 
@@ -121,7 +121,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 if event.type == "input_audio_buffer.speech_stopped":
                     self.deps.movement_manager.set_listening(False)
                     logger.debug("User speech stopped - server will auto-commit with VAD")
-                
+
                 if event.type in (
                     "response.audio.done",            # GA
                     "response.output_audio.done",     # GA alias
@@ -255,9 +255,9 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     err = getattr(event, "error", None)
                     msg = getattr(err, "message", str(err) if err else "unknown error")
                     code = getattr(err, "code", "")
-                    
+
                     logger.error("Realtime error [%s]: %s (raw=%s)", code, msg, err)
-                    
+
                     # Only show user-facing errors, not internal state errors
                     if code not in ("input_audio_buffer_commit_empty", "conversation_already_has_active_response"):
                         await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[error] {msg}"}))
