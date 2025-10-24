@@ -307,44 +307,26 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         elapsed_seconds = loop_time - self.start_time
         dt = datetime.now()  # wall-clock
         return f"[{dt.strftime('%Y-%m-%d %H:%M:%S')} | +{elapsed_seconds:.1f}s]"
-
+    
     async def send_idle_signal(self, idle_duration: float) -> None:
         """Send an idle signal to the openai server."""
         logger.debug("Sending idle signal")
         self.is_idle_tool_call = True
-        timestamp_msg = (
-            f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] "
-            "You've been idle for a while."
-        )
+        timestamp_msg = f"[Idle time update: {self.format_timestamp()} - No activity for {idle_duration:.1f}s] You've been idle for a while. Feel free to get creative - dance, show an emotion, look around, do nothing, or just be yourself!"
         if not self.connection:
             logger.debug("No connection, cannot send idle signal")
             return
-
-        try:
-            await self.connection.conversation.item.create(
-                item={
-                    "type": "message",
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": timestamp_msg}],
-                },
-            )
-
-            allowed = [
-                "move_head", "camera", "head_tracking",
-                "dance", "stop_dance", "play_emotion",
-                "stop_emotion", "do_nothing",
-            ]
-
-            await self.connection.response.create(
-                response={
-                    "instructions": (
-                        "You MUST respond with function calls only—no speech or text. "
-                        "Pick exactly one of these tools and call it with sensible args: "
-                        + ", ".join(allowed)
-                        + ". Prefer small, varied motions; occasionally choose 'do_nothing'."
-                    ),
-                    "tool_choice": "required",
-                },
-            )
-        except Exception as e:
-            logger.warning("Idle signal failed (connection closed?): %s", e)
+        await self.connection.conversation.item.create(
+            item={
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": timestamp_msg}],
+            },
+        )
+        await self.connection.response.create(
+            response={
+                "modalities": ["text"],
+                "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
+                "tool_choice": "required",
+            },
+        )
