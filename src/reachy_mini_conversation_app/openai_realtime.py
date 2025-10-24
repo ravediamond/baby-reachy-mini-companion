@@ -39,9 +39,6 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         self.target_input_rate = 24000  # OpenAI requirement
         self.resample_ratio = self.target_input_rate / self.input_sample_rate
 
-        # Buffer for accumulating partial samples during resampling
-        self.resample_buffer = np.array([], dtype=np.int16)
-
         self.connection: Any | None = None
         self.output_queue: "asyncio.Queue[Tuple[int, NDArray[np.int16]] | AdditionalOutputs]" = asyncio.Queue()
 
@@ -85,7 +82,10 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 },
                                 "transcription": {
                                     "model": "whisper-1",
-                                    "language": "en",
+                                    "language": "en"
+                                },
+                                "turn_detection": {
+                                    "type": "server_vad",
                                 },
                             },
                             "output": {
@@ -325,7 +325,6 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         )
         await self.connection.response.create(
             response={
-                "modalities": ["text"],
                 "instructions": "You MUST respond with function calls only - no speech or text. Choose appropriate actions for idle behavior.",
                 "tool_choice": "required",
             },
