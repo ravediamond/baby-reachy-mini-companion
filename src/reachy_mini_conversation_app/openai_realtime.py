@@ -2,7 +2,7 @@ import json
 import base64
 import asyncio
 import logging
-from typing import Any, Tuple
+from typing import Any, Tuple, Literal, cast
 from datetime import datetime
 
 import numpy as np
@@ -35,11 +35,13 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         )
         self.deps = deps
 
-        # Add resampling ratio
-        self.target_input_rate = 24000  # OpenAI requirement
+        # Override type annotations for OpenAI strict typing (only for values used in API)
+        self.output_sample_rate: Literal[24000]
+        self.target_input_rate: Literal[24000] = 24000
+        # input_sample_rate rest as int for comparison logic
         self.resample_ratio = self.target_input_rate / self.input_sample_rate
 
-        self.connection: Any | None = None
+        self.connection: Any = None
         self.output_queue: "asyncio.Queue[Tuple[int, NDArray[np.int16]] | AdditionalOutputs]" = asyncio.Queue()
 
         self.last_activity_time = asyncio.get_event_loop().time()
@@ -63,7 +65,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         output_time = np.linspace(0, input_length - 1, output_length)
 
         resampled = np.interp(output_time, input_time, audio.astype(np.float32))
-        return resampled.astype(np.int16)
+        return cast(NDArray[np.int16], resampled.astype(np.int16))
 
     async def start_up(self) -> None:
         """Start the handler."""
@@ -86,6 +88,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 },
                                 "turn_detection": {
                                     "type": "server_vad",
+                                    "interrupt_response": True,
                                 },
                             },
                             "output": {
@@ -96,7 +99,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 "voice": "cedar",
                             },
                         },
-                        "tools": ALL_TOOL_SPECS,
+                        "tools": ALL_TOOL_SPECS,  # type: ignore[typeddict-item]
                         "tool_choice": "auto",
                     },
                 )
@@ -139,20 +142,24 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     # Doesn't mean the audio is done playing
                     logger.debug("Response done")
 
+                # Handle partial transcription (user speaking in real-time)
                 if event.type == "conversation.item.input_audio_transcription.partial":
                     logger.debug(f"User partial transcript: {event.transcript}")
                     await self.output_queue.put(
                         AdditionalOutputs({"role": "user_partial", "content": event.transcript})
                     )
 
+                # Handle completed transcription (user finished speaking)
                 if event.type == "conversation.item.input_audio_transcription.completed":
                     logger.debug(f"User transcript: {event.transcript}")
                     await self.output_queue.put(AdditionalOutputs({"role": "user", "content": event.transcript}))
 
+                # Handle assistant transcription
                 if event.type in ("response.audio_transcript.done", "response.output_audio_transcript.done"):
                     logger.debug(f"Assistant transcript: {event.transcript}")
                     await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": event.transcript}))
 
+                # Handle audio delta
                 if event.type in ("response.audio.delta", "response.output_audio.delta"):
                     if self.deps.head_wobbler is not None:
                         self.deps.head_wobbler.feed(event.delta)
@@ -216,7 +223,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 "role": "user",
                                 "content": [
                                     {
-                                        "type": "input_image",  # type: ignore[typeddict-item]
+                                        "type": "input_image",
                                         "image_url": f"data:image/jpeg;base64,{b64_im}",
                                     },
                                 ],
@@ -302,6 +309,13 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         if self.connection:
             await self.connection.close()
             self.connection = None
+
+        # Clear any remaining items in the output queue
+        while not self.output_queue.empty():
+            try:
+                self.output_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
 
     def format_timestamp(self) -> str:
         """Format current timestamp with date, time, and elapsed seconds."""
