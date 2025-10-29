@@ -132,6 +132,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                     "response.completed",             # text-only completion
                 ):
                     logger.debug("response completed")
+                    # TODO: remove later
                     # if self.deps.head_wobbler is not None:
                     #     self.deps.head_wobbler.reset()
 
