@@ -1,7 +1,8 @@
-import os
 import re
+import sys
 import logging
 from pathlib import Path
+
 from reachy_mini_conversation_app.config import config
 
 
