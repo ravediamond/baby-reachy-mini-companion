@@ -1,11 +1,11 @@
-"""Example of a demo built using a custom tool and custom instructions."""
+"""Example of a profile built using a custom tool and custom instructions."""
 
 import logging
 from typing import Any, Dict
 
 # Import a tool from the tools library: use an alias or noqa to avoid linter errors if unused
-from tools_library.sweep_look import SweepLook as SweepLook  # noqa: F401
-from reachy_mini_conversation_app.tools import Tool, ToolDependencies
+from reachy_mini_conversation_app.tools.sweep_look import SweepLook as SweepLook  # noqa: F401
+from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 
 logger = logging.getLogger(__name__)

@@ -12,11 +12,14 @@ from dataclasses import dataclass
 
 from reachy_mini import ReachyMini
 from reachy_mini.utils import create_head_pose
-# Import config to ensure .env is loaded before reading DEMO
+# Import config to ensure .env is loaded before reading REACHY_MINI_CUSTOM_PROFILE
 from reachy_mini_conversation_app.config import config  # noqa: F401
 
 
 logger = logging.getLogger(__name__)
+
+
+PROFILES_DIRECTORY = "reachy_mini_conversation_app.profiles"
 
 if not logger.handlers:
     handler = logging.StreamHandler()
@@ -469,25 +472,27 @@ class DoNothing(Tool):
 
 
 # Registry & specs (dynamic)
-def _load_demo_tools() -> None:
-    """Load demo-specific tools if DEMO env variable is set."""
-    demo = os.getenv("DEMO")
-    if not demo:
-        logger.info("No DEMO env variable set; using default.")
+def _load_profile_tools() -> None:
+    """Load profile-specific tools if REACHY_MINI_CUSTOM_PROFILE env variable is set."""
+    profile = config.REACHY_MINI_CUSTOM_PROFILE
+    if not profile:
+        logger.info("No REACHY_MINI_CUSTOM_PROFILE env variable set; using default tools.")
         return
     try:
-        importlib.import_module(f"demos.{demo}")
-        logger.info(f"✓ Demo '{demo}' loaded successfully.")
+        logger.debug(f"Trying to load profile '{profile}' from {PROFILES_DIRECTORY}...")
+        importlib.import_module(f"{PROFILES_DIRECTORY}.{profile}")
+        logger.info(f"✓ Profile '{profile}' loaded successfully.")
     except ModuleNotFoundError as e:
-        # Check if the demo module itself is missing or if it's a dependency
-        if e.name == f"demos.{demo}":
-            logger.info(f"✗ Demo '{demo}' not found in src/demos/")
+        logger.warning(f"Profile '{profile}' module not found: {e}")
+        # Check if the profile module itself is missing or if it's a dependency
+        if e.name == f"{PROFILES_DIRECTORY}.{profile}":
+            logger.error(f"✗ profile '{profile}' not found in {PROFILES_DIRECTORY}")
             sys.exit(1)
         else:
-            logger.info(f"✗ Demo '{demo}' failed due to missing dependency: {e.name}")
+            logger.error(f"✗ profile '{profile}' failed due to missing dependency: {e.name}")
             sys.exit(1)
     except Exception as e:
-        logger.info(f"✗ Failed to load demo '{demo}': {e}")
+        logger.error(f"✗ Failed to load profile '{profile}': {e}")
         sys.exit(1)
 
 
@@ -499,7 +504,7 @@ def _initialize_tools() -> None:
         logger.debug("Tools already initialized; skipping reinitialization.")
         return
 
-    _load_demo_tools()
+    _load_profile_tools()
 
     ALL_TOOLS = {cls.name: cls() for cls in get_concrete_subclasses(Tool)}  # type: ignore[type-abstract]
     ALL_TOOL_SPECS = [tool.spec() for tool in ALL_TOOLS.values()]
