@@ -64,9 +64,8 @@ class CameraWorker:
         with self.frame_lock:
             if self.latest_frame is None:
                 return None
-            frame = self.latest_frame.copy()
-            frame_rgb: NDArray[np.uint8] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # type: ignore[assignment]
-            return frame_rgb
+            # Return a copy in original BGR format (OpenCV native)
+            return self.latest_frame.copy()
 
     def get_face_tracking_offsets(
         self,
