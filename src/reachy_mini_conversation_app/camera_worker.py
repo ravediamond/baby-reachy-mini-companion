@@ -11,7 +11,6 @@ import logging
 import threading
 from typing import Any, List, Tuple
 
-import cv2
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation as R
