@@ -144,6 +144,53 @@ By default, the app runs in console mode for direct audio interaction. Use the `
 | `stop_emotion` | Clear queued emotions. | Core install only. |
 | `do_nothing` | Explicitly remain idle. | Core install only. |
 
+## Using custom profiles
+You can create and run custom profiles with their dedicated instructions in the prompt, and a custom set of enabled tools.
+For that, set the REACHY_MINI_CUSTOM_PROFILE environment variable.
+
+
+The corresponding profile will be looked up as a subfolder of `src/reachy_mini_conversation_app/profiles/`.
+A profile folder must contain at least a `instructions.txt` file with the custom instructions for the assistant and a `tools.txt` file listing the enabled tools (one per line).
+
+If you don't set REACHY_MINI_CUSTOM_PROFILE, the `default` profile will be used.
+
+### Custom instructions
+In the `instructions.txt` file, just enter your prompt instructions in plain text.
+You can reuse some prompt parts from the prompt library in `src/reachy_mini_conversation_app/prompts/`.
+For that, in `instructions.txt` just add a line like
+```
+[passion_for_lobster_jokes]
+```
+which will automatically load the prompt contained in `src/reachy_mini_conversation_app/prompts/passion_for_lobster_jokes.txt`.
+or
+```
+[identities/witty_identity]
+```
+which will load the prompt contained in `src/reachy_mini_conversation_app/prompts/identities/witty_identity.txt`.
+
+See the `example` profile in `src/reachy_mini_conversation_app/profiles/example/` as an example of a custom profile with instructions reusing prompt parts.
+
+### Enabling Tools
+
+#### From the shared tools library
+In the `tools.txt` file, just list the tools you want to enable for this profile, one per line. 
+You can comment out lines starting with `#`, to prevent certain tools from being enabled.
+For example:
+```
+dance
+# head_tracking
+```
+Those tools will be searched for in the shared tools library located in `src/reachy_mini_conversation_app/tools/`.
+
+#### Local custom tools (to be written in Python)
+You can also define custom tools specific to your profile. Just list them in the `tools.txt` file like the other tools.
+Tools will be searched first in the local folder, where you can include files like `mytool.py`.
+Those should be subclasses of `reachy_mini_conversation_app.tools.core_tools.Tool`.
+
+See the `throw_stone.py` tool in the `src/reachy_mini_conversation_app/profiles/example/` profile as an example of a dummy custom tool.
+
+
+
 ## Development workflow
 - Install the dev group extras: `uv sync --group dev` or `pip install -e .[dev]`.
 - Run formatting and linting: `ruff check .`.
