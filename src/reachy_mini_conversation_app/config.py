@@ -1,28 +1,20 @@
 import os
 import logging
-from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 
 logger = logging.getLogger(__name__)
 
-# Check if .env file exists
-env_file = Path(".env")
-if not env_file.exists():
-    raise RuntimeError(
-        ".env file not found. Please create one based on .env.example:\n"
-        "  cp .env.example .env\n"
-        "Then add your OPENAI_API_KEY to the .env file.",
-    )
+# Locate .env file (search upward from current working directory)
+dotenv_path = find_dotenv(usecwd=True)
 
-# Load .env and verify it was loaded successfully
-if not load_dotenv():
-    raise RuntimeError(
-        "Failed to load .env file. Please ensure the file is readable and properly formatted.",
-    )
-
-logger.info("Configuration loaded from .env file")
+if dotenv_path:
+    # Load .env and override environment variables
+    load_dotenv(dotenv_path=dotenv_path, override=True)
+    logger.info(f"Configuration loaded from {dotenv_path}")
+else:
+    logger.warning("No .env file found, using environment variables")
 
 
 class Config:
@@ -30,14 +22,12 @@ class Config:
 
     # Required
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    if OPENAI_API_KEY is None:
+    if not OPENAI_API_KEY or not OPENAI_API_KEY.strip():
         raise RuntimeError(
-            "OPENAI_API_KEY is not set in .env file. Please add it:\n"
-            "  OPENAI_API_KEY=your_api_key_here",
-        )
-    if not OPENAI_API_KEY.strip():
-        raise RuntimeError(
-            "OPENAI_API_KEY is empty in .env file. Please provide a valid API key.",
+            "OPENAI_API_KEY is missing or empty.\n"
+            "Either:\n"
+            "  1. Create a .env file with: OPENAI_API_KEY=your_api_key_here (recomended)\n"
+            "  2. Set environment variable: export OPENAI_API_KEY=your_api_key_here"
         )
 
     # Optional
