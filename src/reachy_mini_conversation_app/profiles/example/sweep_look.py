@@ -105,7 +105,7 @@ class SweepLook(Tool):
         return_to_center_final = GotoQueueMove(
             target_head_pose=center_head_pose,
             start_head_pose=right_head_pose,
-            target_antennas=(0, 0),  # Reset antennas to neutral
+            target_antennas=(current_antenna1, current_antenna2),
             start_antennas=(current_antenna1, current_antenna2),
             target_body_yaw=current_body_yaw,  # Return to original body yaw
             start_body_yaw=current_body_yaw - max_angle,
@@ -121,7 +121,6 @@ class SweepLook(Tool):
         deps.movement_manager.queue_move(return_to_center_final)
 
         # Calculate total duration and mark as moving
-        # left(20s) + hold_left(5s) + center_from_left(20s) + right(20s) + hold_right(5s) + center_final(20s)
         total_duration = transition_duration * 4 + hold_duration * 2
         deps.movement_manager.set_moving_state(total_duration)
 
