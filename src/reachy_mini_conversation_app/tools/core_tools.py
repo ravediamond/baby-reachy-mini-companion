@@ -124,6 +124,7 @@ def _load_profile_tools() -> None:
     # Import each tool
     for tool_name in tool_names:
         loaded = False
+        profile_error = None
 
         # Try profile-local tool first
         try:
@@ -131,10 +132,23 @@ def _load_profile_tools() -> None:
             importlib.import_module(profile_tool_module)
             logger.info(f"✓ Loaded profile-local tool: {tool_name}")
             loaded = True
-        except ModuleNotFoundError:
-            pass  # Not in profile directory, try shared tools
+        except ModuleNotFoundError as e:
+            # Check if it's the tool module itself that's missing (expected) or a dependency
+            if tool_name in str(e):
+                pass  # Tool not in profile directory, try shared tools
+            else:
+                # Missing import dependency within the tool file
+                profile_error = f"Missing dependency: {e}"
+                logger.error(f"❌ Failed to load profile-local tool '{tool_name}': {profile_error}")
+                logger.error(f"  Module path: {profile_tool_module}")
+        except ImportError as e:
+            profile_error = f"Import error: {e}"
+            logger.error(f"❌ Failed to load profile-local tool '{tool_name}': {profile_error}")
+            logger.error(f"  Module path: {profile_tool_module}")
         except Exception as e:
-            logger.warning(f"Error loading profile-local tool {tool_name}: {e}")
+            profile_error = f"{type(e).__name__}: {e}"
+            logger.error(f"❌ Failed to load profile-local tool '{tool_name}': {profile_error}")
+            logger.error(f"  Module path: {profile_tool_module}")
 
         # Try shared tools library if not found in profile
         if not loaded:
@@ -144,9 +158,17 @@ def _load_profile_tools() -> None:
                 logger.info(f"✓ Loaded shared tool: {tool_name}")
                 loaded = True
             except ModuleNotFoundError:
-                logger.warning(f"⚠ Tool '{tool_name}' not found in profile or shared tools")
+                if profile_error:
+                    # Already logged error from profile attempt
+                    logger.error(f"❌ Tool '{tool_name}' also not found in shared tools")
+                else:
+                    logger.warning(f"⚠️ Tool '{tool_name}' not found in profile or shared tools")
+            except ImportError as e:
+                logger.error(f"❌ Failed to load shared tool '{tool_name}': Import error: {e}")
+                logger.error(f"  Module path: {shared_tool_module}")
             except Exception as e:
-                logger.warning(f"Error loading shared tool {tool_name}: {e}")
+                logger.error(f"❌ Failed to load shared tool '{tool_name}': {type(e).__name__}: {e}")
+                logger.error(f"  Module path: {shared_tool_module}")
 
 
 def _initialize_tools() -> None:
