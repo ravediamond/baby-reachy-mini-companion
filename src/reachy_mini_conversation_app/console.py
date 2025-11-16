@@ -8,7 +8,7 @@ import asyncio
 import logging
 from typing import List
 
-import librosa
+from librosa import resample
 from fastrtc import AdditionalOutputs, audio_to_int16, audio_to_float32
 
 from reachy_mini import ReachyMini
@@ -29,6 +29,11 @@ class LocalStream:
         self._tasks: List[asyncio.Task[None]] = []
         # Allow the handler to flush the player queue when appropriate.
         self.handler._clear_queue = self.clear_audio_queue
+
+        # Hack to avoid the first lenghty call to resample at runtime. 
+        # This is likely caused by cache initialization overhead.
+        import numpy as np
+        resample(np.array([0.0]), orig_sr=1, target_sr=1)
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops."""
@@ -110,7 +115,7 @@ class LocalStream:
                 audio_frame_float = audio_to_float32(audio_frame.squeeze())
 
                 if input_sample_rate != device_sample_rate:
-                    audio_frame_float = librosa.resample(
+                    audio_frame_float = resample(
                         audio_frame_float,
                         orig_sr=input_sample_rate,
                         target_sr=device_sample_rate,
