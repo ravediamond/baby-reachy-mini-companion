@@ -8,8 +8,8 @@ import asyncio
 import logging
 from typing import List
 
-from librosa import resample
 from fastrtc import AdditionalOutputs, audio_to_int16, audio_to_float32
+from librosa import resample
 
 from reachy_mini import ReachyMini
 from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
@@ -30,7 +30,7 @@ class LocalStream:
         # Allow the handler to flush the player queue when appropriate.
         self.handler._clear_queue = self.clear_audio_queue
 
-        # Hack to avoid the first lenghty call to resample at runtime. 
+        # Hack to avoid the first lenghty call to resample at runtime.
         # This is likely caused by cache initialization overhead.
         import numpy as np
         resample(np.array([0.0]), orig_sr=1, target_sr=1)
