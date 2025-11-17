@@ -145,11 +145,11 @@ By default, the app runs in console mode for direct audio interaction. Use the `
 | `do_nothing` | Explicitly remain idle. | Core install only. |
 
 ## Using custom profiles
-You can create and run custom profiles with their dedicated instructions in the prompt, and a custom set of enabled tools.
+Create custom profiles with dedicated instructions and enabled tools! 
 
-Set `REACHY_MINI_CUSTOM_PROFILE=<name>` to load a profile from `src/reachy_mini_conversation_app/profiles/<name>/` (see .env.example). If the variable is not set, the `default` profile is used.
+Set `REACHY_MINI_CUSTOM_PROFILE=<name>` to load `src/reachy_mini_conversation_app/profiles/<name>/` (see `.env.example`). If unset, the `default` profile is used.
 
-Each profile needs two files: `instructions.txt` (prompt text) and `tools.txt` (list of tools allowed). 
+Each profile needs two files: `instructions.txt` (prompt text) and `tools.txt` (list of allowed tools).
 
 ### Custom instructions
 Write plain-text prompts in `instructions.txt`. To reuse shared prompt pieces, add lines like:
@@ -157,9 +157,7 @@ Write plain-text prompts in `instructions.txt`. To reuse shared prompt pieces, a
 [passion_for_lobster_jokes]
 [identities/witty_identity]
 ```
-See `src/reachy_mini_conversation_app/profiles/example/` for a reference layout.
-
-Each placeholder pulls the content of the matching file under `src/reachy_mini_conversation_app/prompts/` (nested paths allowed). 
+Each placeholder pulls the matching file under `src/reachy_mini_conversation_app/prompts/` (nested paths allowed). See `src/reachy_mini_conversation_app/profiles/example/` for a reference layout.
 
 ### Enabling tools
 List enabled tools in `tools.txt`, one per line; prefix with `#` to comment out. For example:
@@ -171,15 +169,7 @@ play_emotion
 # My custom tool defined locally
 sweep_look
 ```
-Tools will be searched for in the shared tools library located in `src/reachy_mini_conversation_app/tools/` as well as in the profile folder (the later is searched for first).
-
-
-### Local custom tools
-You can define custom tools by creating a Python file directly in the profile folder.
-
-Custom Python tools must subclass `reachy_mini_conversation_app.tools.core_tools.Tool` (see `profiles/example/sweep_look.py` and `throw_stone.py`).
-
- then shared tools in `src/reachy_mini_conversation_app/tools/` (e.g., `dance`, `head_tracking`). Custom Python tools must subclass `reachy_mini_conversation_app.tools.core_tools.Tool` (see `profiles/example/sweep_look.py` and `throw_stone.py`).
+Tools are resolved first from Python files in the profile folder, then from the shared library `src/reachy_mini_conversation_app/tools/` (e.g., `dance`, `head_tracking`). Custom tools must subclass `reachy_mini_conversation_app.tools.core_tools.Tool` (see `profiles/example/sweep_look.py` and `throw_stone.py`).
 
 
 
