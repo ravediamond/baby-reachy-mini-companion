@@ -25,7 +25,9 @@ def _expand_prompt_includes(content: str) -> str:
 
     """
     # Pattern to match [<name>] where name is a valid file stem (alphanumeric, underscores, hyphens)
-    pattern = re.compile(r'^\[([a-zA-Z0-9_-]+)\]$')
+    # pattern = re.compile(r'^\[([a-zA-Z0-9_-]+)\]$')
+    # Allow slashes for subdirectories
+    pattern = re.compile(r'^\[([a-zA-Z0-9/_-]+)\]$')
 
     lines = content.split('\n')
     expanded_lines = []
