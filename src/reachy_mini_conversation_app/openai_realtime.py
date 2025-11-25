@@ -3,7 +3,7 @@ import base64
 import random
 import asyncio
 import logging
-from typing import Any, Tuple, Literal
+from typing import Any, Final, Tuple, Literal
 from datetime import datetime
 
 import numpy as np
@@ -25,8 +25,8 @@ from reachy_mini_conversation_app.tools.core_tools import (
 
 logger = logging.getLogger(__name__)
 
-OPEN_AI_INPUT_SAMPLE_RATE = 24000
-OPEN_AI_OUTPUT_SAMPLE_RATE = 24000
+OPEN_AI_INPUT_SAMPLE_RATE: Final[Literal[24000]] = 24000
+OPEN_AI_OUTPUT_SAMPLE_RATE: Final[Literal[24000]] = 24000
 
 
 class OpenaiRealtimeHandler(AsyncStreamHandler):
@@ -42,8 +42,8 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         self.deps = deps
 
         # Override type annotations for OpenAI strict typing (only for values used in API)
-        self.output_sample_rate: Literal[OPEN_AI_OUTPUT_SAMPLE_RATE]
-        self.input_sample_rate: Literal[OPEN_AI_INPUT_SAMPLE_RATE]
+        self.output_sample_rate = OPEN_AI_OUTPUT_SAMPLE_RATE
+        self.input_sample_rate = OPEN_AI_INPUT_SAMPLE_RATE
 
         self.connection: Any = None
         self.output_queue: "asyncio.Queue[Tuple[int, NDArray[np.int16]] | AdditionalOutputs]" = asyncio.Queue()
