@@ -103,15 +103,15 @@ class LocalStream:
                         )
 
             elif isinstance(handler_output, tuple):
-                input_sample_rate, audio_frame = handler_output
+                input_sample_rate, audio_data = handler_output
                 output_sample_rate = self._robot.media.get_output_audio_samplerate()
 
                 # Reshape if needed
-                if audio_frame.ndim == 2:
-                    audio_frame = audio_frame.squeeze()
+                if audio_data.ndim == 2:
+                    audio_data = audio_data.squeeze()
 
                 # Cast if needed
-                audio_frame = audio_to_float32(audio_frame)
+                audio_frame = audio_to_float32(audio_data)
 
                 # Resample if needed
                 if input_sample_rate != output_sample_rate:
