@@ -36,9 +36,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         """Initialize the handler."""
         super().__init__(
             expected_layout="mono",
-            output_sample_rate=OPEN_AI_OUTPUT_SAMPLE_RATE, # openai outputs at 24000 Hz
-            input_sample_rate=OPEN_AI_INPUT_SAMPLE_RATE,  # openai expects 24000 Hz inputs
+            output_sample_rate=OPEN_AI_OUTPUT_SAMPLE_RATE,
+            input_sample_rate=OPEN_AI_INPUT_SAMPLE_RATE,
         )
+
+        # Override typing of the sample rates to match OpenAI's requirements
+        self.output_sample_rate: Literal[24000] = self.output_sample_rate
+        self.input_sample_rate: Literal[24000] = self.input_sample_rate
+
         self.deps = deps
 
         # Override type annotations for OpenAI strict typing (only for values used in API)
@@ -97,7 +102,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                             "input": {
                                 "format": {
                                     "type": "audio/pcm",
-                                    "rate": OPEN_AI_INPUT_SAMPLE_RATE,
+                                    "rate": self.input_sample_rate,
                                 },
                                 "transcription": {
                                     "model": "whisper-1",
@@ -111,7 +116,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                             "output": {
                                 "format": {
                                     "type": "audio/pcm",
-                                    "rate": OPEN_AI_OUTPUT_SAMPLE_RATE,
+                                    "rate": self.output_sample_rate,
                                 },
                                 "voice": "cedar",
                             },
