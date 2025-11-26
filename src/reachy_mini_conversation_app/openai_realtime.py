@@ -58,9 +58,28 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
         self.start_time = asyncio.get_event_loop().time()
         self.is_idle_tool_call = False
 
+        # Debouncing for partial transcripts
+        self.partial_transcript_task: asyncio.Task[None] | None = None
+        self.partial_transcript_sequence: int = 0 # sequence counter to prevent stale emissions
+        self.partial_debounce_delay = 0.5  # seconds
+
     def copy(self) -> "OpenaiRealtimeHandler":
         """Create a copy of the handler."""
         return OpenaiRealtimeHandler(self.deps)
+
+    async def _emit_debounced_partial(self, transcript: str, sequence: int) -> None:
+        """Emit partial transcript after debounce delay."""
+        try:
+            await asyncio.sleep(self.partial_debounce_delay)
+            # Only emit if this is still the latest partial (by sequence number)
+            if self.partial_transcript_sequence == sequence:
+                await self.output_queue.put(
+                    AdditionalOutputs({"role": "user_partial", "content": transcript})
+                )
+                logger.debug(f"Debounced partial emitted: {transcript}")
+        except asyncio.CancelledError:
+            logger.debug("Debounced partial cancelled")
+            raise
 
     async def start_up(self) -> None:
         """Start the handler with minimal retries on unexpected websocket closure."""
@@ -106,7 +125,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                     "rate": self.input_sample_rate,
                                 },
                                 "transcription": {
-                                    "model": "whisper-1",
+                                    "model": "gpt-4o-transcribe",
                                     "language": "en"
                                 },
                                 "turn_detection": {
@@ -166,13 +185,36 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                 # Handle partial transcription (user speaking in real-time)
                 if event.type == "conversation.item.input_audio_transcription.partial":
                     logger.debug(f"User partial transcript: {event.transcript}")
-                    await self.output_queue.put(
-                        AdditionalOutputs({"role": "user_partial", "content": event.transcript})
+
+                    # Increment sequence
+                    self.partial_transcript_sequence += 1
+                    current_sequence = self.partial_transcript_sequence
+
+                    # Cancel previous debounce task if it exists
+                    if self.partial_transcript_task and not self.partial_transcript_task.done():
+                        self.partial_transcript_task.cancel()
+                        try:
+                            await self.partial_transcript_task
+                        except asyncio.CancelledError:
+                            pass
+
+                    # Start new debounce timer with sequence number
+                    self.partial_transcript_task = asyncio.create_task(
+                        self._emit_debounced_partial(event.transcript, current_sequence)
                     )
 
                 # Handle completed transcription (user finished speaking)
                 if event.type == "conversation.item.input_audio_transcription.completed":
                     logger.debug(f"User transcript: {event.transcript}")
+
+                    # Cancel any pending partial emission
+                    if self.partial_transcript_task and not self.partial_transcript_task.done():
+                        self.partial_transcript_task.cancel()
+                        try:
+                            await self.partial_transcript_task
+                        except asyncio.CancelledError:
+                            pass
+
                     await self.output_queue.put(AdditionalOutputs({"role": "user", "content": event.transcript}))
 
                 # Handle assistant transcription
@@ -342,6 +384,14 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
     async def shutdown(self) -> None:
         """Shutdown the handler."""
+        # Cancel any pending debounce task
+        if self.partial_transcript_task and not self.partial_transcript_task.done():
+            self.partial_transcript_task.cancel()
+            try:
+                await self.partial_transcript_task
+            except asyncio.CancelledError:
+                pass
+
         if self.connection:
             try:
                 await self.connection.close()
