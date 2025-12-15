@@ -663,9 +663,11 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
             if not self.gradio_mode:
                 logger.warning("Not in Gradio mode; skipping API key persistence.")
                 return
+
             if self._key_source != "textbox":
                 logger.info("API key not provided via textbox; skipping persistence.")
                 return
+
             key = (self._provided_api_key or "").strip()
             if not key:
                 logger.warning("No API key provided via textbox; skipping persistence.")

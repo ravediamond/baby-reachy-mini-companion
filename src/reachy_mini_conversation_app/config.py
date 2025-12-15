@@ -2,7 +2,6 @@ import os
 import logging
 
 from dotenv import find_dotenv, load_dotenv
-from gradio_client import Client
 
 
 logger = logging.getLogger(__name__)
@@ -22,11 +21,7 @@ class Config:
     """Configuration class for the conversation app."""
 
     # Required
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    if not OPENAI_API_KEY or not OPENAI_API_KEY.strip():
-        client = Client("HuggingFaceM4/gradium_setup")
-        key, status = client.predict(api_name="/claim_b_key")
-        OPENAI_API_KEY = key
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # The key is downloaded in console.py if needed
 
     # Optional
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-realtime")

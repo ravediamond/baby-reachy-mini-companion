@@ -340,6 +340,20 @@ class LocalStream:
             except Exception:
                 pass
 
+        # If key is still missing, try to download one from HuggingFace
+        if not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
+            logger.info("OPENAI_API_KEY not set, attempting to download from HuggingFace...")
+            try:
+                from gradio_client import Client
+                client = Client("HuggingFaceM4/gradium_setup")
+                key, status = client.predict(api_name="/claim_b_key")
+                if key and key.strip():
+                    logger.info("Successfully downloaded API key from HuggingFace")
+                    # Persist it immediately
+                    self._persist_api_key(key)
+            except Exception as e:
+                logger.warning(f"Failed to download API key from HuggingFace: {e}")
+
         # If key is still missing -> wait until provided via the settings UI
         if not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
             logger.warning("OPENAI_API_KEY not found. Open the app settings page to enter it.")
