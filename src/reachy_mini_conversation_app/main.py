@@ -45,9 +45,13 @@ def run(
     # Putting these dependencies here makes the dashboard faster to load when the conversation app is installed
     from reachy_mini_conversation_app.moves import MovementManager
     from reachy_mini_conversation_app.console import LocalStream
-    from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
     from reachy_mini_conversation_app.tools.core_tools import ToolDependencies
     from reachy_mini_conversation_app.audio.head_wobbler import HeadWobbler
+
+    if args.local_llm:
+        from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+    else:
+        from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
 
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation App")
@@ -126,7 +130,11 @@ def run(
     )
     logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
-    handler = OpenaiRealtimeHandler(deps, gradio_mode=args.gradio, instance_path=instance_path)
+    if args.local_llm:
+        logger.info(f"Using Local LLM Handler at {args.local_llm}")
+        handler = LocalSessionHandler(deps, llm_url=args.local_llm)
+    else:
+        handler = OpenaiRealtimeHandler(deps, gradio_mode=args.gradio, instance_path=instance_path)
 
     stream_manager: gr.Blocks | LocalStream | None = None
 
