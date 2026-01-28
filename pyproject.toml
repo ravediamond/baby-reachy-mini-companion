@@ -48,6 +48,14 @@ yolo_vision = [
 mediapipe_vision = [
   "mediapipe==0.10.14",
 ]
+local_mac = [
+  "torch>=2.1.0,<2.3.0",
+  "silero-vad",
+  "faster-whisper",
+  "kokoro-onnx",
+  "soundfile",
+  "scipy",
+]
 all_vision = [
   "torch>=2.1",
   "transformers==5.0.0rc2",

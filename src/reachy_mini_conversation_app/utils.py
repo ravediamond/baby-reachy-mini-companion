@@ -31,6 +31,12 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
         default=None,
         help="[Optional] Robot name/prefix for Zenoh topics (must match daemon's --robot-name). Only needed for development with multiple robots.",
     )
+    parser.add_argument(
+        "--local-llm",
+        type=str,
+        default=None,
+        help="URL of the local LLM server (e.g., http://localhost:11434/v1). If set, uses local processing (VAD/STT/LLM/TTS) instead of OpenAI Realtime.",
+    )
     return parser.parse_known_args()
 
 
