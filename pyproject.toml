@@ -49,7 +49,7 @@ mediapipe_vision = [
   "mediapipe==0.10.14",
 ]
 local_mac = [
-  "torch>=2.1.0,<2.3.0",
+  "torch>=2.4.0",
   "silero-vad",
   "faster-whisper",
   "kokoro-onnx",

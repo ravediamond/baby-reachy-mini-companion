@@ -33,7 +33,7 @@ class VisionConfig:
 
 
 class VisionProcessor:
-    """Handles SmolVLM2 model loading and inference."""
+    """Handles vision model loading and inference (SmolVLM2 or Ollama)."""
 
     def __init__(self, vision_config: VisionConfig | None = None):
         """Initialize the vision processor."""
@@ -43,8 +43,12 @@ class VisionProcessor:
         self.processor = None
         self.model = None
         self._initialized = False
+        self.is_ollama = self.model_path.startswith("ollama:")
 
     def _determine_device(self) -> str:
+        if self.model_path.startswith("ollama:"):
+            return "remote"
+            
         pref = self.vision_config.device_preference
         if pref == "cpu":
             return "cpu"
@@ -59,6 +63,11 @@ class VisionProcessor:
 
     def initialize(self) -> bool:
         """Load model and processor onto the selected device."""
+        if self.is_ollama:
+            logger.info(f"Using Ollama vision model: {self.model_path}")
+            self._initialized = True
+            return True
+
         try:
             logger.info(f"Loading SmolVLM2 model on {self.device} (HF_HOME={config.HF_HOME})")
             self.processor = AutoProcessor.from_pretrained(self.model_path)  # type: ignore
@@ -89,14 +98,70 @@ class VisionProcessor:
             logger.error(f"Failed to initialize vision model: {e}")
             return False
 
+    def _process_ollama(self, cv2_image: NDArray[np.uint8], prompt: str) -> str:
+        """Process image using Ollama API."""
+        try:
+            from openai import OpenAI
+            
+            # Assuming standard Ollama port. Ideally this should be configurable.
+            client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+            model_name = self.model_path.split("ollama:", 1)[1]
+
+            logger.debug(f"Encoding image for Ollama (model={model_name})...")
+            # Encode image
+            success, jpeg_buffer = cv2.imencode(
+                ".jpg",
+                cv2_image,
+                [cv2.IMWRITE_JPEG_QUALITY, self.vision_config.jpeg_quality],
+            )
+            if not success:
+                logger.error("Failed to encode image for Ollama")
+                return "Failed to encode image"
+
+            image_base64 = base64.b64encode(jpeg_buffer.tobytes()).decode("utf-8")
+
+            logger.debug(f"Sending vision request to Ollama...")
+            start_time = time.time()
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                            },
+                        ],
+                    }
+                ],
+                max_tokens=self.vision_config.max_new_tokens,
+            )
+            duration = time.time() - start_time
+            logger.debug(f"Ollama vision request took {duration:.2f}s")
+            
+            content = response.choices[0].message.content
+            return content if content else "No response from Ollama"
+
+        except Exception as e:
+            logger.error(f"Ollama vision error: {e}")
+            return f"Ollama Error: {e}"
+
     def process_image(
         self,
         cv2_image: NDArray[np.uint8],
         prompt: str = "Briefly describe what you see in one sentence.",
     ) -> str:
         """Process CV2 image and return description with retry logic."""
-        if not self._initialized or self.processor is None or self.model is None:
+        if not self._initialized:
             return "Vision model not initialized"
+
+        if self.is_ollama:
+            return self._process_ollama(cv2_image, prompt)
+
+        if self.processor is None or self.model is None:
+             return "Vision model not initialized"
 
         for attempt in range(self.vision_config.max_retries):
             try:
@@ -215,6 +280,7 @@ class VisionManager:
         self.processor = VisionProcessor(self.vision_config)
 
         self._last_processed_time = 0.0
+        self.latest_description: str | None = None
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -239,24 +305,32 @@ class VisionManager:
 
     def _working_loop(self) -> None:
         """Vision processing loop (runs in separate thread)."""
+        logger.debug(f"Vision loop started with interval {self.vision_interval}s")
         while not self._stop_event.is_set():
             try:
                 current_time = time.time()
 
                 if current_time - self._last_processed_time >= self.vision_interval:
+                    logger.debug("Attempting vision processing...")
                     frame = self.camera.get_latest_frame()
                     if frame is not None:
+                        logger.debug(f"Frame captured (shape={frame.shape}), processing...")
                         description = self.processor.process_image(
                             frame,
                             "Briefly describe what you see in one sentence.",
                         )
 
+                        # Always update timestamp to maintain interval
+                        self._last_processed_time = current_time
+
                         # Only update if we got a valid response
-                        if description and not description.startswith(("Vision", "Failed", "Error")):
-                            self._last_processed_time = current_time
-                            logger.debug(f"Vision update: {description}")
+                        if description and not description.startswith(("Vision", "Failed", "Error", "Ollama")):
+                            self.latest_description = description
+                            logger.info(f"Vision update: {description}")
                         else:
                             logger.warning(f"Invalid vision response: {description}")
+                    else:
+                        logger.debug("No frame available from camera yet")
 
                 time.sleep(1.0)  # Check every second
 
@@ -295,14 +369,17 @@ def initialize_vision_manager(camera_worker: Any) -> VisionManager | None:
         os.environ["HF_HOME"] = cache_dir
         logger.info("HF_HOME set to %s", cache_dir)
 
-        # Download model to cache
-        logger.info(f"Downloading vision model {model_id} to cache...")
-        snapshot_download(
-            repo_id=model_id,
-            repo_type="model",
-            cache_dir=cache_dir,
-        )
-        logger.info(f"Model {model_id} downloaded to {cache_dir}")
+        if not model_id.startswith("ollama:"):
+            # Download model to cache
+            logger.info(f"Downloading vision model {model_id} to cache...")
+            snapshot_download(
+                repo_id=model_id,
+                repo_type="model",
+                cache_dir=cache_dir,
+            )
+            logger.info(f"Model {model_id} downloaded to {cache_dir}")
+        else:
+            logger.info(f"Using remote Ollama model: {model_id}")
 
         # Configure vision processing
         vision_config = VisionConfig(
