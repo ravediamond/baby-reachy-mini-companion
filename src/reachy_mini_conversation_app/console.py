@@ -338,7 +338,11 @@ class LocalStream:
                 pass
 
         # If key is still missing, try to download one from HuggingFace
-        if not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
+        # ONLY if we are using OpenAI Realtime. Local handler doesn't need it.
+        from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+        is_local = isinstance(self.handler, LocalSessionHandler)
+
+        if not is_local and not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
             logger.info("OPENAI_API_KEY not set, attempting to download from HuggingFace...")
             try:
                 from gradio_client import Client
@@ -354,17 +358,6 @@ class LocalStream:
         # Always expose settings UI if a settings app is available
         # (do this AFTER loading/downloading the key so status endpoint sees the right value)
         self._init_settings_ui_if_needed()
-
-        # If key is still missing -> wait until provided via the settings UI
-        if not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
-            logger.warning("OPENAI_API_KEY not found. Open the app settings page to enter it.")
-            # Poll until the key becomes available (set via the settings UI)
-            try:
-                while not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
-                    time.sleep(0.2)
-            except KeyboardInterrupt:
-                logger.info("Interrupted while waiting for API key.")
-                return
 
         # Start media after key is set/available
         self._robot.media.start_recording()
