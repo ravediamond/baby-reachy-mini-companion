@@ -37,6 +37,12 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
         default=None,
         help="URL of the local LLM server (e.g., http://localhost:11434/v1). If set, uses local processing (VAD/STT/LLM/TTS) instead of OpenAI Realtime.",
     )
+    parser.add_argument(
+        "--omni-agent",
+        default=False,
+        action="store_true",
+        help="Use the Omni-Channel Agent (Audio + Signal) with smolagents.",
+    )
     return parser.parse_known_args()
 
 
