@@ -53,6 +53,29 @@ You can set up the project quickly using [uv](https://docs.astral.sh/uv/):
 uv sync --extra local_mac
 ```
 
+### macOS Camera Fix (Dark Image)
+If the camera image appears very dark on macOS, you may need to disable auto-exposure priority. You can use the provided script:
+
+```bash
+./scripts/fix_mac_camera.sh
+```
+
+Alternatively, you can do it manually:
+
+1. **Install `uvc-util`**:
+   ```bash
+   git clone https://github.com/jtfrey/uvc-util.git
+   cd uvc-util
+   make
+   ```
+
+2. **Fix Exposure**:
+   Run the following command:
+   ```bash
+   ./uvc-util -I 0x01140000 -s auto-exposure-priority=1
+   ```
+   *Note: If the command fails, use `./uvc-util -l` to list your devices and find the correct interface ID.*
+
 ## Configuration
 
 Copy `.env.example` to `.env` or set environment variables directly.
