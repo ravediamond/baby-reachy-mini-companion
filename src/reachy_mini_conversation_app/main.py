@@ -130,7 +130,12 @@ def run(
     )
     logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
-    if args.local_llm:
+    if args.omni_agent:
+        from reachy_mini_conversation_app.local.omni_handler import OmniSessionHandler
+        logger.info("Using Omni-Channel Agent (smolagents)")
+        handler = OmniSessionHandler(deps)
+    elif args.local_llm:
+        from reachy_mini_conversation_app.local.handler import LocalSessionHandler
         logger.info(f"Using Local LLM Handler at {args.local_llm}")
         handler = LocalSessionHandler(deps, llm_url=args.local_llm)
     else:

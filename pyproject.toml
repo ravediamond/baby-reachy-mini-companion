@@ -22,6 +22,7 @@ dependencies = [
 
     #OpenAI
     "openai>=2.1",
+    "smolagents",
 
     #Reachy mini
     "reachy_mini_dances_library",
