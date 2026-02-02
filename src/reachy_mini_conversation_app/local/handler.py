@@ -60,8 +60,8 @@ class LocalSessionHandler(AsyncStreamHandler):
             logger.info("Loading VAD (Silero)...")
             self.vad = await asyncio.to_thread(SileroVAD)
             
-            logger.info("Loading STT (Faster-Whisper base.en)...")
-            self.stt = await asyncio.to_thread(LocalSTT, model_size="base.en")
+            logger.info(f"Loading STT (Faster-Whisper {config.LOCAL_STT_MODEL})...")
+            self.stt = await asyncio.to_thread(LocalSTT, model_size=config.LOCAL_STT_MODEL)
             
             logger.info("Loading LLM Client...")
             self.llm = LocalLLM(base_url=self.llm_url, model=self.llm_model)
