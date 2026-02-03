@@ -87,6 +87,37 @@ Copy `.env.example` to `.env` or set environment variables directly.
 | `LOCAL_VISION_MODEL` | `HuggingFaceTB/SmolVLM2...` | Path or ID for the vision model (or `ollama:llama3.2-vision`). |
 | `REACHY_MINI_CUSTOM_PROFILE` | `default` | Selects the personality profile (e.g., `baby_buddy`). |
 
+## Omni-Channel Agent (Audio + Signal)
+
+This mode transforms Reachy into a "Dual-Interface" assistant that can interact with you both locally (via voice) and remotely (via Signal text messages). It uses a unified event loop and `smolagents` to intelligently decide whether to speak out loud or send a text message based on the input source and context.
+
+**Features:**
+- **Room Awareness:** Speaks to you when you talk to it in the room.
+- **Remote Access:** Responds to Signal messages when you are away.
+- **Smart Routing:** Can text you a shopping list even if you asked for it by voice, or speak to the room if you text it to "tell the baby something".
+
+### Setup
+1.  **Install Signal-CLI:**
+    ```bash
+    brew install signal-cli  # macOS
+    # Register your account (see signal-cli docs)
+    signal-cli -u +1234567890 register
+    signal-cli -u +1234567890 verify <code-from-sms>
+    ```
+2.  **Install Python Dependencies:**
+    ```bash
+    uv pip install smolagents
+    ```
+
+### Usage
+Run with the `--omni-agent` flag:
+
+```bash
+uv run reachy-mini-conversation-app --omni-agent --local-llm http://localhost:11434/v1
+```
+
+*Note: This mode requires a local LLM server (Ollama) to be running.*
+
 ## Running the App
 
 Activate your virtual environment and launch the app. Ensure your Reachy Mini (or simulator) is on.
@@ -104,6 +135,7 @@ REACHY_MINI_CUSTOM_PROFILE=baby_buddy LOCAL_STT_MODEL="medium.en" uv run reachy-
 | Option | Description |
 |--------|-------------|
 | `--local-llm <URL>` | URL to your local LLM server (e.g., `http://localhost:11434/v1`). Required for local mode. |
+| `--omni-agent` | Enable the Omni-Channel Agent (Audio + Signal). Requires `smolagents`. |
 | `--head-tracker {yolo,mediapipe}` | Enable face tracking (requires camera). |
 | `--no-camera` | Disable camera usage (audio only). |
 | `--debug` | Enable verbose logging. |
