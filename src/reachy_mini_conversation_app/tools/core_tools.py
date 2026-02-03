@@ -72,12 +72,14 @@ class Tool(abc.ABC):
     parameters_schema: Dict[str, Any]
 
     def spec(self) -> Dict[str, Any]:
-        """Return the function spec for LLM consumption."""
+        """Return the function spec for LLM consumption (OpenAI format)."""
         return {
             "type": "function",
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters_schema,
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters_schema,
+            },
         }
 
     @abc.abstractmethod
@@ -195,7 +197,7 @@ _initialize_tools()
 
 def get_tool_specs(exclusion_list: list[str] = []) -> list[Dict[str, Any]]:
     """Get tool specs, optionally excluding some tools."""
-    return [spec for spec in ALL_TOOL_SPECS if spec.get("name") not in exclusion_list]
+    return [spec for spec in ALL_TOOL_SPECS if spec["function"]["name"] not in exclusion_list]
 
 
 # Dispatcher
