@@ -14,43 +14,50 @@ from reachy_mini_conversation_app.local.vad import SileroVAD
 from reachy_mini_conversation_app.local.stt import LocalSTT
 from reachy_mini_conversation_app.local.llm import LocalLLM
 from reachy_mini_conversation_app.local.tts import LocalTTS
+from reachy_mini_conversation_app.input.signal_interface import SignalInterface
 
 logger = logging.getLogger(__name__)
 
 class LocalSessionHandler(AsyncStreamHandler):
-    """Local processing handler for Reachy Mini (VAD -> STT -> LLM -> TTS)."""
+    """Local processing handler for Reachy Mini (VAD -> STT -> LLM -> TTS + Signal)."""
 
-    def __init__(self, deps: ToolDependencies, llm_url: str = "http://localhost:11434/v1", llm_model: str = None):
+    def __init__(self, deps: ToolDependencies, llm_url: str = None, llm_model: str = None, enable_signal: bool = True):
         super().__init__(
             expected_layout="mono",
             output_sample_rate=24000,
-            input_sample_rate=16000, 
+            input_sample_rate=16000,
         )
         self.deps = deps
-        self.llm_url = llm_url
-        self.llm_model = llm_model or config.LOCAL_LLM_MODEL or "qwen2.5:3b" # Fallback if env is missing
-        
+        self.llm_url = llm_url or config.LOCAL_LLM_URL
+        self.llm_model = llm_model or config.LOCAL_LLM_MODEL or "qwen2.5:3b"
+        self.enable_signal = enable_signal
+
         self.output_queue = asyncio.Queue()
-        self.audio_buffer = [] # Accumulates 16k chunks for STT
-        self.vad_buffer = np.array([], dtype=np.float32) # Accumulates for VAD windowing
-        
+        self.audio_buffer = []
+        self.vad_buffer = np.array([], dtype=np.float32)
+
         self.is_speaking = False
         self.silence_chunks = 0
         self.speech_chunks = 0
-        
+
         # Initialize models lazily or in start_up
         self.vad = None
         self.stt = None
         self.llm = None
         self.tts = None
         self.pipeline_task = None
-        
+
+        # Signal integration
+        self.signal = None
+        self.signal_polling_task = None
+        self.user_phone = config.SIGNAL_USER_PHONE
+
         # Tool specs cache
         self.tool_specs = get_tool_specs()
 
     def copy(self) -> "LocalSessionHandler":
         """Create a copy of the handler."""
-        return LocalSessionHandler(self.deps, self.llm_url, self.llm_model)
+        return LocalSessionHandler(self.deps, self.llm_url, self.llm_model, self.enable_signal)
 
     async def start_up(self):
         """Initialize local models."""
@@ -72,7 +79,27 @@ class LocalSessionHandler(AsyncStreamHandler):
             # Load system prompt
             logger.info("Setting system prompt...")
             self.llm.set_system_prompt(get_session_instructions())
-            
+
+            # Pre-warm LLM with tools to avoid cold start delay
+            logger.info("Pre-warming LLM with tools...")
+            try:
+                async for _ in self.llm.chat_stream(user_text="hi", tools=self.tool_specs):
+                    pass
+                # Clear history after warmup
+                self.llm.history = []
+                logger.info("LLM pre-warm complete.")
+            except Exception as e:
+                logger.warning(f"LLM pre-warm failed (non-critical): {e}")
+
+            # Initialize Signal if enabled
+            if self.enable_signal:
+                self.signal = SignalInterface()
+                if self.signal.available:
+                    self.signal_polling_task = asyncio.create_task(self._poll_signal())
+                    logger.info("Signal polling started.")
+                else:
+                    logger.info("Signal not available, skipping.")
+
             logger.info("Local Pipeline Ready.")
         except Exception as e:
             logger.error(f"Failed to initialize local pipeline: {e}")
@@ -297,13 +324,51 @@ class LocalSessionHandler(AsyncStreamHandler):
              b64_data = base64.b64encode(audio_int16.tobytes()).decode('utf-8')
              self.deps.head_wobbler.feed(b64_data)
 
+    async def _poll_signal(self):
+        """Background task to poll Signal messages."""
+        logger.info("Starting Signal Poller...")
+        while True:
+            try:
+                messages = await self.signal.poll_messages()
+                for msg in messages:
+                    sender = msg["sender"]
+                    text = msg["content"]
+                    logger.info(f"Signal received from {sender}: {text}")
+
+                    # Process through LLM and respond via Signal
+                    await self._handle_signal_message(sender, text)
+
+                await asyncio.sleep(2.0)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Signal polling error: {e}")
+                await asyncio.sleep(5.0)
+
+    async def _handle_signal_message(self, sender: str, text: str):
+        """Process a Signal message and respond."""
+        await self.output_queue.put(AdditionalOutputs({"role": "user", "content": f"[Signal] {text}"}))
+
+        # Run through LLM (no tools for Signal, just text response)
+        full_response = ""
+        async for event in self.llm.chat_stream(user_text=text, tools=None):
+            if event["type"] == "text":
+                full_response += event["content"]
+            elif event["type"] == "error":
+                logger.error(f"LLM Error: {event['content']}")
+
+        if full_response.strip():
+            logger.info(f"Signal Response: {full_response}")
+            await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[Signal] {full_response}"}))
+
+            # Send response back via Signal
+            target = sender if sender else self.user_phone
+            if target and self.signal:
+                await self.signal.send_message(full_response, target)
+
     async def emit(self):
         return await wait_for_item(self.output_queue)
 
     async def shutdown(self):
-        pass
-    async def emit(self):
-        return await wait_for_item(self.output_queue)
-
-    async def shutdown(self):
-        pass
+        if self.signal_polling_task:
+            self.signal_polling_task.cancel()

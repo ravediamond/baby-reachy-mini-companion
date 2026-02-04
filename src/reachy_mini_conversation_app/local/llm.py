@@ -4,13 +4,17 @@ from typing import AsyncGenerator, Dict, Any, List, Optional
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionChunk
 
+from reachy_mini_conversation_app.config import config
+
 logger = logging.getLogger(__name__)
 
 class LocalLLM:
-    """Wrapper for Local LLM (Ollama) via OpenAI compatible API."""
+    """Wrapper for LLM via OpenAI compatible API (Ollama, vLLM, etc.)."""
 
-    def __init__(self, base_url: str = "http://localhost:11434/v1", model: str = "qwen2.5:3b", system_prompt: str = ""):
-        self.client = AsyncOpenAI(base_url=base_url, api_key="ollama")
+    def __init__(self, base_url: str = None, model: str = None, api_key: str = None, system_prompt: str = ""):
+        base_url = base_url or config.LOCAL_LLM_URL
+        api_key = api_key or config.LOCAL_LLM_API_KEY
+        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         self.model = model
         self.system_prompt = system_prompt
         self.history: List[Dict[str, Any]] = []

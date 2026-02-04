@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 dotenv_path = find_dotenv(usecwd=True)
 
 if dotenv_path:
-    # Load .env and override environment variables
-    load_dotenv(dotenv_path=dotenv_path, override=True)
+    # Load .env but don't override existing environment variables (CLI takes precedence)
+    load_dotenv(dotenv_path=dotenv_path, override=False)
     logger.info(f"Configuration loaded from {dotenv_path}")
 else:
     logger.warning("No .env file found, using environment variables")
@@ -28,6 +28,8 @@ class Config:
     HF_HOME = os.getenv("HF_HOME", "./cache")
     LOCAL_VISION_MODEL = os.getenv("LOCAL_VISION_MODEL", "HuggingFaceTB/SmolVLM2-2.2B-Instruct")
     LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL")
+    LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")  # Ollama default
+    LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "ollama")  # Ollama doesn't need a real key
     LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "small.en")
     HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, falls back to hf auth login if not set
 
@@ -35,6 +37,9 @@ class Config:
 
     REACHY_MINI_CUSTOM_PROFILE = os.getenv("REACHY_MINI_CUSTOM_PROFILE")
     logger.debug(f"Custom Profile: {REACHY_MINI_CUSTOM_PROFILE}")
+
+    # Omni Agent Settings
+    SIGNAL_USER_PHONE = os.getenv("SIGNAL_USER_PHONE")
 
 
 config = Config()
