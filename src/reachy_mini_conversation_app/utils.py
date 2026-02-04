@@ -65,17 +65,20 @@ def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> 
         # Initialize camera worker
         camera_worker = CameraWorker(current_robot, head_tracker)
 
-        # Initialize SmolVLM vision manager only if requested
-        if args.smolvlm:
-            try:
-                from reachy_mini_conversation_app.vision.processors import initialize_vision_manager
-
-                vision_manager = initialize_vision_manager(camera_worker)
-                logging.getLogger(__name__).info("Using SmolVLM for periodic vision processing.")
-            except ImportError as e:
-                raise ImportError(
-                    "To use --smolvlm, please install the extra dependencies: pip install '.[local_vision]'",
-                ) from e
+        # Initialize Vision Manager (On-Demand Mode by default)
+        # This allows tools like 'camera' to use the configured Local VLM without
+        # running a continuous background process.
+        try:
+            from reachy_mini_conversation_app.vision.processors import initialize_vision_manager
+            
+            # continuous_mode=False ensures we don't run the heavy background loop
+            vision_manager = initialize_vision_manager(camera_worker, continuous_mode=False)
+            if vision_manager:
+                logging.getLogger(__name__).info("Vision Manager initialized (On-Demand Mode).")
+        except ImportError:
+            logging.getLogger(__name__).warning("Vision dependencies missing, camera tool may not work for description.")
+        except Exception as e:
+             logging.getLogger(__name__).error(f"Failed to init vision: {e}")
 
     return camera_worker, head_tracker, vision_manager
 

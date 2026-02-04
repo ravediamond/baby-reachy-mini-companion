@@ -26,14 +26,13 @@ class Config:
     # Optional
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-realtime")
     HF_HOME = os.getenv("HF_HOME", "./cache")
-    LOCAL_VISION_MODEL = os.getenv("LOCAL_VISION_MODEL", "HuggingFaceTB/SmolVLM2-2.2B-Instruct")
     LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL")
     LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")  # Ollama default
     LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "ollama")  # Ollama doesn't need a real key
     LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "medium.en")
     HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, falls back to hf auth login if not set
 
-    logger.debug(f"Model: {MODEL_NAME}, HF_HOME: {HF_HOME}, Vision Model: {LOCAL_VISION_MODEL}")
+    logger.debug(f"Model: {MODEL_NAME}, HF_HOME: {HF_HOME}, LLM Model: {LOCAL_LLM_MODEL}")
 
     REACHY_MINI_CUSTOM_PROFILE = os.getenv("REACHY_MINI_CUSTOM_PROFILE")
     logger.debug(f"Custom Profile: {REACHY_MINI_CUSTOM_PROFILE}")
