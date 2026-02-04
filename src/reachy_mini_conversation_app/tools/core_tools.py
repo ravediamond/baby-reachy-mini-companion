@@ -55,6 +55,7 @@ class ToolDependencies:
     vision_manager: Any | None = None
     head_wobbler: Any | None = None  # HeadWobbler for audio-reactive motion
     motion_duration_s: float = 1.0
+    speak_func: Any | None = None  # Async function(text: str) -> None
 
 
 # Tool base class

@@ -18,10 +18,18 @@ class LocalLLM:
         self.model = model
         self.system_prompt = system_prompt
         self.history: List[Dict[str, Any]] = []
+        self.max_history = 10 # Keep last 10 messages
 
     def set_system_prompt(self, prompt: str):
         self.system_prompt = prompt
         
+    def _trim_history(self):
+        """Keep history within limits."""
+        if len(self.history) > self.max_history:
+            # Try to keep message pairs (user/assistant) if possible
+            # but simplest is just sliding window
+            self.history = self.history[-self.max_history:]
+
     async def chat_stream(
         self, 
         user_text: Optional[str] = None, 
@@ -30,6 +38,7 @@ class LocalLLM:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Send message and yield response events (text or tool calls)."""
         
+        self._trim_history()
         messages = [{"role": "system", "content": self.system_prompt}]
         messages.extend(self.history)
         
@@ -112,4 +121,7 @@ class LocalLLM:
 
         except Exception as e:
             logger.error(f"LLM Chat Error: {e}")
+            if "context length" in str(e).lower() or "too many tokens" in str(e).lower():
+                logger.warning("Context length exceeded. Pruning half of the history and retrying is not implemented here, but history will be smaller next time.")
+                self.history = self.history[len(self.history)//2:] # Prune half
             yield {"type": "error", "content": str(e)}

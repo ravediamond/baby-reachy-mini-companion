@@ -3,6 +3,7 @@ import logging
 import re
 import json
 import numpy as np
+from collections import deque
 from typing import Tuple, Optional, Literal, List, Dict, Any
 from scipy.signal import resample
 from fastrtc import AdditionalOutputs, AsyncStreamHandler, wait_for_item, audio_to_int16
@@ -28,12 +29,16 @@ class LocalSessionHandler(AsyncStreamHandler):
             input_sample_rate=16000,
         )
         self.deps = deps
+        # Inject speech callback into dependencies so tools like 'speak' can use it
+        self.deps.speak_func = self._process_sentence
+        
         self.llm_url = llm_url or config.LOCAL_LLM_URL
         self.llm_model = llm_model or config.LOCAL_LLM_MODEL or "qwen2.5:3b"
         self.enable_signal = enable_signal
 
         self.output_queue = asyncio.Queue()
         self.audio_buffer = []
+        self.lookback_buffer = deque(maxlen=20)  # 20 * 32ms = 640ms lookback
         self.vad_buffer = np.array([], dtype=np.float32)
 
         self.is_speaking = False
@@ -147,6 +152,11 @@ class LocalSessionHandler(AsyncStreamHandler):
                     self.is_speaking = True
                     self.speech_chunks = 0
                     logger.info("Speech detected!")
+                    
+                    # Prepend lookback buffer to start of speech
+                    self.audio_buffer = list(self.lookback_buffer)
+                    self.lookback_buffer.clear()
+
                     if self.deps.head_wobbler:
                         self.deps.movement_manager.set_listening(True)
                 
@@ -160,14 +170,14 @@ class LocalSessionHandler(AsyncStreamHandler):
                     self.silence_chunks += 1
                     self.audio_buffer.append(chunk)
                     
-                    # Silence threshold: 0.8s ~ 25 chunks (25 * 32ms = 800ms)
-                    if self.silence_chunks > 25:
+                    # Silence threshold: 1.5s ~ 47 chunks (47 * 32ms = 1504ms)
+                    if self.silence_chunks > 47:
                         self.is_speaking = False
                         logger.info(f"Speech finished ({self.speech_chunks} chunks)")
                         self.deps.movement_manager.set_listening(False)
                         
                         # Trigger pipeline if we had enough speech
-                        if self.speech_chunks > 10: # Avoid noise blips
+                        if self.speech_chunks > 5: # Lowered from 10 to catch short commands
                             full_audio = np.concatenate(self.audio_buffer)
                             logger.info("Triggering AI pipeline...")
                             asyncio.create_task(self._run_pipeline(full_audio))
@@ -177,8 +187,8 @@ class LocalSessionHandler(AsyncStreamHandler):
                         self.audio_buffer = []
                         self.speech_chunks = 0
                 else:
-                    # Not speaking, just silence. 
-                    pass
+                    # Not speaking, keep filling lookback buffer
+                    self.lookback_buffer.append(chunk)
 
     async def _run_pipeline(self, audio: np.ndarray):
         """Run STT -> LLM -> TTS pipeline."""
