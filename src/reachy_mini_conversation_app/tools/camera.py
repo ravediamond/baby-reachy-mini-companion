@@ -59,10 +59,4 @@ class Camera(Tool):
                 else {"error": "vision returned non-string"}
             )
 
-        # Encode image directly to JPEG bytes without writing to file
-        success, buffer = cv2.imencode('.jpg', frame)
-        if not success:
-            raise RuntimeError("Failed to encode frame as JPEG")
-
-        b64_encoded = base64.b64encode(buffer.tobytes()).decode("utf-8")
-        return {"b64_im": b64_encoded}
+        return {"error": "Vision processor not available. Enable a local vision model or Ollama vision to use the camera tool."}

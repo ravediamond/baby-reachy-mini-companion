@@ -1,3 +1,4 @@
 camera
 do_nothing
 send_signal
+speak
