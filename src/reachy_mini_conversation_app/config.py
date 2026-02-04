@@ -40,6 +40,9 @@ class Config:
     # Omni Agent Settings
     SIGNAL_USER_PHONE = os.getenv("SIGNAL_USER_PHONE")
 
+    # Audio Settings
+    MIC_GAIN = float(os.getenv("MIC_GAIN", "1.0"))
+
 
 config = Config()
 
