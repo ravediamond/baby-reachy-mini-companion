@@ -18,10 +18,10 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
     )
     parser.add_argument("--no-camera", default=False, action="store_true", help="Disable camera usage")
     parser.add_argument(
-        "--local-vision",
+        "--smolvlm",
         default=False,
         action="store_true",
-        help="Use local vision model instead of gpt-realtime vision",
+        help="Use SmolVLM local vision model for periodic scene description.",
     )
     parser.add_argument("--gradio", default=False, action="store_true", help="Open gradio interface")
     parser.add_argument("--debug", default=False, action="store_true", help="Enable debug logging")
@@ -32,16 +32,10 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
         help="[Optional] Robot name/prefix for Zenoh topics (must match daemon's --robot-name). Only needed for development with multiple robots.",
     )
     parser.add_argument(
-        "--local-llm",
-        type=str,
-        default=None,
-        help="URL of the local LLM server (e.g., http://localhost:11434/v1). If set, uses local processing (VAD/STT/LLM/TTS) instead of OpenAI Realtime.",
-    )
-    parser.add_argument(
-        "--omni-agent",
+        "--openai-realtime",
         default=False,
         action="store_true",
-        help="Use the Omni-Channel Agent (Audio + Signal) with smolagents.",
+        help="Use OpenAI Realtime API instead of local processing.",
     )
     return parser.parse_known_args()
 
@@ -49,8 +43,8 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
 def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> Tuple[CameraWorker | None, Any, Any]:
     """Initialize camera, head tracker, camera worker, and vision manager.
 
-    By default, vision is handled by gpt-realtime model when camera tool is used.
-    If --local-vision flag is used, a local vision model will process images periodically.
+    By default, vision is handled by the LLM via camera tool.
+    If --smolvlm flag is used, SmolVLM will process images periodically.
     """
     camera_worker = None
     head_tracker = None
@@ -71,20 +65,17 @@ def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> 
         # Initialize camera worker
         camera_worker = CameraWorker(current_robot, head_tracker)
 
-        # Initialize vision manager only if local vision is requested
-        if args.local_vision:
+        # Initialize SmolVLM vision manager only if requested
+        if args.smolvlm:
             try:
                 from reachy_mini_conversation_app.vision.processors import initialize_vision_manager
 
                 vision_manager = initialize_vision_manager(camera_worker)
+                logging.getLogger(__name__).info("Using SmolVLM for periodic vision processing.")
             except ImportError as e:
                 raise ImportError(
-                    "To use --local-vision, please install the extra dependencies: pip install '.[local_vision]'",
+                    "To use --smolvlm, please install the extra dependencies: pip install '.[local_vision]'",
                 ) from e
-        else:
-            logging.getLogger(__name__).info(
-                "Using gpt-realtime for vision (default). Use --local-vision for local processing.",
-            )
 
     return camera_worker, head_tracker, vision_manager
 
