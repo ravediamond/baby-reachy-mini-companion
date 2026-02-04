@@ -120,6 +120,10 @@ class LocalSessionHandler(AsyncStreamHandler):
         else:
             audio_float = audio.astype(np.float32) / 32768.0
         
+        # Apply microphone gain
+        if config.MIC_GAIN != 1.0:
+            audio_float = audio_float * config.MIC_GAIN
+
         # 2. Downmix to mono if needed
         if audio_float.ndim > 1:
             audio_float = np.mean(audio_float, axis=1)
