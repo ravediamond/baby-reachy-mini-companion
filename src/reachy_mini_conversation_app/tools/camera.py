@@ -15,25 +15,22 @@ class Camera(Tool):
     """Take a picture with the camera and ask a question about it."""
 
     name = "camera"
-    description = "Take a picture with the camera and ask a question about it."
+    description = "Take a picture of what the robot sees and describe it or answer a question about it. Use this when the user asks 'what do you see?', 'describe the scene', or asks a specific visual question."
     parameters_schema = {
         "type": "object",
         "properties": {
             "question": {
                 "type": "string",
-                "description": "The question to ask about the picture",
+                "description": "Optional question to ask about the picture. Defaults to 'Describe what you see in detail.' if omitted.",
             },
         },
-        "required": ["question"],
+        "required": [],
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Take a picture with the camera and ask a question about it."""
-        image_query = (kwargs.get("question") or "").strip()
-        if not image_query:
-            logger.warning("camera: empty question")
-            return {"error": "question must be a non-empty string"}
-
+        image_query = (kwargs.get("question") or "Describe what you see in detail.").strip()
+        
         logger.info("Tool call: camera question=%s", image_query[:120])
 
         # Get frame from camera worker buffer (like main_works.py)
