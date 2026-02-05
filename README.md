@@ -1,23 +1,23 @@
 ---
-title: Reachy Mini Companion
-emoji: 🎤
+title: Baby Reachy-Mini Companion
+emoji: 🤖🍼
 colorFrom: red
 colorTo: blue
 sdk: gradio
 pinned: false
-short_description: A local, conversational companion for Reachy Mini.
+short_description: A fully local Reachy Mini AI Companion for babies and kids.
 tags:
  - reachy_mini
  - reachy_mini_python_app
 ---
 
-# Reachy Mini Conversation App (Local Edition)
+# Baby Reachy-Mini Companion
 
-A fully local, multimodal conversational assistant for the Reachy Mini robot. 
+A fully local Reachy Mini AI Companion for babies and kids. 
 
 This "Dual-Interface" companion can interact with you both **locally via voice** (in the room) and **remotely via Signal** text messages. It features advanced audio perception, including baby cry detection, and uses your local LLM as a vision model.
 
-![Reachy Mini Dance](docs/assets/reachy_mini_dance.gif)
+<img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy Mini Companion" />
 
 ## Key Features
 
