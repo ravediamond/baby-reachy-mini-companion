@@ -168,6 +168,13 @@ class LocalSessionHandler(AsyncStreamHandler):
                         if label in ["Baby cry, infant cry", "Crying, sobbing", "Whimper"] and score > 0.4:
                             logger.info(f"Audio Event Detected: {label} ({score:.2f})")
                             self.last_cry_time = now
+                            
+                            # Update shared status for tools
+                            if self.deps.audio_classifier_status is not None:
+                                self.deps.audio_classifier_status["latest_event"] = label
+                                self.deps.audio_classifier_status["timestamp"] = now
+                                self.deps.audio_classifier_status["score"] = float(score)
+
                             # Inject event into LLM context
                             asyncio.create_task(self._process_system_event(f"I hear a {label.lower()} nearby."))
                             break

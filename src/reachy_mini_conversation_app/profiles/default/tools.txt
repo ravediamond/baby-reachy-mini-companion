@@ -9,3 +9,4 @@ send_signal_photo
 speak
 story_time
 soothe_baby
+check_baby_crying

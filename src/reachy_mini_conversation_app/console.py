@@ -467,6 +467,8 @@ class LocalStream:
 
                 # Reshape if needed
                 if audio_data.ndim == 2:
+                    if audio_data.size == 0:
+                        continue
                     # Scipy channels last convention
                     if audio_data.shape[1] > audio_data.shape[0]:
                         audio_data = audio_data.T
