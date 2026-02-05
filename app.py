@@ -2,27 +2,33 @@ import gradio as gr
 
 def app_description():
     return """
-    # 🤖 Reachy Mini Conversation App
+    # 🤖🍼 Baby Reachy-Mini Companion
     
-    This is a local conversation app for the Reachy Mini robot.
+    **A fully local AI companion for babies and kids, designed for the Reachy Mini robot.**
     
-    ## 🚀 How to Install
+    This app turns your Reachy Mini into a smart, interactive friend that can entertain, soothe, and watch over your little ones.
     
-    1. Open your Reachy Mini Dashboard.
-    2. Go to the **App Store**.
-    3. Find **Reachy Mini Companion** and click **Install**.
+    ## 🚀 How to Install on Your Robot
     
-    ## ✨ Features
+    1. Open your **Reachy Mini Dashboard**.
+    2. Navigate to the **App Store**.
+    3. Search for **"Baby Reachy-Mini Companion"**.
+    4. Click **Install**.
     
-    - **🗣️ Voice Interaction:** Talk to Reachy naturally.
-    - **👀 Vision:** Reachy can see and describe what it sees.
-    - **👶 Baby Monitor:** Detects crying and soothes the baby.
-    - **📱 Signal Integration:** Chat with Reachy remotely.
+    ## ✨ Key Features
     
-    *Note: This Space hosts the application code. The app runs locally on your Reachy Mini robot.*
+    - **👶 Smart Baby Monitor:** Automatically detects crying and uses the robot's motion and voice to soothe the baby.
+    - **🗣️ Friendly Voice Interaction:** Chats naturally with kids using a safe, local language model.
+    - **👀 Vision Capabilities:** Can "see" toys, people, and objects to play interactive games.
+    - **💃 Dance & Move:** Performs expressive dances and head gestures to entertain.
+    - **📱 Parent Alerts:** Sends notifications to your phone (via Signal) if the baby needs attention.
+    
+    ---
+    
+    *Note: This Space hosts the application code for the Reachy Mini ecosystem. To use these features, you must install the app on a physical Reachy Mini robot.*
     """
 
-with gr.Blocks() as demo:
+with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
     gr.Markdown(app_description())
     
 if __name__ == "__main__":
