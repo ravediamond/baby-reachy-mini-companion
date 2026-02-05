@@ -132,6 +132,9 @@ class CameraWorker:
                         eye_center, _ = self.head_tracker.get_head_position(frame)
 
                         if eye_center is not None:
+                            if self.last_face_detected_time is None or (current_time - self.last_face_detected_time > 1.0):
+                                logger.debug(f"Face detected! Center: {eye_center}")
+
                             # Face detected - immediately switch to tracking
                             self.last_face_detected_time = current_time
                             self.interpolation_start_time = None  # Stop any interpolation
