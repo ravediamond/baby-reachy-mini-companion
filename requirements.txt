@@ -184,8 +184,6 @@ gradio-client==1.14.0
     #   reachy-mini-conversation-app
 groovy==0.1.2
     # via gradio
-gst-signalling==1.1.2
-    # via reachy-mini-conversation-app
 h11==0.16.0
     # via
     #   httpcore
@@ -319,7 +317,6 @@ numpy>=1.26.0
     #   ctranslate2
     #   fastrtc
     #   gradio
-    #   gst-signalling
     #   jax
     #   jaxlib
     #   kokoro-onnx
@@ -453,7 +450,6 @@ psutil==7.2.1
     #   reachy-mini
     #   ultralytics
 pycairo==1.29.0
-    # via pygobject
 pycparser==3.0 ; implementation_name != 'PyPy'
     # via cffi
 pydantic==2.12.3
@@ -469,15 +465,10 @@ pydub==0.25.1
 pyee==13.0.0
     # via
     #   aiortc
-    #   gst-signalling
 pygments==2.19.2
     # via
     #   pytest
     #   rich
-pygobject==3.46.0
-    # via
-    #   gst-signalling
-    #   reachy-mini-conversation-app
 pylibsrtp==1.0.0
     # via aiortc
 pyobjc-core==12.1 ; sys_platform == 'darwin'
@@ -758,7 +749,6 @@ wcwidth==0.2.14
 websockets==15.0.1
     # via
     #   gradio-client
-    #   gst-signalling
     #   reachy-mini
     #   uvicorn
 wrapt==2.0.1
