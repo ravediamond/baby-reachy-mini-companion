@@ -92,7 +92,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), cs
                     <div class="feature-desc">"Sees" toys and people to play interactive games like "I Spy" or describe the room.</div>
                 </div>
                 """)
-             with gr.Column():
+            with gr.Column():
                 gr.HTML("""
                 <div class="feature-card">
                     <div class="feature-icon">📱</div>
