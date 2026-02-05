@@ -5,17 +5,17 @@ custom_css = """
 .container { max-width: 900px; margin: auto; padding-top: 2rem; }
 .hero-header { text-align: center; margin-bottom: 2rem; }
 .hero-title { font-size: 3rem; font-weight: 800; background: -webkit-linear-gradient(45deg, #ff5c70, #45c4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
-.hero-subtitle { font-size: 1.2rem; color: #6b7280; font-weight: 400; }
-.install-card { background: #f3f4f6; border-radius: 1rem; padding: 2rem; border: 1px solid #e5e7eb; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-.feature-card { background: white; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid #e5e7eb; height: 100%; transition: all 0.2s; }
-.feature-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+.hero-subtitle { font-size: 1.2rem; color: #9ca3af; font-weight: 400; }
+.install-card { background: #1f2937; border-radius: 1rem; padding: 2rem; border: 1px solid #374151; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
+.feature-card { background: #1f2937; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid #374151; height: 100%; transition: all 0.2s; }
+.feature-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4); border-color: #4b5563; }
 .feature-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-.feature-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #1f2937; }
-.feature-desc { color: #4b5563; line-height: 1.5; }
-.footer-note { text-align: center; color: #9ca3af; font-size: 0.875rem; margin-top: 3rem; }
+.feature-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #f3f4f6; }
+.feature-desc { color: #d1d5db; line-height: 1.5; }
+.footer-note { text-align: center; color: #6b7280; font-size: 0.875rem; margin-top: 3rem; }
 """
 
-with gr.Blocks(theme=gr.themes.Soft(), css=custom_css, title="Baby Reachy-Mini Companion") as demo:
+with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), css=custom_css, title="Baby Reachy-Mini Companion") as demo:
     with gr.Column(elem_classes="container"):
         
         # Hero Section
@@ -29,14 +29,14 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css, title="Baby Reachy-Mini C
             with gr.Column(scale=1):
                 gr.HTML("""
                 <div class="install-card">
-                    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #111827;">🚀 How to Install</h2>
-                    <ol style="padding-left: 1.5rem; color: #374151; line-height: 2;">
+                    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #f9fafb;">🚀 How to Install</h2>
+                    <ol style="padding-left: 1.5rem; color: #e5e7eb; line-height: 2;">
                         <li>Open your <strong>Reachy Mini Dashboard</strong>.</li>
                         <li>Navigate to the <strong>App Store</strong>.</li>
                         <li>Search for <strong>"Baby Reachy-Mini Companion"</strong>.</li>
                         <li>Click <strong>Install</strong> to start the download.</li>
                     </ol>
-                    <div style="margin-top: 1.5rem; padding: 1rem; background: #dbeafe; border-radius: 0.5rem; color: #1e40af; font-size: 0.9rem;">
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: #1e3a8a; border-radius: 0.5rem; color: #bfdbfe; font-size: 0.9rem; border: 1px solid #1d4ed8;">
                         <strong>Note:</strong> This Space hosts the application code. The actual magic happens locally on your robot!
                     </div>
                 </div>
@@ -48,7 +48,7 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css, title="Baby Reachy-Mini C
                 gr.Image("docs/assets/baby-reachy-mini.jpg", show_label=False, container=False, elem_id="hero-image")
 
         # Features Grid
-        gr.HTML('<h2 style="font-size: 1.8rem; font-weight: 700; margin: 2rem 0 1.5rem; text-align: center; color: #1f2937;">✨ Key Features</h2>')
+        gr.HTML('<h2 style="font-size: 1.8rem; font-weight: 700; margin: 2rem 0 1.5rem; text-align: center; color: #f3f4f6;">✨ Key Features</h2>')
         
         with gr.Row():
             with gr.Column():
