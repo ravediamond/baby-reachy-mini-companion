@@ -291,8 +291,7 @@ matplotlib==3.10.8
     #   ultralytics
 mdurl==0.1.2
     # via markdown-it-py
-mediapipe==0.10.14
-    # via reachy-mini-conversation-app
+mediapipe>=0.10.14
 ml-dtypes==0.5.4
     # via
     #   jax
@@ -308,17 +307,13 @@ multidict==6.7.0
 mypy==1.18.2
 mypy-extensions==1.1.0
     # via mypy
-networkx==3.4.2 ; python_full_version < '3.11'
-    # via torch
-networkx==3.6.1 ; python_full_version >= '3.11'
-    # via torch
 nodeenv==1.10.0
     # via pre-commit
 numba==0.63.1
     # via
     #   fastrtc
     #   librosa
-numpy==2.2.5
+numpy>=1.26.0
     # via
     #   contourpy
     #   ctranslate2
@@ -598,21 +593,9 @@ rustypot==1.4.2
     # via reachy-mini
 safehttpx==0.1.7
     # via gradio
-scikit-learn==1.7.2 ; python_full_version < '3.11'
+scikit-learn>=1.5.0
     # via librosa
-scikit-learn==1.8.0 ; python_full_version >= '3.11'
-    # via librosa
-scipy==1.15.3 ; python_full_version < '3.11'
-    # via
-    #   jax
-    #   jaxlib
-    #   librosa
-    #   reachy-mini
-    #   reachy-mini-conversation-app
-    #   scikit-learn
-    #   supervision
-    #   ultralytics
-scipy==1.17.0 ; python_full_version >= '3.11'
+scipy>=1.13.0
     # via
     #   jax
     #   jaxlib
