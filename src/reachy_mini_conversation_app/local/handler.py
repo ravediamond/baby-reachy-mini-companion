@@ -15,6 +15,8 @@ from reachy_mini_conversation_app.local.vad import SileroVAD
 from reachy_mini_conversation_app.local.stt import LocalSTT
 from reachy_mini_conversation_app.local.llm import LocalLLM
 from reachy_mini_conversation_app.local.tts import LocalTTS
+from reachy_mini_conversation_app.local.stt import LocalSTT
+from reachy_mini_conversation_app.audio.classifier import AudioClassifier
 from reachy_mini_conversation_app.input.signal_interface import SignalInterface
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,11 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.audio_buffer = []
         self.lookback_buffer = deque(maxlen=20)  # 20 * 32ms = 640ms lookback
         self.vad_buffer = np.array([], dtype=np.float32)
+        
+        # Audio Classification Buffer (1s window)
+        self.classifier_buffer = np.array([], dtype=np.float32)
+        self.classifier = None
+        self.last_cry_time = 0
 
         self.is_speaking = False
         self.silence_chunks = 0
@@ -80,6 +87,12 @@ class LocalSessionHandler(AsyncStreamHandler):
             
             logger.info("Loading TTS (Kokoro)...")
             self.tts = await asyncio.to_thread(LocalTTS)
+            
+            logger.info("Loading Audio Classifier (YAMNet)...")
+            try:
+                self.classifier = await asyncio.to_thread(AudioClassifier)
+            except Exception as e:
+                logger.warning(f"Audio Classifier failed to load: {e}")
             
             # Load system prompt
             logger.info("Setting system prompt...")
@@ -137,6 +150,28 @@ class LocalSessionHandler(AsyncStreamHandler):
         # 4. Add to VAD buffer
         self.vad_buffer = np.concatenate((self.vad_buffer, audio_float))
         
+        # 4.5 Add to Classifier Buffer
+        if self.classifier:
+            self.classifier_buffer = np.concatenate((self.classifier_buffer, audio_float))
+            # Process every ~1 second (16000 samples)
+            if len(self.classifier_buffer) >= 16000:
+                chunk_to_classify = self.classifier_buffer[:16000]
+                self.classifier_buffer = self.classifier_buffer[16000:] # Slide window
+                
+                # Check for cry (throttled to once every 10s to avoid spam)
+                import time
+                now = time.time()
+                if now - self.last_cry_time > 10.0:
+                    # Run in thread
+                    results = await asyncio.to_thread(self.classifier.classify, chunk_to_classify)
+                    for label, score in results:
+                        if label in ["Baby cry, infant cry", "Crying, sobbing", "Whimper"] and score > 0.4:
+                            logger.info(f"Audio Event Detected: {label} ({score:.2f})")
+                            self.last_cry_time = now
+                            # Inject event into LLM context
+                            asyncio.create_task(self._process_system_event(f"I hear a {label.lower()} nearby."))
+                            break
+
         # 5. Process VAD in 512-sample chunks (32ms at 16k)
         chunk_size = 512
         
@@ -193,6 +228,68 @@ class LocalSessionHandler(AsyncStreamHandler):
                 else:
                     # Not speaking, keep filling lookback buffer
                     self.lookback_buffer.append(chunk)
+
+    async def _process_system_event(self, event_text: str):
+        """Process a system event (like 'Baby cry detected') as if it were a user prompt."""
+        logger.info(f"System Event: {event_text}")
+        await self.output_queue.put(AdditionalOutputs({"role": "system", "content": event_text}))
+        
+        # 2. LLM Loop
+        current_input = f"[System Notification: {event_text}]"
+        
+        # Reuse the logic from _run_pipeline essentially, but simplified
+        max_turns = 3
+        turn = 0
+        tool_outputs = None
+
+        while turn < max_turns:
+            turn += 1
+            full_response_text = ""
+            current_sentence = ""
+            
+            llm_user_input = current_input if turn == 1 else None
+            
+            logger.info(f"LLM Turn {turn} (Event: {llm_user_input or 'Tool Outputs'})")
+            
+            tool_calls = []
+
+            async for event in self.llm.chat_stream(user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs):
+                if event["type"] == "text":
+                    token = event["content"]
+                    full_response_text += token
+                    current_sentence += token
+                    if token in [".", "!", "?", "\n"]:
+                        await self._process_sentence(current_sentence)
+                        current_sentence = ""
+                elif event["type"] == "tool_call":
+                    tool_calls.append(event["tool_call"])
+                elif event["type"] == "error":
+                    logger.error(f"LLM Error: {event['content']}")
+
+            if current_sentence.strip():
+                await self._process_sentence(current_sentence)
+            
+            if full_response_text:
+                logger.info(f"Assistant: {full_response_text}")
+                await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
+
+            if not tool_calls:
+                break
+            
+            tool_outputs = []
+            for tc in tool_calls:
+                func_name = tc["function"]["name"]
+                args_str = tc["function"]["arguments"]
+                call_id = tc["id"]
+                logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
+                result = await dispatch_tool_call(func_name, args_str, self.deps)
+                result_str = json.dumps(result)
+                tool_outputs.append({
+                    "role": "tool", 
+                    "content": result_str,
+                    "tool_call_id": call_id
+                })
+                logger.info(f"   -> Result: {result_str}")
 
     async def _run_pipeline(self, audio: np.ndarray):
         """Run STT -> LLM -> TTS pipeline."""
@@ -305,6 +402,9 @@ class LocalSessionHandler(AsyncStreamHandler):
         # e.g. (waves hands) or *laughs*
         text = re.sub(r'\s*\([^)]*\)', '', text)
         
+        # Remove emojis (Broad unicode range for common emojis)
+        text = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+
         # Remove other common artifacts if any
         text = text.strip()
         
@@ -360,25 +460,70 @@ class LocalSessionHandler(AsyncStreamHandler):
                 await asyncio.sleep(5.0)
 
     async def _handle_signal_message(self, sender: str, text: str):
-        """Process a Signal message and respond."""
+        """Process a Signal message and respond, supporting tool use."""
         await self.output_queue.put(AdditionalOutputs({"role": "user", "content": f"[Signal] {text}"}))
 
-        # Run through LLM (no tools for Signal, just text response)
-        full_response = ""
-        async for event in self.llm.chat_stream(user_text=text, tools=None):
-            if event["type"] == "text":
-                full_response += event["content"]
-            elif event["type"] == "error":
-                logger.error(f"LLM Error: {event['content']}")
+        current_input = text
+        max_turns = 3
+        turn = 0
+        tool_outputs = None
 
-        if full_response.strip():
-            logger.info(f"Signal Response: {full_response}")
-            await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[Signal] {full_response}"}))
+        while turn < max_turns:
+            turn += 1
+            full_response_text = ""
+            
+            # First turn uses user text, subsequent turns use None (and rely on tool_outputs)
+            llm_user_input = current_input if turn == 1 else None
+            
+            tool_calls = []
 
-            # Send response back via Signal
-            target = sender if sender else self.user_phone
-            if target and self.signal:
-                await self.signal.send_message(full_response, target)
+            async for event in self.llm.chat_stream(user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs):
+                if event["type"] == "text":
+                    full_response_text += event["content"]
+                elif event["type"] == "tool_call":
+                    tool_calls.append(event["tool_call"])
+                elif event["type"] == "error":
+                    logger.error(f"LLM Error: {event['content']}")
+
+            # If we have text response, log it (we'll send it at end of turn or if final)
+            if full_response_text.strip():
+                # If there are tool calls, this might be a "thought" or preamble. 
+                # If no tool calls, it's the final answer.
+                pass
+
+            # If no tool calls, we are done with this chain
+            if not tool_calls:
+                if full_response_text.strip():
+                    logger.info(f"Signal Response: {full_response_text}")
+                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[Signal] {full_response_text}"}))
+                    
+                    target = sender if sender else self.user_phone
+                    if target and self.signal:
+                        await self.signal.send_message(full_response_text, target)
+                break
+            
+            # Execute Tools
+            tool_outputs = []
+            for tc in tool_calls:
+                func_name = tc["function"]["name"]
+                args_str = tc["function"]["arguments"]
+                call_id = tc["id"]
+                
+                logger.info(f"🛠️ Signal Tool Call: {func_name}({args_str})")
+                
+                # Execute
+                result = await dispatch_tool_call(func_name, args_str, self.deps)
+                result_str = json.dumps(result)
+                
+                tool_outputs.append({
+                    "role": "tool", 
+                    "content": result_str,
+                    "tool_call_id": call_id
+                })
+                
+                logger.info(f"   -> Result: {result_str}")
+                
+            # Loop continues to next turn to let LLM react to tool outputs
 
     async def emit(self):
         return await wait_for_item(self.output_queue)
