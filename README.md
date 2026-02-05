@@ -23,6 +23,7 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 - **Omni-Channel Interaction:** Talk to Reachy naturally in the room, or text it via Signal when you're away.
 - **Baby Monitor Mode:** Continuously listens for baby cries using an on-device audio classifier (YAMNet). If a cry is detected, it automatically soothes the baby and sends you a Signal alert.
+- **Smart Sound Detection:** Beyond crying, Reachy can detect and react to other environmental sounds (like coughing, laughing, or shouting), enabling context-aware interactions.
 - **Local Vision (VLM):** Uses your local multimodal LLM (like Qwen 2.5 VL via Ollama) to see and describe the world through the `camera` tool.
 - **Neural Speech:** High-quality TTS via `Kokoro` (ONNX) and fast STT via `faster-whisper`.
 - **Smart Motion:** Integrated head tracking (YOLO or MediaPipe), expressive dances, and emotional gestures.
@@ -110,12 +111,13 @@ You can change the assistant's personality in `src/reachy_mini_conversation_app/
 *   `tools.txt`: Enabled tools for this profile.
 
 ### Audio Event Detection
-The app automatically downloads and runs a **YAMNet** audio classifier. It constantly listens for:
-*   "Baby cry, infant cry"
-*   "Crying, sobbing"
-*   "Whimper"
+The app automatically downloads and runs a **YAMNet** audio classifier. It constantly listens for specific audio events to trigger autonomous actions:
 
-If detected, it triggers a system event that forces the LLM to call `soothe_baby` and alert you via Signal.
+*   **Baby Crying:** "Baby cry, infant cry", "Crying, sobbing", "Whimper" → *Triggers soothing mode.*
+*   **Human Interactions:** "Laughter", "Coughing" → *Can trigger empathetic responses (e.g., "Are you okay?" or giggling back).*
+*   **Alarms:** "Smoke detector", "Fire alarm" → *Can trigger urgent alerts.*
+
+If detected, it triggers a system event that forces the LLM to call appropriate tools (like `soothe_baby`) and alert you via Signal.
 
 ## License
 Apache 2.0

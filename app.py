@@ -62,11 +62,21 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), cs
             with gr.Column():
                 gr.HTML("""
                 <div class="feature-card">
+                    <div class="feature-icon">👂</div>
+                    <div class="feature-title">Sound Awareness</div>
+                    <div class="feature-desc">Detects and reacts to environmental sounds like laughter, coughing, or alarms for context-aware interaction.</div>
+                </div>
+                """)
+            with gr.Column():
+                gr.HTML("""
+                <div class="feature-card">
                     <div class="feature-icon">🗣️</div>
                     <div class="feature-title">Friendly Chat</div>
                     <div class="feature-desc">Engages in safe, age-appropriate conversations using a locally running Large Language Model.</div>
                 </div>
                 """)
+
+        with gr.Row():
             with gr.Column():
                 gr.HTML("""
                 <div class="feature-card">
@@ -75,9 +85,6 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), cs
                     <div class="feature-desc">Performs fun dances and head gestures to entertain and interact with kids.</div>
                 </div>
                 """)
-
-        with gr.Row():
-             with gr.Column():
                 gr.HTML("""
                 <div class="feature-card">
                     <div class="feature-icon">👀</div>
