@@ -1,10 +1,15 @@
+import os
 import csv
 import logging
+import requests
 import numpy as np
 import onnxruntime as ort
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+URL_MODEL = "https://huggingface.co/jafet21/yamnetonnx/resolve/main/yamnet.onnx"
+URL_MAP = "https://huggingface.co/jafet21/yamnetonnx/resolve/main/yamnet_class_map.csv"
 
 class AudioClassifier:
     """YAMNet-based audio event classifier."""
@@ -14,7 +19,38 @@ class AudioClassifier:
         self.map_path = map_path
         self.session = None
         self.class_names = []
+        self._ensure_files_exist()
         self._load_model()
+
+    def _ensure_files_exist(self):
+        """Download model files if they don't exist."""
+        model_p = Path(self.model_path)
+        map_p = Path(self.map_path)
+        
+        # Ensure directory exists
+        model_p.parent.mkdir(parents=True, exist_ok=True)
+        
+        if not model_p.exists():
+            logger.info(f"Downloading YAMNet model to {model_p}...")
+            self._download_file(URL_MODEL, model_p)
+            
+        if not map_p.exists():
+            logger.info(f"Downloading YAMNet class map to {map_p}...")
+            self._download_file(URL_MAP, map_p)
+
+    def _download_file(self, url: str, path: Path):
+        try:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            with open(path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            logger.info(f"Downloaded {path.name}")
+        except Exception as e:
+            logger.error(f"Failed to download {path.name}: {e}")
+            # Clean up partial file
+            if path.exists():
+                path.unlink()
 
     def _load_model(self):
         try:
