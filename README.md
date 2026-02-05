@@ -3,7 +3,7 @@ title: Reachy Mini Companion
 emoji: 🎤
 colorFrom: red
 colorTo: blue
-sdk: static
+sdk: gradio
 pinned: false
 short_description: A local, conversational companion for Reachy Mini.
 tags:
