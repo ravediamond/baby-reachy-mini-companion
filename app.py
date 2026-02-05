@@ -76,7 +76,7 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css, title="Baby Reachy-Mini C
                 </div>
                 """)
 
-        with gr.Row(style="margin-top: 1rem;"):
+        with gr.Row():
              with gr.Column():
                 gr.HTML("""
                 <div class="feature-card">
