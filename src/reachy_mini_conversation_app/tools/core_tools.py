@@ -56,6 +56,7 @@ class ToolDependencies:
     head_wobbler: Any | None = None  # HeadWobbler for audio-reactive motion
     motion_duration_s: float = 1.0
     speak_func: Any | None = None  # Async function(text: str) -> None
+    audio_classifier_status: Dict[str, Any] | None = None  # Shared dict for classifier status
 
 
 # Tool base class
