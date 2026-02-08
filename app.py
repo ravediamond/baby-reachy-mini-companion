@@ -29,14 +29,14 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), cs
             with gr.Column(scale=1):
                 gr.HTML("""
                 <div class="install-card">
-                    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #f9fafb;">🚀 How to Install</h2>
-                    <ol style="padding-left: 1.5rem; color: #e5e7eb; line-height: 2;">
+                    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--body-text-color);">🚀 How to Install</h2>
+                    <ol style="padding-left: 1.5rem; color: var(--body-text-color-subdued); line-height: 2;">
                         <li>Open your <strong>Reachy Mini Dashboard</strong>.</li>
                         <li>Navigate to the <strong>App Store</strong>.</li>
                         <li>Search for <strong>"Baby Reachy-Mini Companion"</strong>.</li>
                         <li>Click <strong>Install</strong> to start the download.</li>
                     </ol>
-                    <div style="margin-top: 1.5rem; padding: 1rem; background: #1e3a8a; border-radius: 0.5rem; color: #bfdbfe; font-size: 0.9rem; border: 1px solid #1d4ed8;">
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: var(--block-background-fill); border-radius: 0.5rem; color: var(--body-text-color); font-size: 0.9rem; border: 1px solid var(--border-color-primary);">
                         <strong>Note:</strong> This Space hosts the application code. The actual magic happens locally on your robot!
                     </div>
                 </div>
@@ -48,7 +48,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), cs
                 gr.Image("docs/assets/baby-reachy-mini.jpg", show_label=False, container=False, elem_id="hero-image")
 
         # Features Grid
-        gr.HTML('<h2 style="font-size: 1.8rem; font-weight: 700; margin: 2rem 0 1.5rem; text-align: center; color: #f3f4f6;">✨ Key Features</h2>')
+        gr.HTML('<h2 style="font-size: 1.8rem; font-weight: 700; margin: 2rem 0 1.5rem; text-align: center; color: var(--body-text-color);">✨ Key Features</h2>')
         
         with gr.Row():
             with gr.Column():
