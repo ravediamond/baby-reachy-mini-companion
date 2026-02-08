@@ -5,14 +5,14 @@ custom_css = """
 .container { max-width: 900px; margin: auto; padding-top: 2rem; }
 .hero-header { text-align: center; margin-bottom: 2rem; }
 .hero-title { font-size: 3rem; font-weight: 800; background: -webkit-linear-gradient(45deg, #ff5c70, #45c4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
-.hero-subtitle { font-size: 1.2rem; color: #9ca3af; font-weight: 400; }
-.install-card { background: #1f2937; border-radius: 1rem; padding: 2rem; border: 1px solid #374151; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
-.feature-card { background: #1f2937; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid #374151; height: 100%; transition: all 0.2s; }
-.feature-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4); border-color: #4b5563; }
+.hero-subtitle { font-size: 1.2rem; color: var(--body-text-color-subdued); font-weight: 400; }
+.install-card { background: var(--background-fill-secondary); border-radius: 1rem; padding: 2rem; border: 1px solid var(--border-color-primary); margin-bottom: 2rem; box-shadow: var(--shadow-drop); }
+.feature-card { background: var(--background-fill-secondary); border-radius: 0.75rem; padding: 1.5rem; border: 1px solid var(--border-color-primary); height: 100%; transition: all 0.2s; }
+.feature-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-drop); border-color: var(--color-accent); }
 .feature-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-.feature-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #f3f4f6; }
-.feature-desc { color: #d1d5db; line-height: 1.5; }
-.footer-note { text-align: center; color: #6b7280; font-size: 0.875rem; margin-top: 3rem; }
+.feature-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--body-text-color); }
+.feature-desc { color: var(--body-text-color-subdued); line-height: 1.5; }
+.footer-note { text-align: center; color: var(--body-text-color-subdued); font-size: 0.875rem; margin-top: 3rem; }
 """
 
 with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), css=custom_css, title="Baby Reachy-Mini Companion") as demo:
