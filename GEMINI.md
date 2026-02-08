@@ -34,3 +34,20 @@ This repository contains the **Reachy Mini Conversation App**, a sophisticated c
 - **VAD**: Silero VAD for robust voice activity detection.
 - **Messaging**: Signal-CLI for remote communication.
 - **Robot Interface**: Reachy Mini SDK and Zenoh.
+
+## Deployment
+
+### Pushing to Hugging Face
+
+This repository is mirrored on Hugging Face Spaces. To deploy changes:
+
+1.  Ensure you have the `hf` remote configured:
+    ```bash
+    git remote add hf https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion
+    ```
+
+2.  Push your `main` branch to the `hf` remote:
+    ```bash
+    git push hf main:main
+    ```
+    *Note: If you have diverging history, you may need to force push with `--force`, but be careful as this overwrites the remote history.*
