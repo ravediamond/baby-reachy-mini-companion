@@ -1,108 +1,199 @@
+# /// script
+# dependencies = ["gradio>=5.0"]
+# ///
 import gradio as gr
 
-# Custom CSS to mimic the project's style
 custom_css = """
-.container { max-width: 900px; margin: auto; padding-top: 2rem; }
-.hero-header { text-align: center; margin-bottom: 2rem; }
-.hero-title { font-size: 3rem; font-weight: 800; background: -webkit-linear-gradient(45deg, #ff5c70, #45c4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
-.hero-subtitle { font-size: 1.2rem; color: var(--body-text-color-subdued); font-weight: 400; }
-.install-card { background: var(--background-fill-secondary); border-radius: 1rem; padding: 2rem; border: 1px solid var(--border-color-primary); margin-bottom: 2rem; box-shadow: var(--shadow-drop); }
-.feature-card { background: var(--background-fill-secondary); border-radius: 0.75rem; padding: 1.5rem; border: 1px solid var(--border-color-primary); height: 100%; transition: all 0.2s; }
-.feature-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-drop); border-color: var(--color-accent); }
-.feature-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-.feature-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--body-text-color); }
-.feature-desc { color: var(--body-text-color-subdued); line-height: 1.5; }
-.footer-note { text-align: center; color: var(--body-text-color-subdued); font-size: 0.875rem; margin-top: 3rem; }
+/* ---- Reset & Base ---- */
+* { box-sizing: border-box; }
+.gradio-container { background: transparent !important; }
+
+.page { max-width: 960px; margin: 0 auto; padding: 3rem 1.5rem 2rem; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+/* ---- Hero ---- */
+.hero { text-align: center; margin-bottom: 3rem; }
+.hero-badge {
+    display: inline-block; padding: 0.35rem 1rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%); color: #fff;
+    margin-bottom: 1.25rem;
+}
+.hero h1 {
+    font-size: 2.75rem; font-weight: 800; line-height: 1.15; margin: 0 0 0.75rem;
+    color: var(--body-text-color);
+}
+.hero p {
+    font-size: 1.15rem; line-height: 1.6; color: var(--body-text-color-subdued);
+    max-width: 640px; margin: 0 auto;
+}
+
+/* ---- Sections ---- */
+.section-label {
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #6366f1; margin-bottom: 0.5rem;
+}
+.section-title { font-size: 1.5rem; font-weight: 700; margin: 0 0 1.25rem; color: var(--body-text-color); }
+
+/* ---- Cards ---- */
+.card {
+    background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
+    border-radius: 0.875rem; padding: 1.75rem; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover { border-color: #6366f1; box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
+
+.card-icon {
+    width: 2.75rem; height: 2.75rem; border-radius: 0.625rem; display: flex; align-items: center; justify-content: center;
+    font-size: 1.35rem; margin-bottom: 1rem; flex-shrink: 0;
+}
+.card-icon-purple { background: rgba(99,102,241,0.12); }
+.card-icon-pink   { background: rgba(236,72,153,0.12); }
+.card-icon-blue   { background: rgba(59,130,246,0.12); }
+.card-icon-green  { background: rgba(16,185,129,0.12); }
+.card-icon-amber  { background: rgba(245,158,11,0.12); }
+.card-icon-red    { background: rgba(239,68,68,0.12); }
+
+.card h3 { font-size: 1.05rem; font-weight: 600; margin: 0 0 0.4rem; color: var(--body-text-color); }
+.card p  { font-size: 0.9rem; line-height: 1.55; color: var(--body-text-color-subdued); margin: 0; }
+
+/* ---- Feature Grid ---- */
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2.5rem; }
+@media (max-width: 700px) { .feature-grid { grid-template-columns: 1fr; } }
+
+/* ---- Install Panel ---- */
+.install-panel {
+    background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
+    border-radius: 0.875rem; padding: 2rem; margin-bottom: 2.5rem;
+}
+.install-panel h2 { font-size: 1.3rem; font-weight: 700; margin: 0 0 1rem; color: var(--body-text-color); }
+
+.install-steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+.install-steps li {
+    counter-increment: step; position: relative; padding-left: 2.75rem; margin-bottom: 1rem;
+    font-size: 0.95rem; line-height: 1.5; color: var(--body-text-color-subdued);
+}
+.install-steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 0;
+    width: 2rem; height: 2rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(99,102,241,0.1); color: #6366f1;
+}
+
+.callout {
+    margin-top: 1.25rem; padding: 1rem 1.25rem; border-radius: 0.5rem; font-size: 0.875rem;
+    line-height: 1.5;
+    background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15);
+    color: var(--body-text-color);
+}
+
+/* ---- Deployment Tags ---- */
+.deploy-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2.5rem; justify-content: center; }
+.deploy-tag {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 0.8rem; font-weight: 500;
+    background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
+    color: var(--body-text-color-subdued);
+}
+.deploy-tag-dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot-green  { background: #10b981; }
+.dot-blue   { background: #3b82f6; }
+.dot-purple { background: #6366f1; }
+
+/* ---- Footer ---- */
+.footer {
+    text-align: center; padding-top: 2rem; margin-top: 1rem;
+    border-top: 1px solid var(--border-color-primary);
+    color: var(--body-text-color-subdued); font-size: 0.8rem; line-height: 1.6;
+}
+.footer a { color: #6366f1; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
 """
 
-with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"), css=custom_css, title="Baby Reachy-Mini Companion") as demo:
-    with gr.Column(elem_classes="container"):
-        
-        # Hero Section
-        with gr.Column(elem_classes="hero-header"):
-            gr.HTML('<div class="hero-title">🤖🍼 Baby Reachy-Mini Companion</div>')
-            gr.HTML('<div class="hero-subtitle">A fully local AI companion for babies and kids, designed for the Reachy Mini robot.</div>')
+with gr.Blocks(
+    theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"),
+    css=custom_css,
+    title="Baby Reachy-Mini Companion",
+) as demo:
 
-        # Main Content
-        with gr.Row(equal_height=True):
-            # Left Column: Installation
-            with gr.Column(scale=1):
-                gr.HTML("""
-                <div class="install-card">
-                    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--body-text-color);">🚀 How to Install</h2>
-                    <ol style="padding-left: 1.5rem; color: var(--body-text-color-subdued); line-height: 2;">
-                        <li>Open your <strong>Reachy Mini Dashboard</strong>.</li>
-                        <li>Navigate to the <strong>App Store</strong>.</li>
-                        <li>Search for <strong>"Baby Reachy-Mini Companion"</strong>.</li>
-                        <li>Click <strong>Install</strong> to start the download.</li>
-                    </ol>
-                    <div style="margin-top: 1.5rem; padding: 1rem; background: var(--block-background-fill); border-radius: 0.5rem; color: var(--body-text-color); font-size: 0.9rem; border: 1px solid var(--border-color-primary);">
-                        <strong>Note:</strong> This Space hosts the application code. The actual magic happens locally on your robot!
-                    </div>
-                </div>
-                """)
+    gr.HTML("""
+    <div class="page">
 
-            # Right Column: Visual
-            with gr.Column(scale=1):
-                # Using the relative path to the image in the repo
-                gr.Image("docs/assets/baby-reachy-mini.jpg", show_label=False, container=False, elem_id="hero-image")
+        <!-- Hero -->
+        <div class="hero">
+            <div class="hero-badge">Reachy Mini App</div>
+            <h1>Baby Reachy-Mini Companion</h1>
+            <p>A fully local AI companion for babies and kids. Voice interaction, baby monitoring,
+            vision, and expressive motion &mdash; all running privately on your own hardware.</p>
+        </div>
 
-        # Features Grid
-        gr.HTML('<h2 style="font-size: 1.8rem; font-weight: 700; margin: 2rem 0 1.5rem; text-align: center; color: var(--body-text-color);">✨ Key Features</h2>')
-        
-        with gr.Row():
-            with gr.Column():
-                gr.HTML("""
-                <div class="feature-card">
-                    <div class="feature-icon">👶</div>
-                    <div class="feature-title">Smart Baby Monitor</div>
-                    <div class="feature-desc">Automatically detects crying sounds and uses gentle motion and soothing sounds to comfort the baby.</div>
-                </div>
-                """)
-            with gr.Column():
-                gr.HTML("""
-                <div class="feature-card">
-                    <div class="feature-icon">👂</div>
-                    <div class="feature-title">Sound Awareness</div>
-                    <div class="feature-desc">Detects and reacts to environmental sounds like laughter, coughing, or alarms for context-aware interaction.</div>
-                </div>
-                """)
-            with gr.Column():
-                gr.HTML("""
-                <div class="feature-card">
-                    <div class="feature-icon">🗣️</div>
-                    <div class="feature-title">Friendly Chat</div>
-                    <div class="feature-desc">Engages in safe, age-appropriate conversations using a locally running Large Language Model.</div>
-                </div>
-                """)
+        <!-- Deploy tags -->
+        <div class="deploy-tags">
+            <span class="deploy-tag"><span class="deploy-tag-dot dot-green"></span> Mac (Ollama)</span>
+            <span class="deploy-tag"><span class="deploy-tag-dot dot-blue"></span> Mac + Jetson vLLM</span>
+            <span class="deploy-tag"><span class="deploy-tag-dot dot-purple"></span> Jetson Orin (fully local)</span>
+        </div>
 
-        with gr.Row():
-            with gr.Column():
-                gr.HTML("""
-                <div class="feature-card">
-                    <div class="feature-icon">💃</div>
-                    <div class="feature-title">Expressive Motion</div>
-                    <div class="feature-desc">Performs fun dances and head gestures to entertain and interact with kids.</div>
-                </div>
-                """)
-                gr.HTML("""
-                <div class="feature-card">
-                    <div class="feature-icon">👀</div>
-                    <div class="feature-title">Interactive Vision</div>
-                    <div class="feature-desc">"Sees" toys and people to play interactive games like "I Spy" or describe the room.</div>
-                </div>
-                """)
-            with gr.Column():
-                gr.HTML("""
-                <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <div class="feature-title">Parent Alerts</div>
-                    <div class="feature-desc">Sends instant notifications to your phone via Signal if the baby needs your attention.</div>
-                </div>
-                """)
+        <!-- Features -->
+        <div class="section-label">Capabilities</div>
+        <div class="section-title">What it can do</div>
 
-        # Footer
-        gr.HTML('<div class="footer-note">Built with ❤️ for Reachy Mini • Powered by Local AI</div>')
+        <div class="feature-grid">
+            <div class="card">
+                <div class="card-icon card-icon-pink">&#x1F476;</div>
+                <h3>Baby Monitor</h3>
+                <p>Detects crying via on-device YAMNet audio classification, soothes the baby automatically, and sends you a Signal alert.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-purple">&#x1F3A4;</div>
+                <h3>Voice Conversation</h3>
+                <p>Natural speech interaction using local STT (Faster-Whisper), LLM (Qwen via Ollama or vLLM), and TTS (Kokoro).</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-blue">&#x1F441;</div>
+                <h3>Vision</h3>
+                <p>Sees and describes the world through the camera using a local multimodal LLM. Play "I Spy" or ask "What do you see?"</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-green">&#x1F4F1;</div>
+                <h3>Remote Alerts</h3>
+                <p>Sends instant notifications and photos to your phone via Signal when the baby needs attention.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-amber">&#x1F57A;</div>
+                <h3>Expressive Motion</h3>
+                <p>Dances, emotional antenna expressions, face tracking, and speech-reactive head movement.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-red">&#x1F50A;</div>
+                <h3>Sound Awareness</h3>
+                <p>Reacts to environmental sounds &mdash; laughter, coughing, alarms &mdash; for context-aware autonomous responses.</p>
+            </div>
+        </div>
+
+        <!-- Install -->
+        <div class="install-panel">
+            <h2>Getting Started</h2>
+            <ol class="install-steps">
+                <li>Install the <strong>Reachy Mini SDK</strong> on your machine.</li>
+                <li>Clone the repository and install with <code>uv sync --extra local</code>.</li>
+                <li>Start your LLM server (Ollama, vLLM, or any OpenAI-compatible endpoint).</li>
+                <li>Configure <code>.env</code> &mdash; or use the built-in Settings UI in headless mode.</li>
+                <li>Run <code>uv run reachy-mini-conversation-app</code> and start talking.</li>
+            </ol>
+            <div class="callout">
+                This Space hosts the application code and documentation.
+                The app runs locally on your robot &mdash; no cloud required.
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            Built for <a href="https://www.pollen-robotics.com/" target="_blank">Reachy Mini</a>
+            &nbsp;&middot;&nbsp; Powered by local AI
+            &nbsp;&middot;&nbsp; <a href="https://github.com/ravediamond/baby-reachy-mini-companion" target="_blank">Source on GitHub</a>
+        </div>
+
+    </div>
+    """)
 
 if __name__ == "__main__":
     demo.launch()
