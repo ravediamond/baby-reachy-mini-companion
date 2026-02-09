@@ -32,18 +32,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-local = [
+local_audio = [
   "torch>=2.4.0",
   "silero-vad",
   "faster-whisper",
   "kokoro-onnx",
   "soundfile",
   "scipy",
+]
+yolo_vision = [
   "ultralytics",
   "supervision",
+]
+mediapipe_vision = [
   "mediapipe==0.10.14",
-  "PyGObject>=3.42.2,<=3.46.0", 
+]
+reachy_mini_wireless = [
+  "PyGObject>=3.42.2,<=3.46.0",
   "gst-signalling>=1.1.2",
+]
+local = [
+  "reachy_mini_conversation_app[local_audio,yolo_vision,mediapipe_vision,reachy_mini_wireless]",
 ]
 
 [dependency-groups]

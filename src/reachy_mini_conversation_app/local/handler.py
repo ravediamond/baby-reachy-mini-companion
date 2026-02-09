@@ -35,7 +35,7 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.deps.speak_func = self._process_sentence
         
         self.llm_url = llm_url or config.LOCAL_LLM_URL
-        self.llm_model = llm_model or config.LOCAL_LLM_MODEL or "qwen2.5:3b"
+        self.llm_model = llm_model or config.LOCAL_LLM_MODEL
         self.enable_signal = enable_signal
 
         self.output_queue = asyncio.Queue()
