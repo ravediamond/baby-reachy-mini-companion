@@ -85,6 +85,50 @@ async function saveKey(key) {
   return await resp.json();
 }
 
+// ---------- Local LLM Settings API ----------
+async function fetchAppMode() {
+  try {
+    const url = new URL("/app_mode", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return { mode: "openai" }; // fallback for older backends
+}
+
+async function fetchLocalLlmSettings() {
+  try {
+    const url = new URL("/local_llm_settings", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return {};
+}
+
+async function startApp(settings) {
+  const resp = await fetch("/start_app", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || "start_failed");
+  }
+  return await resp.json();
+}
+
+async function fetchAppState() {
+  try {
+    const url = new URL("/app_state", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return { state: "configuring" };
+}
+
 // ---------- Personalities API ----------
 async function getPersonalities() {
   const url = new URL("/personalities", window.location.origin);
@@ -190,6 +234,18 @@ async function init() {
   const changeKeyBtn = document.getElementById("change-key-btn");
   const input = document.getElementById("api-key");
 
+  // Local LLM elements
+  const localLlmPanel = document.getElementById("local-llm-panel");
+  const localLlmChip = document.getElementById("local-llm-chip");
+  const localRunningPanel = document.getElementById("local-running-panel");
+  const localRunningInfo = document.getElementById("local-running-info");
+  const llmUrlInput = document.getElementById("llm-url");
+  const llmModelInput = document.getElementById("llm-model");
+  const llmApiKeyInput = document.getElementById("llm-api-key");
+  const sttModelSelect = document.getElementById("stt-model");
+  const startLocalBtn = document.getElementById("start-local-btn");
+  const localLlmStatus = document.getElementById("local-llm-status");
+
   // Personality elements
   const pSelect = document.getElementById("personality-select");
   const pApply = document.getElementById("apply-personality");
@@ -213,71 +269,125 @@ async function init() {
   show(formPanel, false);
   show(configuredPanel, false);
   show(personalityPanel, false);
+  show(localLlmPanel, false);
+  show(localRunningPanel, false);
 
-  const st = (await waitForStatus()) || { has_key: false };
-  if (st.has_key) {
+  // Detect app mode (local vs openai)
+  const appMode = await fetchAppMode();
+  const isLocal = appMode.mode === "local";
+
+  if (isLocal) {
+    // --- Local LLM mode ---
     statusEl.textContent = "";
-    show(configuredPanel, true);
-  }
 
-  // Handler for "Change API key" button
-  changeKeyBtn.addEventListener("click", () => {
-    show(configuredPanel, false);
-    show(formPanel, true);
-    input.value = "";
-    statusEl.textContent = "";
-    statusEl.className = "status";
-  });
+    // Check if pipeline is already running (e.g., page refresh after start)
+    const appState = await fetchAppState();
+    if (appState.state === "running") {
+      const runSettings = await fetchLocalLlmSettings();
+      show(localRunningPanel, true);
+      localRunningInfo.textContent = `Model: ${runSettings.LOCAL_LLM_MODEL || "—"} | STT: ${runSettings.LOCAL_STT_MODEL || "—"}`;
+    } else {
+      // Show configuration form
+      const settings = await fetchLocalLlmSettings();
+      llmUrlInput.value = settings.LOCAL_LLM_URL || "http://localhost:11434/v1";
+      llmModelInput.value = settings.LOCAL_LLM_MODEL || "qwen2.5:3b";
+      llmApiKeyInput.value = settings.LOCAL_LLM_API_KEY || "ollama";
+      sttModelSelect.value = settings.LOCAL_STT_MODEL || "small.en";
+      localLlmChip.textContent = "Configure";
+      localLlmChip.className = "chip";
+      show(localLlmPanel, true);
 
-  // Remove error styling when user starts typing
-  input.addEventListener("input", () => {
-    input.classList.remove("error");
-  });
-
-  saveBtn.addEventListener("click", async () => {
-    const key = input.value.trim();
-    if (!key) {
-      statusEl.textContent = "Please enter a valid key.";
-      statusEl.className = "status warn";
-      input.classList.add("error");
-      return;
+      startLocalBtn.addEventListener("click", async () => {
+        localLlmStatus.textContent = "Starting pipeline...";
+        localLlmStatus.className = "status";
+        startLocalBtn.disabled = true;
+        try {
+          await startApp({
+            LOCAL_LLM_URL: llmUrlInput.value.trim(),
+            LOCAL_LLM_MODEL: llmModelInput.value.trim(),
+            LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
+            LOCAL_STT_MODEL: sttModelSelect.value,
+          });
+          localLlmStatus.textContent = "Pipeline starting... loading models.";
+          localLlmStatus.className = "status ok";
+          // Transition UI: hide config, show running
+          show(localLlmPanel, false);
+          show(localRunningPanel, true);
+          localRunningInfo.textContent = `Model: ${llmModelInput.value.trim()} | STT: ${sttModelSelect.value}`;
+        } catch (e) {
+          localLlmStatus.textContent = "Failed to start. Check your settings and try again.";
+          localLlmStatus.className = "status error";
+          startLocalBtn.disabled = false;
+        }
+      });
     }
-    statusEl.textContent = "Validating API key...";
-    statusEl.className = "status";
-    input.classList.remove("error");
-    try {
-      // First validate the key
-      const validation = await validateKey(key);
-      if (!validation.valid) {
-        statusEl.textContent = "Invalid API key. Please check your key and try again.";
-        statusEl.className = "status error";
+  } else {
+    // --- OpenAI mode ---
+    const st = (await waitForStatus()) || { has_key: false };
+    if (st.has_key) {
+      statusEl.textContent = "";
+      show(configuredPanel, true);
+    }
+
+    // Handler for "Change API key" button
+    changeKeyBtn.addEventListener("click", () => {
+      show(configuredPanel, false);
+      show(formPanel, true);
+      input.value = "";
+      statusEl.textContent = "";
+      statusEl.className = "status";
+    });
+
+    // Remove error styling when user starts typing
+    input.addEventListener("input", () => {
+      input.classList.remove("error");
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      const key = input.value.trim();
+      if (!key) {
+        statusEl.textContent = "Please enter a valid key.";
+        statusEl.className = "status warn";
         input.classList.add("error");
         return;
       }
+      statusEl.textContent = "Validating API key...";
+      statusEl.className = "status";
+      input.classList.remove("error");
+      try {
+        // First validate the key
+        const validation = await validateKey(key);
+        if (!validation.valid) {
+          statusEl.textContent = "Invalid API key. Please check your key and try again.";
+          statusEl.className = "status error";
+          input.classList.add("error");
+          return;
+        }
 
-      // If valid, save it
-      statusEl.textContent = "Key valid! Saving...";
-      statusEl.className = "status ok";
-      await saveKey(key);
-      statusEl.textContent = "Saved. Reloading…";
-      statusEl.className = "status ok";
-      window.location.reload();
-    } catch (e) {
-      input.classList.add("error");
-      if (e.message === "invalid_api_key") {
-        statusEl.textContent = "Invalid API key. Please check your key and try again.";
-      } else {
-        statusEl.textContent = "Failed to validate/save key. Please try again.";
+        // If valid, save it
+        statusEl.textContent = "Key valid! Saving...";
+        statusEl.className = "status ok";
+        await saveKey(key);
+        statusEl.textContent = "Saved. Reloading…";
+        statusEl.className = "status ok";
+        window.location.reload();
+      } catch (e) {
+        input.classList.add("error");
+        if (e.message === "invalid_api_key") {
+          statusEl.textContent = "Invalid API key. Please check your key and try again.";
+        } else {
+          statusEl.textContent = "Failed to validate/save key. Please try again.";
+        }
+        statusEl.className = "status error";
       }
-      statusEl.className = "status error";
-    }
-  });
+    });
 
-  if (!st.has_key) {
-    statusEl.textContent = "";
-    show(formPanel, true);
-    show(loading, false);
-    return;
+    if (!st.has_key) {
+      statusEl.textContent = "";
+      show(formPanel, true);
+      show(loading, false);
+      return;
+    }
   }
 
   // Wait until backend routes are ready before rendering personalities UI

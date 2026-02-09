@@ -1,12 +1,13 @@
 """Bidirectional local audio stream with optional settings UI.
 
-In headless mode, there is no Gradio UI. If the OpenAI API key is not
-available via environment/.env, we expose a minimal settings page via the
-Reachy Mini Apps settings server to let non-technical users enter it.
+In headless mode, there is no Gradio UI. We expose a minimal settings page
+via the Reachy Mini Apps settings server to let non-technical users configure
+the app — either the OpenAI API key (realtime mode) or the local LLM settings
+(local mode: URL, model, API key, STT model).
 
-The settings UI is served from this package's ``static/`` folder and offers a
-single password field to set ``OPENAI_API_KEY``. Once set, we persist it to the
-app instance's ``.env`` file (if available) and proceed to start streaming.
+The settings UI is served from this package's ``static/`` folder.
+Once set, values are persisted to the app instance's ``.env`` file
+(if available) and used immediately.
 """
 
 import os
@@ -14,6 +15,7 @@ import sys
 import time
 import asyncio
 import logging
+import threading
 from typing import List, Optional
 from pathlib import Path
 
@@ -29,12 +31,13 @@ from reachy_mini_conversation_app.headless_personality_ui import mount_personali
 
 try:
     # FastAPI is provided by the Reachy Mini Apps runtime
-    from fastapi import FastAPI, Response
+    from fastapi import FastAPI, Request, Response
     from pydantic import BaseModel
     from fastapi.responses import FileResponse, JSONResponse
     from starlette.staticfiles import StaticFiles
 except Exception:  # pragma: no cover - only loaded when settings_app is used
     FastAPI = object  # type: ignore
+    Request = object  # type: ignore
     FileResponse = object  # type: ignore
     JSONResponse = object  # type: ignore
     StaticFiles = object  # type: ignore
@@ -70,6 +73,9 @@ class LocalStream:
         self._instance_path: Optional[str] = instance_path
         self._settings_initialized = False
         self._asyncio_loop = None
+        # Gate for local mode: blocks launch() until user clicks "Start" in the UI
+        self._start_event = threading.Event()
+        self._pipeline_started = False
 
     # ---- Settings UI (only when API key is missing) ----
     def _read_env_lines(self, env_path: Path) -> list[str]:
@@ -216,6 +222,64 @@ class LocalStream:
             pass
         return None
 
+    def _is_local_handler(self) -> bool:
+        """Check whether the handler is the local LLM handler."""
+        try:
+            from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+
+            return isinstance(self.handler, LocalSessionHandler)
+        except Exception:
+            return False
+
+    def _persist_local_llm_settings(self, settings: dict[str, str]) -> None:
+        """Persist local LLM settings to environment, config, and instance .env.
+
+        Accepted keys: LOCAL_LLM_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY, LOCAL_STT_MODEL.
+        """
+        env_keys = ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL")
+        for key in env_keys:
+            val = (settings.get(key) or "").strip()
+            if not val:
+                continue
+            try:
+                os.environ[key] = val
+            except Exception:
+                pass
+            try:
+                setattr(config, key, val)
+            except Exception:
+                pass
+
+        if not self._instance_path:
+            return
+        try:
+            inst = Path(self._instance_path)
+            env_path = inst / ".env"
+            lines = self._read_env_lines(env_path)
+            for key in env_keys:
+                val = (settings.get(key) or "").strip()
+                if not val:
+                    continue
+                replaced = False
+                for i, ln in enumerate(lines):
+                    if ln.strip().startswith(f"{key}="):
+                        lines[i] = f'{key}="{val}"'
+                        replaced = True
+                        break
+                if not replaced:
+                    lines.append(f'{key}="{val}"')
+            final_text = "\n".join(lines) + "\n"
+            env_path.write_text(final_text, encoding="utf-8")
+            logger.info("Persisted local LLM settings to %s", env_path)
+            try:
+                from dotenv import load_dotenv
+
+                load_dotenv(dotenv_path=str(env_path), override=True)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning("Failed to persist local LLM settings: %s", e)
+
     def _init_settings_ui_if_needed(self) -> None:
         """Attach minimal settings UI to the settings app.
 
@@ -301,6 +365,54 @@ class LocalStream:
                 logger.warning(f"API key validation failed: {e}")
                 return JSONResponse({"valid": False, "error": "validation_error"}, status_code=500)
 
+        # GET /app_mode -> whether we're running local or openai-realtime
+        @self._settings_app.get("/app_mode")
+        def _app_mode() -> JSONResponse:
+            return JSONResponse({"mode": "local" if self._is_local_handler() else "openai"})
+
+        # GET /app_state -> configuring or running
+        @self._settings_app.get("/app_state")
+        def _app_state() -> JSONResponse:
+            return JSONResponse({
+                "state": "running" if self._pipeline_started else "configuring",
+            })
+
+        # GET /local_llm_settings -> current local LLM configuration
+        @self._settings_app.get("/local_llm_settings")
+        def _get_local_llm_settings() -> JSONResponse:
+            return JSONResponse({
+                "LOCAL_LLM_URL": config.LOCAL_LLM_URL or "",
+                "LOCAL_LLM_MODEL": config.LOCAL_LLM_MODEL or "",
+                "LOCAL_LLM_API_KEY": config.LOCAL_LLM_API_KEY or "",
+                "LOCAL_STT_MODEL": config.LOCAL_STT_MODEL or "",
+            })
+
+        # POST /start_app -> save settings and start the pipeline
+        @self._settings_app.post("/start_app")
+        async def _start_app(request: Request) -> JSONResponse:
+            if self._pipeline_started:
+                return JSONResponse({"ok": True, "already_running": True})
+            try:
+                raw = await request.json()
+            except Exception:
+                raw = {}
+            # Persist whatever settings were sent
+            if raw:
+                self._persist_local_llm_settings(raw)
+                # Also update the handler's live LLM URL and model so start_up() uses them
+                try:
+                    url = (raw.get("LOCAL_LLM_URL") or "").strip()
+                    model = (raw.get("LOCAL_LLM_MODEL") or "").strip()
+                    if url:
+                        self.handler.llm_url = url
+                    if model:
+                        self.handler.llm_model = model
+                except Exception:
+                    pass
+            # Unblock launch()
+            self._start_event.set()
+            return JSONResponse({"ok": True})
+
         self._settings_initialized = True
 
     def launch(self) -> None:
@@ -334,6 +446,14 @@ class LocalStream:
                             set_custom_profile(new_profile.strip() or None)
                         except Exception:
                             pass
+                    # Reload local LLM settings from instance .env
+                    for env_key in ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL"):
+                        val = os.getenv(env_key, "").strip()
+                        if val:
+                            try:
+                                setattr(config, env_key, val)
+                            except Exception:
+                                pass
             except Exception:
                 pass
 
@@ -358,6 +478,14 @@ class LocalStream:
         # Always expose settings UI if a settings app is available
         # (do this AFTER loading/downloading the key so status endpoint sees the right value)
         self._init_settings_ui_if_needed()
+
+        # In local mode, wait for user to configure settings and click "Start"
+        if is_local and self._settings_app is not None:
+            logger.info("Local mode: waiting for user to configure settings via UI and click Start...")
+            self._start_event.wait()  # blocks until POST /start_app is called
+            logger.info("Start signal received, launching pipeline...")
+
+        self._pipeline_started = True
 
         # Start media after key is set/available
         self._robot.media.start_recording()

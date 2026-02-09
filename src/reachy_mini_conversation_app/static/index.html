@@ -16,9 +16,10 @@
       <header class="hero">
         <div class="pill">Headless control</div>
         <h1>Reachy Mini Conversation</h1>
-        <p class="subtitle">Configure your OpenAI key and tweak personalities without the full UI.</p>
+        <p class="subtitle">Configure your AI settings and tweak personalities without the full UI.</p>
       </header>
 
+      <!-- OpenAI mode panels -->
       <div id="configured" class="panel hidden">
         <div class="panel-heading">
           <div>
@@ -46,6 +47,68 @@
           <button id="save-btn">Save key</button>
           <p id="status" class="status"></p>
         </div>
+      </div>
+
+      <!-- Local LLM mode panel -->
+      <div id="local-llm-panel" class="panel hidden">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Local AI</p>
+            <h2>LLM Settings</h2>
+          </div>
+          <span id="local-llm-chip" class="chip">Local</span>
+        </div>
+        <p class="muted">Configure the local LLM server (Ollama, vLLM, or any OpenAI-compatible endpoint).</p>
+        <div class="section">
+          <div class="section-heading">
+            <h3>Language Model</h3>
+            <p class="muted small">Any OpenAI-compatible server works.</p>
+          </div>
+          <div class="row">
+            <label for="llm-url">Server URL</label>
+            <input id="llm-url" type="text" placeholder="http://localhost:11434/v1" />
+          </div>
+          <div class="row">
+            <label for="llm-model">Model name</label>
+            <input id="llm-model" type="text" placeholder="qwen2.5:3b" />
+          </div>
+          <div class="row">
+            <label for="llm-api-key">API key</label>
+            <input id="llm-api-key" type="text" placeholder="ollama" />
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-heading">
+            <h3>Speech-to-Text</h3>
+            <p class="muted small">Faster-Whisper model size.</p>
+          </div>
+          <div class="row">
+            <label for="stt-model">STT model</label>
+            <select id="stt-model">
+              <option value="tiny.en">tiny.en (fastest)</option>
+              <option value="small.en">small.en (balanced)</option>
+              <option value="medium.en">medium.en (accurate)</option>
+              <option value="large-v3">large-v3 (most accurate)</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="start-local-btn">Start</button>
+          <p id="local-llm-status" class="status"></p>
+        </div>
+      </div>
+
+      <!-- Local LLM running state -->
+      <div id="local-running-panel" class="panel hidden">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Local AI</p>
+            <h2>Pipeline Running</h2>
+          </div>
+          <span class="chip chip-ok">Running</span>
+        </div>
+        <p class="muted">The local AI pipeline is running. You can manage personalities below.</p>
+        <p class="status" id="local-running-info"></p>
       </div>
 
       <div id="personality-panel" class="panel hidden">
