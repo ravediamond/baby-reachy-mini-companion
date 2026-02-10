@@ -23,8 +23,8 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
         action="store_true",
         help="Use SmolVLM local vision model for periodic scene description.",
     )
-    parser.add_argument("--gradio", default=False, action="store_true", help="Open gradio interface")
     parser.add_argument("--debug", default=False, action="store_true", help="Enable debug logging")
+    parser.add_argument("--dashboard", default=False, action="store_true", help="Launch the settings dashboard on port 8000")
     parser.add_argument(
         "--robot-name",
         type=str,
