@@ -59,6 +59,7 @@
           <span id="local-llm-chip" class="chip">Local</span>
         </div>
         <p class="muted">Configure the local LLM server (Ollama, vLLM, or any OpenAI-compatible endpoint).</p>
+        <div class="hint">Requires an external LLM server running separately. Install <a href="https://ollama.com" target="_blank">Ollama</a> and run <code>ollama pull qwen2.5:3b</code>, or use <a href="https://docs.vllm.ai/" target="_blank">vLLM</a> on Jetson. See the <a href="https://github.com/pollen-robotics/reachy-mini-conversation-app#deployment-scenarios" target="_blank">README</a> for setup details.</div>
         <div class="section">
           <div class="section-heading">
             <h3>Language Model</h3>
@@ -80,7 +81,7 @@
         <div class="section">
           <div class="section-heading">
             <h3>Speech-to-Text</h3>
-            <p class="muted small">Faster-Whisper model size.</p>
+            <p class="muted small">Faster-Whisper model size. Requires <code>uv sync --extra local_audio</code>.</p>
           </div>
           <div class="row">
             <label for="stt-model">STT model</label>
@@ -107,7 +108,7 @@
           </div>
           <span class="chip">Configure</span>
         </div>
-        <p class="muted">Enable or disable companion features before starting the pipeline.</p>
+        <p class="muted">Enable or disable companion features before starting the pipeline. Some features require external tools &mdash; see hints below.</p>
         <div class="section">
           <div class="section-heading">
             <h3>Safety & Monitoring</h3>
@@ -133,6 +134,7 @@
               <div class="feature-info">
                 <p class="feature-name">Danger Detection</p>
                 <p class="feature-desc">YOLO scans camera for hazardous objects (scissors, knives) and triggers VLM analysis + Signal alert.</p>
+                <p class="feature-req">Requires: <code>uv sync --extra yolo_vision</code> and a connected camera.</p>
               </div>
             </div>
           </div>
@@ -155,6 +157,7 @@
               <div class="feature-info">
                 <p class="feature-name">Signal Alerts</p>
                 <p class="feature-desc">Send text messages and photos to your phone via Signal.</p>
+                <p class="feature-req">Requires: <a href="https://github.com/AsamK/signal-cli" target="_blank">signal-cli</a> installed and registered. See <a href="https://github.com/pollen-robotics/reachy-mini-conversation-app#signal-integration" target="_blank">README</a> for setup.</p>
               </div>
             </div>
             <div id="signal-phone-row" class="feature-extra hidden">
@@ -165,6 +168,7 @@
               <div class="feature-info">
                 <p class="feature-name">Head Tracking</p>
                 <p class="feature-desc">Robot follows faces using MediaPipe detection.</p>
+                <p class="feature-req">Requires: <code>uv sync --extra mediapipe_vision</code> and a connected camera.</p>
               </div>
             </div>
           </div>

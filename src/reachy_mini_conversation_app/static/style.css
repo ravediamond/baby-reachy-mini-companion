@@ -308,6 +308,32 @@ button.ghost:hover { border-color: rgba(94, 240, 193, 0.4); }
   margin: 0; font-size: 13px; color: var(--text);
 }
 
+/* Hint / prerequisite callout */
+.hint {
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 181, 71, 0.06);
+  border: 1px solid rgba(255, 181, 71, 0.2);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--warn);
+}
+.hint a { color: var(--warn); text-decoration: underline; }
+.hint code {
+  padding: 2px 5px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06); font-size: 11px;
+}
+.feature-req {
+  margin: 4px 0 0; font-size: 11px; color: var(--warn);
+  opacity: 0.85;
+}
+.feature-req a { color: var(--warn); text-decoration: underline; }
+.feature-req code {
+  padding: 1px 4px; border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06); font-size: 10px;
+}
+
 /* Toggle switch */
 .toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
 .toggle input { opacity: 0; width: 0; height: 0; }

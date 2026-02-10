@@ -27,7 +27,17 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 I'm a new dad on a mission: building a nursery companion that actually respects our privacy. I wanted a "cool nanny bot" that plays and helps out with the baby — without sending a single byte of data to the cloud. What happens at home stays at home.
 
-Beyond this project, I want to prove that high-end robotics can run on consumer hardware (a Mac or a Jetson Orin) instead of massive servers or cloud subscriptions. This baby companion is my first step toward accessible assistive robotics — technology that helps people, running on hardware anyone can afford.
+Beyond this project, I want to prove that high-end robotics can run on consumer hardware (a Mac or a Jetson Orin) instead of massive servers or cloud subscriptions. If companion robotics only works on expensive cloud platforms, adoption will stay limited to tech demos. Running locally on a $200 Jetson or a Mac anyone already owns is how this technology actually reaches homes.
+
+### On AI Companions and Children
+
+People have asked me about the effects of AI companions and robots on children — and honestly, I fully agree that it's a delicate subject. But I believe we should explore it *because* it is something that will come one way or another. It's better to build an open, transparent experience where parents have full control than to wait for a closed commercial product that may not have their best interests at heart.
+
+A few things that inform the design:
+
+- **Privacy is non-negotiable.** Something running in your home, around your child, should never send data to a third party. That's why this is 100% local.
+- **Physical safety is addressed by design.** Reachy Mini is a social robot with no hands and no manipulators — it can express, move its head, and communicate, but it cannot grab, push, or physically interact with the baby. The risk is minimal by the nature of the hardware.
+- **Empathy is the key to acceptance.** A robot that executes tasks while a human is suffering has failed its purpose. One of my core goals is to explore giving the robot genuine empathetic behavior — detecting distress, adjusting tone, soothing rather than ignoring. When a companion robot truly acknowledges what you're feeling, that's when it becomes something people will accept in their lives.
 
 ## What Makes This Different
 
@@ -117,6 +127,20 @@ The app connects to any **OpenAI-compatible** LLM server. By default it points t
 | `MIC_GAIN` | `1.0` | Digital gain for microphone input (e.g., `2.0` to double volume). |
 | `SIGNAL_USER_PHONE` | — | Your phone number (e.g., `+1234567890`) for remote alerts. |
 | `REACHY_MINI_CUSTOM_PROFILE` | `default` | Selects the personality profile. |
+
+#### Tested Models
+
+The following models have been tested and work well with the app:
+
+| Model | Type | Notes |
+|-------|------|-------|
+| `qwen2.5:3b` | Text LLM | **Recommended default.** Stable on Ollama and vLLM. Great tool-calling support for its size. |
+| `ministral:3b` (Mistral AI) | Text LLM | Excellent reasoning for a 3B model — frontier-level quality in a tiny footprint. Works on Ollama. Does **not** work on vLLM v0.14 (current Jetson container version). |
+| `qwen2.5-vl:3b` | Vision LLM | Enables the camera tool for visual questions. Stable on Ollama and vLLM. |
+| `qwen3-vl:4b` | Vision LLM | Better quality than qwen2.5-vl, but the Qwen3 series uses a dynamic patching system that requires the **latest** inference engine versions — may not work on older Ollama/vLLM builds. |
+
+> [!NOTE]
+> Newer models (Ministral 3B, Qwen3-VL) deliver better results but can have compatibility issues with older inference engines. If you're on Jetson with vLLM v0.14, stick with `qwen2.5:3b` or `qwen2.5-vl:3b`. On a Mac with the latest Ollama, all models work.
 
 #### Option B: Via the Settings UI (Reachy Mini Apps)
 

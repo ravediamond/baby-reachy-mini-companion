@@ -165,6 +165,17 @@ with gr.Blocks(
             <p class="signature">&mdash; A dad building cool tech for his son</p>
         </div>
 
+        <!-- Principles -->
+        <div class="section-label">Our beliefs</div>
+        <div class="section-title">Design principles</div>
+
+        <div class="diff-grid">
+            <div class="diff-item"><strong>Privacy first</strong> &mdash; Something running in your home, around your child, should never send data to a third party</div>
+            <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac or a $200 Jetson &mdash; not a data center. That's how robotics reaches homes</div>
+            <div class="diff-item"><strong>Physically safe</strong> &mdash; Reachy Mini has no hands or manipulators &mdash; it can express and communicate, not grab or push</div>
+            <div class="diff-item"><strong>Empathy matters</strong> &mdash; A robot that ignores human distress has failed. Detecting emotions and responding with care is the goal</div>
+        </div>
+
         <!-- What makes this different -->
         <div class="section-label">Why it matters</div>
         <div class="section-title">What makes this different</div>
