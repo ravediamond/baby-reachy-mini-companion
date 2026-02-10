@@ -22,6 +22,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository1.0-dev
+
       - name: Install deps (locked) incl. vision extras
         run: uv sync --frozen --group dev --extra local
 

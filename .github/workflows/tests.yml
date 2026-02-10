@@ -53,6 +53,9 @@ jobs:
         run: |
           printf "OPENAI_API_KEY=test-dummy\n" > .env
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository1.0-dev
+
       - name: Install (locked)
         run: |
           uv sync --frozen --group dev --extra local
