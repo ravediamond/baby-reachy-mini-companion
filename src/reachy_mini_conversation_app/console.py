@@ -666,12 +666,30 @@ class LocalStream:
     async def record_loop(self) -> None:
         """Read mic frames from the recorder and forward them to the handler."""
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
-        logger.debug(f"Audio recording started at {input_sample_rate} Hz")
+        logger.info(f"Record loop started at {input_sample_rate} Hz")
+
+        import time as _time
+        _frame_count = 0
+        _none_count = 0
+        _last_diag = _time.time()
 
         while not self._stop_event.is_set():
             audio_frame = self._robot.media.get_audio_sample()
             if audio_frame is not None:
+                _frame_count += 1
                 await self.handler.receive((input_sample_rate, audio_frame))
+            else:
+                _none_count += 1
+
+            now = _time.time()
+            if now - _last_diag >= 5.0:
+                logger.info(
+                    f"Record loop: {_frame_count} frames, {_none_count} empty in last 5s"
+                )
+                _frame_count = 0
+                _none_count = 0
+                _last_diag = now
+
             await asyncio.sleep(0)  # avoid busy loop
 
     async def play_loop(self) -> None:
