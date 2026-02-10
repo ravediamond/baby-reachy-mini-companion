@@ -676,13 +676,53 @@ class LocalStream:
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
         print(f"[AUDIO] record_loop started, sample_rate={input_sample_rate}", flush=True)
 
+        # Show which device the SDK selected
+        try:
+            sdk_audio = self._robot.media.audio
+            sdk_dev_id = getattr(sdk_audio, "_input_device_id", "?")
+            import sounddevice as _sd_info
+            all_devs = _sd_info.query_devices()
+            print(f"[AUDIO] SDK selected input device id={sdk_dev_id}", flush=True)
+            if isinstance(sdk_dev_id, int) and sdk_dev_id < len(all_devs):
+                dev_info = all_devs[sdk_dev_id]
+                print(
+                    f"[AUDIO] SDK mic: '{dev_info['name']}' "
+                    f"(max_in_ch={dev_info['max_input_channels']}, "
+                    f"default_sr={dev_info['default_samplerate']})",
+                    flush=True,
+                )
+            print(f"[AUDIO] All audio devices:", flush=True)
+            for i, d in enumerate(all_devs):
+                tag = ""
+                if d["max_input_channels"] > 0:
+                    tag += " [IN]"
+                if d["max_output_channels"] > 0:
+                    tag += " [OUT]"
+                print(
+                    f"  [{i}] {d['name']}{tag}  "
+                    f"in_ch={d['max_input_channels']} out_ch={d['max_output_channels']} "
+                    f"sr={d['default_samplerate']}",
+                    flush=True,
+                )
+        except Exception as e:
+            print(f"[AUDIO] Could not inspect SDK device: {e}", flush=True)
+
         # ---- Attempt 1: direct SoundDevice stream ----
         use_direct_sd = False
         sd_stream = None
         try:
             import sounddevice as sd
 
-            print(f"[AUDIO] SoundDevice available, default input: {sd.query_devices(kind='input')}", flush=True)
+            # Pick the default input device and use its actual channel count
+            default_in = sd.query_devices(kind="input")
+            dev_channels = int(default_in["max_input_channels"])
+            dev_name = default_in["name"]
+            dev_sr = int(default_in["default_samplerate"])
+            print(
+                f"[AUDIO] Will open direct stream on '{dev_name}' "
+                f"(channels={dev_channels}, native_sr={dev_sr})",
+                flush=True,
+            )
 
             buffer_lock = threading.Lock()
             audio_chunks: deque = deque()
@@ -715,15 +755,22 @@ class LocalStream:
             except Exception as e:
                 print(f"[AUDIO] Could not stop SDK recording: {e}", flush=True)
 
+            # Use the device's native sample rate and channel count
             sd_stream = sd.InputStream(
-                samplerate=input_sample_rate,
-                channels=2,
+                samplerate=dev_sr,
+                channels=dev_channels,
                 dtype="float32",
                 callback=_audio_callback,
             )
             sd_stream.start()
             use_direct_sd = True
-            print("[AUDIO] Direct SoundDevice InputStream opened OK", flush=True)
+            # Override sample rate to match what we actually opened
+            input_sample_rate = dev_sr
+            print(
+                f"[AUDIO] Direct SoundDevice InputStream opened OK "
+                f"(sr={dev_sr}, ch={dev_channels})",
+                flush=True,
+            )
         except Exception as e:
             print(f"[AUDIO] Direct SoundDevice FAILED: {e}, falling back to SDK", flush=True)
 
