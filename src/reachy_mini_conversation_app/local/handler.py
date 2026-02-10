@@ -47,13 +47,13 @@ class LocalSessionHandler(AsyncStreamHandler):
 
         # Audio Classification Buffer (1s window)
         self.classifier_buffer = np.array([], dtype=np.float32)
-        self.classifier = None
-        self.last_cry_time = 0
+        self.classifier: Optional[AudioClassifier] = None
+        self.last_cry_time: float = 0.0
 
         # Vision Danger Detection
         self.danger_detector = None
-        self.danger_detection_task = None
-        self.last_danger_time = 0
+        self.danger_detection_task: Optional[asyncio.Task[None]] = None
+        self.last_danger_time: float = 0.0
 
         self.is_speaking = False
         self.silence_chunks = 0
@@ -67,8 +67,8 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.pipeline_task: Optional[asyncio.Task[None]] = None
 
         # Signal integration
-        self.signal = None
-        self.signal_polling_task = None
+        self.signal: Optional[SignalInterface] = None
+        self.signal_polling_task: Optional[asyncio.Task[None]] = None
         self.user_phone = config.SIGNAL_USER_PHONE
 
         # Tool specs cache (rebuilt in start_up with feature-based exclusions)
@@ -303,6 +303,8 @@ class LocalSessionHandler(AsyncStreamHandler):
 
     async def _process_system_event(self, event_text: str):
         """Process a system event (like 'Baby cry detected') as if it were a user prompt."""
+        if self.llm is None:
+            return
         logger.info(f"System Event: {event_text}")
         await self.output_queue.put(AdditionalOutputs({"role": "system", "content": event_text}))
 
@@ -365,6 +367,8 @@ class LocalSessionHandler(AsyncStreamHandler):
 
     async def _run_pipeline(self, audio: np.ndarray):
         """Run STT -> LLM -> TTS pipeline."""
+        if self.stt is None or self.llm is None or self.tts is None:
+            return
         # 1. STT
         transcript = await asyncio.to_thread(self.stt.transcribe, audio)
         if not transcript.strip():
@@ -453,6 +457,8 @@ class LocalSessionHandler(AsyncStreamHandler):
 
     async def _process_sentence(self, text: str):
         """Synthesize and queue audio for a sentence, handling tone and embedded commands."""
+        if self.tts is None:
+            return
         # --- 1. Extract and Execute Commands (Fallback / Legacy) ---
         # Look for PLAY_EMOTION("emotion_name") - Kept for backward compatibility or if LLM hallucinates text
         emotion_matches = re.findall(r'play_emotion\s*\(\s*["\']([^"\']+)["\']\s*\)', text, re.IGNORECASE)
@@ -510,6 +516,8 @@ class LocalSessionHandler(AsyncStreamHandler):
     async def _poll_danger_detection(self):
         """Background task: run YOLO on camera frames to detect dangerous objects."""
         import time
+        if self.danger_detector is None or self.deps.camera_worker is None:
+            return
         logger.info("Starting Danger Detection Poller...")
         while True:
             try:
@@ -549,6 +557,8 @@ class LocalSessionHandler(AsyncStreamHandler):
 
     async def _poll_signal(self):
         """Background task to poll Signal messages."""
+        if self.signal is None:
+            return
         logger.info("Starting Signal Poller...")
         while True:
             try:
@@ -570,6 +580,8 @@ class LocalSessionHandler(AsyncStreamHandler):
 
     async def _handle_signal_message(self, sender: str, text: str):
         """Process a Signal message and respond, supporting tool use."""
+        if self.llm is None:
+            return
         await self.output_queue.put(AdditionalOutputs({"role": "user", "content": f"[Signal] {text}"}))
 
         current_input = text

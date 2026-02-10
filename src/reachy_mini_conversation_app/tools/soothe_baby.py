@@ -20,8 +20,9 @@ class SootheBaby(Tool):
         "required": [],
     }
 
-    async def __call__(self, deps: ToolDependencies, duration_seconds: int = 10) -> Dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Execute the soothing routine."""
+        duration_seconds: int = int(kwargs.get("duration_seconds", 10))
         # 1. gentle rocking motions
         moves = ["side_to_side_sway", "pendulum_swing"]
 

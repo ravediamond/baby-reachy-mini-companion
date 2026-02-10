@@ -52,8 +52,9 @@ class StoryTime(Tool):
         "required": ["story_name"],
     }
 
-    async def __call__(self, deps: ToolDependencies, story_name: str) -> Dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Execute the story telling."""
+        story_name: str = kwargs.get("story_name", "")
         story_text = STORIES.get(story_name)
         if not story_text:
             # Fallback to random if invalid name (or LLM hallucination)

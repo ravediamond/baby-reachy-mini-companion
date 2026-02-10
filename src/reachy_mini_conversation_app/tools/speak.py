@@ -23,8 +23,10 @@ class Speak(Tool):
         "required": ["text"]
     }
 
-    async def __call__(self, deps: ToolDependencies, text: str, emotion: str = None) -> Dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Execute the speak tool."""
+        text: str = kwargs.get("text", "")
+        emotion: str | None = kwargs.get("emotion")
         # If emotion is provided, we could optionally trigger play_emotion here or append it to text
         full_text = text
         if emotion:

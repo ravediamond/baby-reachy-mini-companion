@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class LocalLLM:
     """Wrapper for LLM via OpenAI compatible API (Ollama, vLLM, etc.)."""
 
-    def __init__(self, base_url: str = None, model: str = None, api_key: str = None, system_prompt: str = ""):
+    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None, api_key: Optional[str] = None, system_prompt: str = ""):
         """Initialize the LLM client."""
         base_url = base_url or config.LOCAL_LLM_URL
         api_key = api_key or config.LOCAL_LLM_API_KEY

@@ -15,7 +15,7 @@ class CheckBabyCrying(Tool):
         "required": [],
     }
 
-    async def __call__(self, deps: ToolDependencies) -> Dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Check status of audio classifier."""
         if not deps.audio_classifier_status:
             return {"status": "error", "message": "Audio classifier status not available."}
