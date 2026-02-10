@@ -30,10 +30,10 @@ custom_css = """
 
 /* ---- Hero Image ---- */
 .hero-image {
-    margin: 2rem auto 2.5rem; text-align: center;
+    max-width: 560px !important; margin: 0 auto 2.5rem !important;
 }
 .hero-image img {
-    max-width: 560px; width: 100%; height: auto; border-radius: 1rem;
+    border-radius: 1rem !important;
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 
@@ -155,11 +155,21 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <p>A fully local AI companion for babies and kids. Voice interaction, baby monitoring,
             vision, and expressive motion &mdash; all running privately on your own hardware.</p>
         </div>
+    </div>
+    """)
 
-        <!-- Hero Image -->
-        <div class="hero-image">
-            <img src="https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion/resolve/main/docs/assets/baby-reachy-mini.jpg" alt="Reachy Mini robot among baby toys" />
-        </div>
+    gr.Image(
+        value="docs/assets/baby-reachy-mini.jpg",
+        show_label=False,
+        show_download_button=False,
+        show_fullscreen_button=False,
+        interactive=False,
+        container=False,
+        elem_classes=["hero-image"],
+    )
+
+    gr.HTML("""
+    <div class="page">
 
         <!-- Deploy tags -->
         <div class="deploy-tags">
