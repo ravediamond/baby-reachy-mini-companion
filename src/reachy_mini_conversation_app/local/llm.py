@@ -1,17 +1,18 @@
 import logging
-import json
-from typing import AsyncGenerator, Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional, AsyncGenerator
+
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionChunk
 
 from reachy_mini_conversation_app.config import config
+
 
 logger = logging.getLogger(__name__)
 
 class LocalLLM:
     """Wrapper for LLM via OpenAI compatible API (Ollama, vLLM, etc.)."""
 
-    def __init__(self, base_url: str = None, model: str = None, api_key: str = None, system_prompt: str = ""):
+    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None, api_key: Optional[str] = None, system_prompt: str = ""):
+        """Initialize the LLM client."""
         base_url = base_url or config.LOCAL_LLM_URL
         api_key = api_key or config.LOCAL_LLM_API_KEY
         self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
@@ -21,8 +22,9 @@ class LocalLLM:
         self.max_history = 10 # Keep last 10 messages
 
     def set_system_prompt(self, prompt: str):
+        """Set the system prompt for the LLM."""
         self.system_prompt = prompt
-        
+
     def _trim_history(self):
         """Keep history within limits."""
         if len(self.history) > self.max_history:
@@ -31,41 +33,41 @@ class LocalLLM:
             self.history = self.history[-self.max_history:]
 
     async def chat_stream(
-        self, 
-        user_text: Optional[str] = None, 
+        self,
+        user_text: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_outputs: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Send message and yield response events (text or tool calls)."""
-        
         self._trim_history()
         messages = [{"role": "system", "content": self.system_prompt}]
         messages.extend(self.history)
-        
+
         if user_text:
             messages.append({"role": "user", "content": user_text})
             # Temporarily add to history (will be confirmed after success)
             # Actually, better to manage history at the end of the turn
-        
+
         if tool_outputs:
             # Append tool outputs to messages (and history ideally)
             # Assuming tool_outputs are valid tool messages
             messages.extend(tool_outputs)
 
         try:
-            stream = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=tools,
-                stream=True
-            )
+            create_kwargs: Dict[str, Any] = {
+                "model": self.model or "",
+                "messages": messages,
+                "tools": tools,
+                "stream": True,
+            }
+            stream: Any = await self.client.chat.completions.create(**create_kwargs)
 
             full_content = ""
             tool_calls_buffer: Dict[int, Any] = {}
 
             async for chunk in stream:
                 delta = chunk.choices[0].delta
-                
+
                 # 1. Handle Text Content
                 if delta.content:
                     full_content += delta.content
@@ -81,10 +83,10 @@ class LocalLLM:
                                 "type": "function",
                                 "function": {"name": "", "arguments": ""}
                             }
-                        
+
                         if tc.id:
                             tool_calls_buffer[idx]["id"] = tc.id
-                        
+
                         if tc.function:
                             if tc.function.name:
                                 tool_calls_buffer[idx]["function"]["name"] += tc.function.name
@@ -92,11 +94,11 @@ class LocalLLM:
                                 tool_calls_buffer[idx]["function"]["arguments"] += tc.function.arguments
 
             # End of stream processing
-            
+
             # Commit user message to history if it was new
             if user_text:
                 self.history.append({"role": "user", "content": user_text})
-            
+
             # Commit tool outputs if any
             if tool_outputs:
                 self.history.extend(tool_outputs)
@@ -108,7 +110,7 @@ class LocalLLM:
                     tool_call = tool_calls_buffer[idx]
                     final_tool_calls.append(tool_call)
                     yield {"type": "tool_call", "tool_call": tool_call}
-                
+
                 # Append assistant message with tool calls to history
                 self.history.append({
                     "role": "assistant",

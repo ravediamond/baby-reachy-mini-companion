@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
+# mypy: ignore-errors
 """Benchmark Ollama response times with and without tools."""
 
-import asyncio
-import time
 import sys
+import time
+import asyncio
 from pathlib import Path
+
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from openai import AsyncOpenAI
-from reachy_mini_conversation_app.tools.core_tools import get_tool_specs
+
 from reachy_mini_conversation_app.config import config
+from reachy_mini_conversation_app.tools.core_tools import get_tool_specs
 
 
 async def benchmark():
+    """Run LLM benchmark against Ollama."""
     model = config.LOCAL_LLM_MODEL or "ministral-3:3b"
     base_url = "http://localhost:11434/v1"
 
-    print(f"Benchmarking Ollama")
+    print("Benchmarking Ollama")
     print(f"  Model: {model}")
     print(f"  URL: {base_url}")
     print("-" * 50)

@@ -1,7 +1,8 @@
 import logging
+
 import numpy as np
 import torch
-from typing import Tuple
+
 
 logger = logging.getLogger(__name__)
 
@@ -9,6 +10,7 @@ class SileroVAD:
     """Wrapper for Silero VAD."""
 
     def __init__(self, sample_rate: int = 16000, threshold: float = 0.5):
+        """Initialize the VAD model."""
         self.sample_rate = sample_rate
         self.threshold = threshold
         self.model = None
@@ -30,9 +32,10 @@ class SileroVAD:
 
     def is_speech(self, audio_chunk: np.ndarray) -> bool:
         """Check if the audio chunk contains speech.
-        
+
         Args:
             audio_chunk: Float32 numpy array of audio samples
+
         """
         if self.model is None:
             return False
@@ -44,5 +47,5 @@ class SileroVAD:
 
         with torch.no_grad():
             speech_prob = self.model(tensor, self.sample_rate).item()
-        
+
         return speech_prob > self.threshold

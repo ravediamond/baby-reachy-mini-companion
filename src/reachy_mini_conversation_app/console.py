@@ -1,12 +1,13 @@
 """Bidirectional local audio stream with optional settings UI.
 
-In headless mode, there is no Gradio UI. If the OpenAI API key is not
-available via environment/.env, we expose a minimal settings page via the
-Reachy Mini Apps settings server to let non-technical users enter it.
+In headless mode, there is no Gradio UI. We expose a minimal settings page
+via the Reachy Mini Apps settings server to let non-technical users configure
+the app — either the OpenAI API key (realtime mode) or the local LLM settings
+(local mode: URL, model, API key, STT model).
 
-The settings UI is served from this package's ``static/`` folder and offers a
-single password field to set ``OPENAI_API_KEY``. Once set, we persist it to the
-app instance's ``.env`` file (if available) and proceed to start streaming.
+The settings UI is served from this package's ``static/`` folder.
+Once set, values are persisted to the app instance's ``.env`` file
+(if available) and used immediately.
 """
 
 import os
@@ -14,7 +15,8 @@ import sys
 import time
 import asyncio
 import logging
-from typing import List, Optional
+import threading
+from typing import Any, List, Optional
 from pathlib import Path
 
 from fastrtc import AdditionalOutputs, audio_to_float32
@@ -23,22 +25,22 @@ from scipy.signal import resample
 from reachy_mini import ReachyMini
 from reachy_mini.media.media_manager import MediaBackend
 from reachy_mini_conversation_app.config import config
-from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
 from reachy_mini_conversation_app.headless_personality_ui import mount_personality_routes
 
 
 try:
     # FastAPI is provided by the Reachy Mini Apps runtime
-    from fastapi import FastAPI, Response
+    from fastapi import FastAPI, Request, Response
     from pydantic import BaseModel
     from fastapi.responses import FileResponse, JSONResponse
     from starlette.staticfiles import StaticFiles
 except Exception:  # pragma: no cover - only loaded when settings_app is used
-    FastAPI = object  # type: ignore
-    FileResponse = object  # type: ignore
-    JSONResponse = object  # type: ignore
-    StaticFiles = object  # type: ignore
-    BaseModel = object  # type: ignore
+    FastAPI = object  # type: ignore[misc,assignment]
+    Request = object  # type: ignore[misc,assignment]
+    FileResponse = object  # type: ignore[misc,assignment]
+    JSONResponse = object  # type: ignore[misc,assignment]
+    StaticFiles = object  # type: ignore[misc,assignment]
+    BaseModel = object  # type: ignore[misc,assignment]
 
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ class LocalStream:
 
     def __init__(
         self,
-        handler: OpenaiRealtimeHandler,
+        handler: Any,
         robot: ReachyMini,
         *,
         settings_app: Optional[FastAPI] = None,
@@ -70,6 +72,13 @@ class LocalStream:
         self._instance_path: Optional[str] = instance_path
         self._settings_initialized = False
         self._asyncio_loop = None
+        # Gate for local mode: blocks launch() until user clicks "Start" in the UI
+        self._start_event = threading.Event()
+        self._pipeline_started = False
+
+        # Register dashboard routes immediately so the UI is available
+        # while the robot and pipeline are still initializing.
+        self._init_settings_ui_if_needed()
 
     # ---- Settings UI (only when API key is missing) ----
     def _read_env_lines(self, env_path: Path) -> list[str]:
@@ -216,6 +225,84 @@ class LocalStream:
             pass
         return None
 
+    def _is_local_handler(self) -> bool:
+        """Check whether the handler is the local LLM handler."""
+        try:
+            from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+
+            return isinstance(self.handler, LocalSessionHandler)
+        except Exception:
+            return False
+
+    _FEATURE_KEYS = (
+        "FEATURE_CRY_DETECTION",
+        "FEATURE_AUTO_SOOTHE",
+        "FEATURE_DANGER_DETECTION",
+        "FEATURE_STORY_TIME",
+        "FEATURE_SIGNAL_ALERTS",
+        "FEATURE_HEAD_TRACKING",
+    )
+
+    def _persist_local_llm_settings(self, settings: dict[str, str]) -> None:
+        """Persist local LLM and feature settings to environment, config, and instance .env.
+
+        Accepted keys: LOCAL_LLM_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY, LOCAL_STT_MODEL,
+        SIGNAL_USER_PHONE, and all FEATURE_* flags.
+        """
+        env_keys = (
+            "LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL",
+            "SIGNAL_USER_PHONE", "MIC_GAIN",
+            *self._FEATURE_KEYS,
+        )
+        for key in env_keys:
+            val = (settings.get(key) or "").strip()
+            if not val:
+                continue
+            try:
+                os.environ[key] = val
+            except Exception:
+                pass
+            try:
+                # Feature flags are booleans on config
+                if key.startswith("FEATURE_"):
+                    setattr(config, key, val.lower() == "true")
+                elif key == "MIC_GAIN":
+                    setattr(config, key, float(val))
+                else:
+                    setattr(config, key, val)
+            except Exception:
+                pass
+
+        if not self._instance_path:
+            return
+        try:
+            inst = Path(self._instance_path)
+            env_path = inst / ".env"
+            lines = self._read_env_lines(env_path)
+            for key in env_keys:
+                val = (settings.get(key) or "").strip()
+                if not val:
+                    continue
+                replaced = False
+                for i, ln in enumerate(lines):
+                    if ln.strip().startswith(f"{key}="):
+                        lines[i] = f'{key}="{val}"'
+                        replaced = True
+                        break
+                if not replaced:
+                    lines.append(f'{key}="{val}"')
+            final_text = "\n".join(lines) + "\n"
+            env_path.write_text(final_text, encoding="utf-8")
+            logger.info("Persisted local LLM settings to %s", env_path)
+            try:
+                from dotenv import load_dotenv
+
+                load_dotenv(dotenv_path=str(env_path), override=True)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning("Failed to persist local LLM settings: %s", e)
+
     def _init_settings_ui_if_needed(self) -> None:
         """Attach minimal settings UI to the settings app.
 
@@ -301,6 +388,134 @@ class LocalStream:
                 logger.warning(f"API key validation failed: {e}")
                 return JSONResponse({"valid": False, "error": "validation_error"}, status_code=500)
 
+        # GET /app_mode -> whether we're running local or openai-realtime
+        @self._settings_app.get("/app_mode")
+        def _app_mode() -> JSONResponse:
+            return JSONResponse({"mode": "local" if self._is_local_handler() else "openai"})
+
+        # GET /app_state -> configuring or running
+        @self._settings_app.get("/app_state")
+        def _app_state() -> JSONResponse:
+            return JSONResponse({
+                "state": "running" if self._pipeline_started else "configuring",
+            })
+
+        # GET /local_llm_settings -> current local LLM configuration
+        @self._settings_app.get("/local_llm_settings")
+        def _get_local_llm_settings() -> JSONResponse:
+            return JSONResponse({
+                "LOCAL_LLM_URL": config.LOCAL_LLM_URL or "",
+                "LOCAL_LLM_MODEL": config.LOCAL_LLM_MODEL or "",
+                "LOCAL_LLM_API_KEY": config.LOCAL_LLM_API_KEY or "",
+                "LOCAL_STT_MODEL": config.LOCAL_STT_MODEL or "",
+            })
+
+        # GET /feature_settings -> current feature flags
+        @self._settings_app.get("/feature_settings")
+        def _get_feature_settings() -> JSONResponse:
+            return JSONResponse({
+                "FEATURE_CRY_DETECTION": config.FEATURE_CRY_DETECTION,
+                "FEATURE_AUTO_SOOTHE": config.FEATURE_AUTO_SOOTHE,
+                "FEATURE_DANGER_DETECTION": config.FEATURE_DANGER_DETECTION,
+                "FEATURE_STORY_TIME": config.FEATURE_STORY_TIME,
+                "FEATURE_SIGNAL_ALERTS": config.FEATURE_SIGNAL_ALERTS,
+                "FEATURE_HEAD_TRACKING": config.FEATURE_HEAD_TRACKING,
+                "SIGNAL_USER_PHONE": config.SIGNAL_USER_PHONE or "",
+                "MIC_GAIN": config.MIC_GAIN,
+            })
+
+        # POST /test_mic -> record a short audio clip and check signal level
+        @self._settings_app.post("/test_mic")
+        async def _test_mic(request: Request) -> JSONResponse:
+            try:
+                raw = await request.json()
+            except Exception:
+                raw = {}
+            gain = float(raw.get("MIC_GAIN", 1.0))
+            try:
+                import sounddevice as sd
+                duration = 1.5  # seconds
+                sr = 16000
+                recording = sd.rec(int(duration * sr), samplerate=sr, channels=1, dtype="float32")
+                sd.wait()
+                audio = recording.flatten() * gain
+                rms = float((audio ** 2).mean() ** 0.5)
+                peak = float(abs(audio).max())
+                # Thresholds tuned for speech detection
+                if peak < 0.005:
+                    verdict = "no_signal"
+                    msg = "No audio signal detected. Check that your microphone is connected and not muted."
+                elif rms < 0.01:
+                    verdict = "too_quiet"
+                    msg = f"Audio detected but very quiet (RMS: {rms:.4f}). Try increasing the mic gain or moving closer."
+                else:
+                    verdict = "ok"
+                    msg = f"Microphone working (RMS: {rms:.4f}, Peak: {peak:.4f})."
+                return JSONResponse({"ok": True, "verdict": verdict, "message": msg, "rms": round(rms, 5), "peak": round(peak, 5)})
+            except Exception as e:
+                return JSONResponse({"ok": False, "verdict": "error", "message": f"Mic test failed: {e}"}, status_code=500)
+
+        # POST /test_llm -> check if the LLM endpoint is reachable
+        @self._settings_app.post("/test_llm")
+        async def _test_llm(request: Request) -> JSONResponse:
+            try:
+                raw = await request.json()
+            except Exception:
+                raw = {}
+            url = (raw.get("LOCAL_LLM_URL") or config.LOCAL_LLM_URL or "").strip().rstrip("/")
+            model = (raw.get("LOCAL_LLM_MODEL") or config.LOCAL_LLM_MODEL or "").strip()
+            api_key = (raw.get("LOCAL_LLM_API_KEY") or config.LOCAL_LLM_API_KEY or "").strip()
+            if not url:
+                return JSONResponse({"ok": False, "verdict": "no_url", "message": "No server URL configured."})
+            try:
+                import httpx
+                headers = {}
+                if api_key and api_key != "ollama":
+                    headers["Authorization"] = f"Bearer {api_key}"
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(f"{url}/models", headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        models = [m.get("id", "") for m in data.get("data", [])]
+                        if model and model in models:
+                            return JSONResponse({"ok": True, "verdict": "ok", "message": f"Connected. Model '{model}' is available.", "models": models})
+                        elif model:
+                            return JSONResponse({"ok": True, "verdict": "model_missing", "message": f"Connected but model '{model}' not found. Available: {', '.join(models[:5])}", "models": models})
+                        else:
+                            return JSONResponse({"ok": True, "verdict": "ok", "message": f"Connected. Available models: {', '.join(models[:5])}", "models": models})
+                    else:
+                        return JSONResponse({"ok": False, "verdict": "error", "message": f"Server returned {resp.status_code}."})
+            except httpx.ConnectError:
+                return JSONResponse({"ok": False, "verdict": "unreachable", "message": f"Cannot connect to {url}. Is the server running?"})
+            except Exception as e:
+                return JSONResponse({"ok": False, "verdict": "error", "message": f"Connection test failed: {e}"})
+
+        # POST /start_app -> save settings and start the pipeline
+        @self._settings_app.post("/start_app")
+        async def _start_app(request: Request) -> JSONResponse:
+            if self._pipeline_started:
+                return JSONResponse({"ok": True, "already_running": True})
+            try:
+                raw = await request.json()
+            except Exception:
+                raw = {}
+            # Persist whatever settings were sent
+            if raw:
+                self._persist_local_llm_settings(raw)
+                # Also update the handler's live LLM URL and model so start_up() uses them
+                try:
+                    url = (raw.get("LOCAL_LLM_URL") or "").strip()
+                    model = (raw.get("LOCAL_LLM_MODEL") or "").strip()
+                    if url:
+                        self.handler.llm_url = url
+                    if model:
+                        self.handler.llm_model = model
+                except Exception:
+                    pass
+            # Unblock launch()
+            self._start_event.set()
+            return JSONResponse({"ok": True})
+
         self._settings_initialized = True
 
     def launch(self) -> None:
@@ -334,6 +549,14 @@ class LocalStream:
                             set_custom_profile(new_profile.strip() or None)
                         except Exception:
                             pass
+                    # Reload local LLM settings from instance .env
+                    for env_key in ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL"):
+                        val = os.getenv(env_key, "").strip()
+                        if val:
+                            try:
+                                setattr(config, env_key, val)
+                            except Exception:
+                                pass
             except Exception:
                 pass
 
@@ -355,9 +578,13 @@ class LocalStream:
             except Exception as e:
                 logger.warning(f"Failed to download API key from HuggingFace: {e}")
 
-        # Always expose settings UI if a settings app is available
-        # (do this AFTER loading/downloading the key so status endpoint sees the right value)
-        self._init_settings_ui_if_needed()
+        # In local mode, wait for user to configure settings and click "Start"
+        if is_local and self._settings_app is not None:
+            logger.info("Local mode: waiting for user to configure settings via UI and click Start...")
+            self._start_event.wait()  # blocks until POST /start_app is called
+            logger.info("Start signal received, launching pipeline...")
+
+        self._pipeline_started = True
 
         # Start media after key is set/available
         self._robot.media.start_recording()

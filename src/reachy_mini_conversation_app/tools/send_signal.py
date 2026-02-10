@@ -1,12 +1,12 @@
 """Tool to send Signal messages."""
 
 import logging
-import asyncio
 from typing import Any, Dict
 
+from reachy_mini_conversation_app.config import config
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 from reachy_mini_conversation_app.input.signal_interface import SignalInterface
-from reachy_mini_conversation_app.config import config
+
 
 logger = logging.getLogger(__name__)
 

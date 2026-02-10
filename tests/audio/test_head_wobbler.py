@@ -83,7 +83,7 @@ def test_reset_during_inflight_chunk_keeps_worker(monkeypatch: Any) -> None:
 
     original_feed = wobbler.sway.feed
 
-    def blocking_feed(pcm, sr):  # type: ignore[no-untyped-def]
+    def blocking_feed(pcm, sr):
         ready.set()
         release.wait(timeout=2.0)
         return original_feed(pcm, sr)

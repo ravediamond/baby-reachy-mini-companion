@@ -57,6 +57,7 @@ class ToolDependencies:
     motion_duration_s: float = 1.0
     speak_func: Any | None = None  # Async function(text: str) -> None
     audio_classifier_status: Dict[str, Any] | None = None  # Shared dict for classifier status
+    vision_threat_status: Dict[str, Any] | None = None  # Shared dict for danger detection status
 
 
 # Tool base class

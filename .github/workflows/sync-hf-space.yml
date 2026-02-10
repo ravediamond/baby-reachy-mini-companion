@@ -26,8 +26,8 @@ jobs:
       - name: Sync with Hugging Face Space
         uses: ./.github/actions/huggingface-sync-action
         with:
-          github_repo_id: pollen-robotics/reachy_mini_conversation_app
-          huggingface_repo_id: pollen-robotics/reachy_mini_conversation_app
+          github_repo_id: ravediamond/baby-reachy-mini-companion
+          huggingface_repo_id: ravediamond/baby-reachy-mini-companion
           hf_token: ${{ secrets.HF_TOKEN }}
           repo_type: space
           space_sdk: gradio

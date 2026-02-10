@@ -26,10 +26,10 @@ class Config:
     # Optional
     MODEL_NAME = os.getenv("MODEL_NAME", "gpt-realtime")
     HF_HOME = os.getenv("HF_HOME", "./cache")
-    LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL")
+    LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:3b")
     LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")  # Ollama default
     LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "ollama")  # Ollama doesn't need a real key
-    LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "medium.en")
+    LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "small.en")
     HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, falls back to hf auth login if not set
 
     logger.debug(f"Model: {MODEL_NAME}, HF_HOME: {HF_HOME}, LLM Model: {LOCAL_LLM_MODEL}")
@@ -42,6 +42,14 @@ class Config:
 
     # Audio Settings
     MIC_GAIN = float(os.getenv("MIC_GAIN", "1.0"))
+
+    # Feature Flags (all enabled by default)
+    FEATURE_CRY_DETECTION = os.getenv("FEATURE_CRY_DETECTION", "true").lower() == "true"
+    FEATURE_AUTO_SOOTHE = os.getenv("FEATURE_AUTO_SOOTHE", "true").lower() == "true"
+    FEATURE_DANGER_DETECTION = os.getenv("FEATURE_DANGER_DETECTION", "true").lower() == "true"
+    FEATURE_STORY_TIME = os.getenv("FEATURE_STORY_TIME", "true").lower() == "true"
+    FEATURE_SIGNAL_ALERTS = os.getenv("FEATURE_SIGNAL_ALERTS", "true").lower() == "true"
+    FEATURE_HEAD_TRACKING = os.getenv("FEATURE_HEAD_TRACKING", "true").lower() == "true"
 
 
 config = Config()

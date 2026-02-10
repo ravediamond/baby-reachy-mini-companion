@@ -85,6 +85,89 @@ async function saveKey(key) {
   return await resp.json();
 }
 
+// ---------- Local LLM Settings API ----------
+async function fetchAppMode() {
+  try {
+    const url = new URL("/app_mode", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return { mode: "openai" }; // fallback for older backends
+}
+
+async function fetchLocalLlmSettings() {
+  try {
+    const url = new URL("/local_llm_settings", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return {};
+}
+
+async function startApp(settings) {
+  const resp = await fetch("/start_app", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || "start_failed");
+  }
+  return await resp.json();
+}
+
+async function fetchAppState() {
+  try {
+    const url = new URL("/app_state", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return { state: "configuring" };
+}
+
+// ---------- Feature Settings API ----------
+async function fetchFeatureSettings() {
+  try {
+    const url = new URL("/feature_settings", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return {};
+}
+
+function getFeatureSettings() {
+  return {
+    FEATURE_CRY_DETECTION: document.getElementById("feat-cry-detection").checked ? "true" : "false",
+    FEATURE_AUTO_SOOTHE: document.getElementById("feat-auto-soothe").checked ? "true" : "false",
+    FEATURE_DANGER_DETECTION: document.getElementById("feat-danger-detection").checked ? "true" : "false",
+    FEATURE_STORY_TIME: document.getElementById("feat-story-time").checked ? "true" : "false",
+    FEATURE_SIGNAL_ALERTS: document.getElementById("feat-signal-alerts").checked ? "true" : "false",
+    FEATURE_HEAD_TRACKING: document.getElementById("feat-head-tracking").checked ? "true" : "false",
+    SIGNAL_USER_PHONE: (document.getElementById("signal-phone").value || "").trim(),
+  };
+}
+
+function applyFeatureSettings(settings) {
+  document.getElementById("feat-cry-detection").checked = settings.FEATURE_CRY_DETECTION !== false;
+  document.getElementById("feat-auto-soothe").checked = settings.FEATURE_AUTO_SOOTHE !== false;
+  document.getElementById("feat-danger-detection").checked = settings.FEATURE_DANGER_DETECTION !== false;
+  document.getElementById("feat-story-time").checked = settings.FEATURE_STORY_TIME !== false;
+  document.getElementById("feat-signal-alerts").checked = settings.FEATURE_SIGNAL_ALERTS !== false;
+  document.getElementById("feat-head-tracking").checked = settings.FEATURE_HEAD_TRACKING !== false;
+  document.getElementById("signal-phone").value = settings.SIGNAL_USER_PHONE || "";
+  // Show/hide phone field
+  show(document.getElementById("signal-phone-row"), settings.FEATURE_SIGNAL_ALERTS !== false);
+  // Mic gain
+  const gain = settings.MIC_GAIN != null ? settings.MIC_GAIN : 1.0;
+  document.getElementById("mic-gain").value = gain;
+  document.getElementById("mic-gain-value").textContent = gain;
+}
+
 // ---------- Personalities API ----------
 async function getPersonalities() {
   const url = new URL("/personalities", window.location.origin);
@@ -190,6 +273,29 @@ async function init() {
   const changeKeyBtn = document.getElementById("change-key-btn");
   const input = document.getElementById("api-key");
 
+  // Local LLM elements
+  const localLlmPanel = document.getElementById("local-llm-panel");
+  const localLlmChip = document.getElementById("local-llm-chip");
+  const localRunningPanel = document.getElementById("local-running-panel");
+  const localRunningInfo = document.getElementById("local-running-info");
+  const llmUrlInput = document.getElementById("llm-url");
+  const llmModelInput = document.getElementById("llm-model");
+  const llmApiKeyInput = document.getElementById("llm-api-key");
+  const sttModelSelect = document.getElementById("stt-model");
+  const startLocalBtn = document.getElementById("start-local-btn");
+  const localLlmStatus = document.getElementById("local-llm-status");
+  const micGainSlider = document.getElementById("mic-gain");
+  const micGainValue = document.getElementById("mic-gain-value");
+  const testLlmBtn = document.getElementById("test-llm-btn");
+  const testLlmStatus = document.getElementById("test-llm-status");
+  const testMicBtn = document.getElementById("test-mic-btn");
+  const testMicStatus = document.getElementById("test-mic-status");
+
+  // Features panel
+  const featuresPanel = document.getElementById("features-panel");
+  const signalToggle = document.getElementById("feat-signal-alerts");
+  const signalPhoneRow = document.getElementById("signal-phone-row");
+
   // Personality elements
   const pSelect = document.getElementById("personality-select");
   const pApply = document.getElementById("apply-personality");
@@ -213,71 +319,190 @@ async function init() {
   show(formPanel, false);
   show(configuredPanel, false);
   show(personalityPanel, false);
+  show(localLlmPanel, false);
+  show(localRunningPanel, false);
+  show(featuresPanel, false);
 
-  const st = (await waitForStatus()) || { has_key: false };
-  if (st.has_key) {
+  // Detect app mode (local vs openai)
+  const appMode = await fetchAppMode();
+  const isLocal = appMode.mode === "local";
+
+  if (isLocal) {
+    // --- Local LLM mode ---
     statusEl.textContent = "";
-    show(configuredPanel, true);
-  }
 
-  // Handler for "Change API key" button
-  changeKeyBtn.addEventListener("click", () => {
-    show(configuredPanel, false);
-    show(formPanel, true);
-    input.value = "";
-    statusEl.textContent = "";
-    statusEl.className = "status";
-  });
+    // Check if pipeline is already running (e.g., page refresh after start)
+    const appState = await fetchAppState();
+    if (appState.state === "running") {
+      const runSettings = await fetchLocalLlmSettings();
+      show(localRunningPanel, true);
+      localRunningInfo.textContent = `Model: ${runSettings.LOCAL_LLM_MODEL || "—"} | STT: ${runSettings.LOCAL_STT_MODEL || "—"}`;
+    } else {
+      // Show configuration form
+      const settings = await fetchLocalLlmSettings();
+      llmUrlInput.value = settings.LOCAL_LLM_URL || "http://localhost:11434/v1";
+      llmModelInput.value = settings.LOCAL_LLM_MODEL || "qwen2.5:3b";
+      llmApiKeyInput.value = settings.LOCAL_LLM_API_KEY || "ollama";
+      sttModelSelect.value = settings.LOCAL_STT_MODEL || "small.en";
+      localLlmChip.textContent = "Configure";
+      localLlmChip.className = "chip";
+      show(localLlmPanel, true);
 
-  // Remove error styling when user starts typing
-  input.addEventListener("input", () => {
-    input.classList.remove("error");
-  });
+      // Load and show features panel
+      const featureSettings = await fetchFeatureSettings();
+      applyFeatureSettings(featureSettings);
+      show(featuresPanel, true);
 
-  saveBtn.addEventListener("click", async () => {
-    const key = input.value.trim();
-    if (!key) {
-      statusEl.textContent = "Please enter a valid key.";
-      statusEl.className = "status warn";
-      input.classList.add("error");
-      return;
+      // Wire mic gain slider label
+      micGainSlider.addEventListener("input", () => {
+        micGainValue.textContent = micGainSlider.value;
+      });
+
+      // Test LLM connection
+      testLlmBtn.addEventListener("click", async () => {
+        testLlmStatus.textContent = "Testing...";
+        testLlmStatus.className = "status";
+        testLlmBtn.disabled = true;
+        try {
+          const resp = await fetch("/test_llm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              LOCAL_LLM_URL: llmUrlInput.value.trim(),
+              LOCAL_LLM_MODEL: llmModelInput.value.trim(),
+              LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
+            }),
+          });
+          const data = await resp.json();
+          testLlmStatus.textContent = data.message;
+          testLlmStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "model_missing" ? "warn" : "error");
+        } catch (e) {
+          testLlmStatus.textContent = "Test failed: " + e.message;
+          testLlmStatus.className = "status error";
+        }
+        testLlmBtn.disabled = false;
+      });
+
+      // Test microphone
+      testMicBtn.addEventListener("click", async () => {
+        testMicStatus.textContent = "Recording 1.5s...";
+        testMicStatus.className = "status";
+        testMicBtn.disabled = true;
+        try {
+          const resp = await fetch("/test_mic", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ MIC_GAIN: micGainSlider.value }),
+          });
+          const data = await resp.json();
+          testMicStatus.textContent = data.message;
+          testMicStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
+        } catch (e) {
+          testMicStatus.textContent = "Test failed: " + e.message;
+          testMicStatus.className = "status error";
+        }
+        testMicBtn.disabled = false;
+      });
+
+      // Wire Signal toggle to show/hide phone field
+      signalToggle.addEventListener("change", () => {
+        show(signalPhoneRow, signalToggle.checked);
+      });
+
+      startLocalBtn.addEventListener("click", async () => {
+        localLlmStatus.textContent = "Starting pipeline...";
+        localLlmStatus.className = "status";
+        startLocalBtn.disabled = true;
+        try {
+          await startApp({
+            LOCAL_LLM_URL: llmUrlInput.value.trim(),
+            LOCAL_LLM_MODEL: llmModelInput.value.trim(),
+            LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
+            LOCAL_STT_MODEL: sttModelSelect.value,
+            MIC_GAIN: micGainSlider.value,
+            ...getFeatureSettings(),
+          });
+          localLlmStatus.textContent = "Pipeline starting... loading models.";
+          localLlmStatus.className = "status ok";
+          // Transition UI: hide config and features, show running
+          show(localLlmPanel, false);
+          show(featuresPanel, false);
+          show(localRunningPanel, true);
+          localRunningInfo.textContent = `Model: ${llmModelInput.value.trim()} | STT: ${sttModelSelect.value}`;
+        } catch (e) {
+          localLlmStatus.textContent = "Failed to start. Check your settings and try again.";
+          localLlmStatus.className = "status error";
+          startLocalBtn.disabled = false;
+        }
+      });
     }
-    statusEl.textContent = "Validating API key...";
-    statusEl.className = "status";
-    input.classList.remove("error");
-    try {
-      // First validate the key
-      const validation = await validateKey(key);
-      if (!validation.valid) {
-        statusEl.textContent = "Invalid API key. Please check your key and try again.";
-        statusEl.className = "status error";
+  } else {
+    // --- OpenAI mode ---
+    const st = (await waitForStatus()) || { has_key: false };
+    if (st.has_key) {
+      statusEl.textContent = "";
+      show(configuredPanel, true);
+    }
+
+    // Handler for "Change API key" button
+    changeKeyBtn.addEventListener("click", () => {
+      show(configuredPanel, false);
+      show(formPanel, true);
+      input.value = "";
+      statusEl.textContent = "";
+      statusEl.className = "status";
+    });
+
+    // Remove error styling when user starts typing
+    input.addEventListener("input", () => {
+      input.classList.remove("error");
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      const key = input.value.trim();
+      if (!key) {
+        statusEl.textContent = "Please enter a valid key.";
+        statusEl.className = "status warn";
         input.classList.add("error");
         return;
       }
+      statusEl.textContent = "Validating API key...";
+      statusEl.className = "status";
+      input.classList.remove("error");
+      try {
+        // First validate the key
+        const validation = await validateKey(key);
+        if (!validation.valid) {
+          statusEl.textContent = "Invalid API key. Please check your key and try again.";
+          statusEl.className = "status error";
+          input.classList.add("error");
+          return;
+        }
 
-      // If valid, save it
-      statusEl.textContent = "Key valid! Saving...";
-      statusEl.className = "status ok";
-      await saveKey(key);
-      statusEl.textContent = "Saved. Reloading…";
-      statusEl.className = "status ok";
-      window.location.reload();
-    } catch (e) {
-      input.classList.add("error");
-      if (e.message === "invalid_api_key") {
-        statusEl.textContent = "Invalid API key. Please check your key and try again.";
-      } else {
-        statusEl.textContent = "Failed to validate/save key. Please try again.";
+        // If valid, save it
+        statusEl.textContent = "Key valid! Saving...";
+        statusEl.className = "status ok";
+        await saveKey(key);
+        statusEl.textContent = "Saved. Reloading…";
+        statusEl.className = "status ok";
+        window.location.reload();
+      } catch (e) {
+        input.classList.add("error");
+        if (e.message === "invalid_api_key") {
+          statusEl.textContent = "Invalid API key. Please check your key and try again.";
+        } else {
+          statusEl.textContent = "Failed to validate/save key. Please try again.";
+        }
+        statusEl.className = "status error";
       }
-      statusEl.className = "status error";
-    }
-  });
+    });
 
-  if (!st.has_key) {
-    statusEl.textContent = "";
-    show(formPanel, true);
-    show(loading, false);
-    return;
+    if (!st.has_key) {
+      statusEl.textContent = "";
+      show(formPanel, true);
+      show(loading, false);
+      return;
+    }
   }
 
   // Wait until backend routes are ready before rendering personalities UI

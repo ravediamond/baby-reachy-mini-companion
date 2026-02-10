@@ -1,6 +1,8 @@
 import logging
+
 import numpy as np
 from faster_whisper import WhisperModel
+
 
 logger = logging.getLogger(__name__)
 
@@ -8,6 +10,7 @@ class LocalSTT:
     """Wrapper for Faster-Whisper."""
 
     def __init__(self, model_size: str = "base.en", device: str = "auto", compute_type: str = "int8"):
+        """Initialize the STT engine."""
         self.model_size = model_size
         self.device = device
         self.compute_type = compute_type
@@ -18,8 +21,8 @@ class LocalSTT:
         try:
             logger.info(f"Loading Faster-Whisper model: {self.model_size}")
             self.model = WhisperModel(
-                self.model_size, 
-                device=self.device, 
+                self.model_size,
+                device=self.device,
                 compute_type=self.compute_type
             )
             logger.info("Faster-Whisper loaded successfully")
@@ -28,9 +31,10 @@ class LocalSTT:
 
     def transcribe(self, audio: np.ndarray) -> str:
         """Transcribe audio array to text.
-        
+
         Args:
             audio: Float32 numpy array (16kHz mono)
+
         """
         if self.model is None:
             return ""

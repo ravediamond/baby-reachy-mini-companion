@@ -1,6 +1,8 @@
-from typing import Dict, Any
+from typing import Any, Dict
+
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 from reachy_mini_conversation_app.dance_emotion_moves import DanceQueueMove
+
 
 class SootheBaby(Tool):
     """Soothe a baby with gentle words and rocking motions."""
@@ -18,12 +20,12 @@ class SootheBaby(Tool):
         "required": [],
     }
 
-    async def __call__(self, deps: ToolDependencies, duration_seconds: int = 10) -> Dict[str, Any]:
+    async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Execute the soothing routine."""
-        
+        duration_seconds: int = int(kwargs.get("duration_seconds", 10))
         # 1. gentle rocking motions
         moves = ["side_to_side_sway", "pendulum_swing"]
-        
+
         # Queue moves
         if deps.movement_manager:
             # Queue a few gentle moves to last roughly the duration
@@ -33,13 +35,13 @@ class SootheBaby(Tool):
                 move_name = moves[i % len(moves)]
                 dance_move = DanceQueueMove(move_name)
                 deps.movement_manager.queue_move(dance_move)
-        
+
         # 2. Soothing speech (using [STORY] for slower pace)
         soothing_text = (
             "[STORY] Shhh... it's okay... [sad] sleep tight little one... "
             "[STORY] everything is calm... safe and sound... shhh..."
         )
-        
+
         if deps.speak_func:
             await deps.speak_func(soothing_text)
             return {"status": "success", "message": "Soothing baby with gentle rocking and lullaby."}

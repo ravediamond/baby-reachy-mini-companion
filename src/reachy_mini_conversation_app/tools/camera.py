@@ -1,9 +1,6 @@
-import base64
 import asyncio
 import logging
 from typing import Any, Dict
-
-import cv2
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
@@ -30,7 +27,7 @@ class Camera(Tool):
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         """Take a picture with the camera and ask a question about it."""
         image_query = (kwargs.get("question") or "Describe what you see in detail.").strip()
-        
+
         logger.info("Tool call: camera question=%s", image_query[:120])
 
         # Get frame from camera worker buffer (like main_works.py)

@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """Test Signal polling and messaging."""
 
-import asyncio
-import tempfile
 import os
 import sys
+import asyncio
+import tempfile
 from pathlib import Path
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from reachy_mini_conversation_app.input.signal_interface import SignalInterface
 from reachy_mini_conversation_app.config import config
+from reachy_mini_conversation_app.input.signal_interface import SignalInterface
 
 
 async def main():
+    """Test Signal messaging integration."""
     print("Signal Test")
     print("-" * 40)
 

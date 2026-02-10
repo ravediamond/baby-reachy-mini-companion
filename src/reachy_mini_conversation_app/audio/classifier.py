@@ -1,10 +1,11 @@
-import os
 import csv
 import logging
-import requests
-import numpy as np
-import onnxruntime as ort
 from pathlib import Path
+
+import numpy as np
+import requests
+import onnxruntime as ort
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,11 @@ class AudioClassifier:
     """YAMNet-based audio event classifier."""
 
     def __init__(self, model_path: str = "cache/models--yamnet/yamnet.onnx", map_path: str = "cache/models--yamnet/yamnet_class_map.csv"):
+        """Initialize the YAMNet audio classifier."""
         self.model_path = model_path
         self.map_path = map_path
         self.session = None
-        self.class_names = []
+        self.class_names: list[str] = []
         self._ensure_files_exist()
         self._load_model()
 
@@ -26,14 +28,14 @@ class AudioClassifier:
         """Download model files if they don't exist."""
         model_p = Path(self.model_path)
         map_p = Path(self.map_path)
-        
+
         # Ensure directory exists
         model_p.parent.mkdir(parents=True, exist_ok=True)
-        
+
         if not model_p.exists():
             logger.info(f"Downloading YAMNet model to {model_p}...")
             self._download_file(URL_MODEL, model_p)
-            
+
         if not map_p.exists():
             logger.info(f"Downloading YAMNet class map to {map_p}...")
             self._download_file(URL_MAP, map_p)
@@ -77,19 +79,21 @@ class AudioClassifier:
 
     def classify(self, audio: np.ndarray, top_k: int = 5) -> list[tuple[str, float]]:
         """Classify audio chunk.
-        
+
         Args:
             audio: 16kHz float32 mono audio (should be ~0.975s for YAMNet, typically 15600 samples)
                    YAMNet expects input shape [N] where N is waveform length.
+            top_k: Number of top classification results to return.
+
         """
         if self.session is None:
             return []
 
         try:
-            # YAMNet typically expects chunks of 0.975s (15600 samples). 
+            # YAMNet typically expects chunks of 0.975s (15600 samples).
             # If longer, we take the center or iterate. If shorter, pad.
             target_len = 15600
-            
+
             if len(audio) < target_len:
                 # Pad with zeros
                 pad_width = target_len - len(audio)
@@ -101,20 +105,20 @@ class AudioClassifier:
             # Run inference
             # Input name for YAMNet ONNX is usually 'waveform'
             inputs = {self.session.get_inputs()[0].name: audio}
-            
+
             # Outputs: [prediction, embedding, log_mel_spectrogram]
             outputs = self.session.run(None, inputs)
-            
+
             # Prediction scores (logits or probabilities? usually probabilities)
             scores = outputs[0][0] # First batch
-            
+
             # Get top K
             top_indices = np.argsort(scores)[::-1][:top_k]
-            
+
             results = []
             for i in top_indices:
                 results.append((self.class_names[i], float(scores[i])))
-                
+
             return results
 
         except Exception as e:

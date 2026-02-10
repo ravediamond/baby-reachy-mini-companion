@@ -1,14 +1,16 @@
-import asyncio
 import sys
+import asyncio
 import logging
 from pathlib import Path
+
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
+from reachy_mini_conversation_app.config import config
 from reachy_mini_conversation_app.local.llm import LocalLLM
 from reachy_mini_conversation_app.tools.core_tools import get_tool_specs
-from reachy_mini_conversation_app.config import config
+
 
 # Configure logging
 logging.basicConfig(
@@ -18,6 +20,7 @@ logger = logging.getLogger("ToolTest")
 
 
 async def test_tools():
+    """Test local tool calling pipeline."""
     # 1. Initialize LLM
     llm_url = "http://localhost:11434/v1"
     llm_model = config.LOCAL_LLM_MODEL or "ministral-3:3b"

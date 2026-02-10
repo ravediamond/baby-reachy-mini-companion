@@ -7,7 +7,7 @@ from reachy_mini import ReachyMini
 from reachy_mini_conversation_app.camera_worker import CameraWorker
 
 
-def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
+def parse_args() -> Tuple[argparse.Namespace, list]:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser("Reachy Mini Conversation App")
     parser.add_argument(
@@ -23,8 +23,8 @@ def parse_args() -> Tuple[argparse.Namespace, list]:  # type: ignore
         action="store_true",
         help="Use SmolVLM local vision model for periodic scene description.",
     )
-    parser.add_argument("--gradio", default=False, action="store_true", help="Open gradio interface")
     parser.add_argument("--debug", default=False, action="store_true", help="Enable debug logging")
+    parser.add_argument("--dashboard", default=False, action="store_true", help="Launch the settings dashboard on port 8000")
     parser.add_argument(
         "--robot-name",
         type=str,
@@ -70,7 +70,7 @@ def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> 
         # running a continuous background process.
         try:
             from reachy_mini_conversation_app.vision.processors import initialize_vision_manager
-            
+
             # continuous_mode=False ensures we don't run the heavy background loop
             vision_manager = initialize_vision_manager(camera_worker, continuous_mode=False)
             if vision_manager:

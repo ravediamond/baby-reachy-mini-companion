@@ -1,17 +1,14 @@
 """Entrypoint for the Reachy Mini conversation app."""
 
-import os
 import sys
 import time
 import asyncio
 import argparse
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+from pathlib import Path
 
-import gradio as gr
 from fastapi import FastAPI
-from fastrtc import Stream
-from gradio.utils import get_space
 
 from reachy_mini import ReachyMini, ReachyMiniApp
 from reachy_mini_conversation_app.utils import (
@@ -22,12 +19,6 @@ from reachy_mini_conversation_app.utils import (
 )
 
 
-def update_chatbot(chatbot: List[Dict[str, Any]], response: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Update the chatbot with AdditionalOutputs."""
-    chatbot.append(response)
-    return chatbot
-
-
 def main() -> None:
     """Entrypoint for the Reachy Mini conversation app."""
     args, _ = parse_args()
@@ -36,7 +27,7 @@ def main() -> None:
 
 def run(
     args: argparse.Namespace,
-    robot: ReachyMini = None,
+    robot: Optional[ReachyMini] = None,
     app_stop_event: Optional[threading.Event] = None,
     settings_app: Optional[FastAPI] = None,
     instance_path: Optional[str] = None,
@@ -47,9 +38,6 @@ def run(
     from reachy_mini_conversation_app.console import LocalStream
     from reachy_mini_conversation_app.tools.core_tools import ToolDependencies
     from reachy_mini_conversation_app.audio.head_wobbler import HeadWobbler
-
-    if args.openai_realtime:
-        from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
 
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation App")
@@ -92,14 +80,6 @@ def run(
             logger.error("Please check your configuration and try again.")
             sys.exit(1)
 
-    # Check if running in simulation mode without --gradio
-    if robot.client.get_status()["simulation_enabled"] and not args.gradio:
-        logger.error(
-            "Simulation mode requires Gradio interface. Please use --gradio flag when running in simulation mode."
-        )
-        robot.client.disconnect()
-        sys.exit(1)
-
     camera_worker, _, vision_manager = handle_vision_stuff(args, robot)
 
     movement_manager = MovementManager(
@@ -110,6 +90,7 @@ def run(
     head_wobbler = HeadWobbler(set_speech_offsets=movement_manager.set_speech_offsets)
 
     audio_classifier_status: Dict[str, Any] = {"latest_event": None, "timestamp": 0.0}
+    vision_threat_status: Dict[str, Any] = {"latest_threat": None, "timestamp": 0.0, "objects": []}
 
     deps = ToolDependencies(
         reachy_mini=robot,
@@ -118,73 +99,44 @@ def run(
         vision_manager=vision_manager,
         head_wobbler=head_wobbler,
         audio_classifier_status=audio_classifier_status,
+        vision_threat_status=vision_threat_status,
     )
-    current_file_path = os.path.dirname(os.path.abspath(__file__))
-    logger.debug(f"Current file absolute path: {current_file_path}")
-    chatbot = gr.Chatbot(
-        type="messages",
-        resizable=True,
-        avatar_images=(
-            os.path.join(current_file_path, "images", "user_avatar.png"),
-            os.path.join(current_file_path, "images", "reachymini_avatar.png"),
-        ),
-    )
-    logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
+    # Launch a standalone settings dashboard when --dashboard is passed
+    if args.dashboard and settings_app is None:
+        settings_app = FastAPI(title="Reachy Mini Settings")
+        if instance_path is None:
+            instance_path = str(Path.cwd())
+
+    handler: Any
     if args.openai_realtime:
         from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
         logger.info("Using OpenAI Realtime API")
-        handler = OpenaiRealtimeHandler(deps, gradio_mode=args.gradio, instance_path=instance_path)
+        handler = OpenaiRealtimeHandler(deps, instance_path=instance_path)
     else:
         # Default: Local LLM Handler (with Signal support)
         from reachy_mini_conversation_app.local.handler import LocalSessionHandler
         logger.info("Using Local LLM (fully local + Signal)")
         handler = LocalSessionHandler(deps)
 
-    stream_manager: gr.Blocks | LocalStream | None = None
+    # Headless mode: wire settings_app + instance_path to console LocalStream
+    # Routes are registered in __init__ so the dashboard is ready immediately.
+    stream_manager = LocalStream(
+        handler,
+        robot,
+        settings_app=settings_app,
+        instance_path=instance_path,
+    )
 
-    if args.gradio:
-        api_key_textbox = gr.Textbox(
-            label="OPENAI API Key",
-            type="password",
-            value=os.getenv("OPENAI_API_KEY") if not get_space() else "",
-        )
+    # Start uvicorn AFTER routes are registered
+    if args.dashboard and settings_app is not None:
+        import uvicorn
 
-        from reachy_mini_conversation_app.gradio_personality import PersonalityUI
+        def _run_settings_server() -> None:
+            uvicorn.run(settings_app, host="0.0.0.0", port=8321, log_level="warning")
 
-        personality_ui = PersonalityUI()
-        personality_ui.create_components()
-
-        stream = Stream(
-            handler=handler,
-            mode="send-receive",
-            modality="audio",
-            additional_inputs=[
-                chatbot,
-                api_key_textbox,
-                *personality_ui.additional_inputs_ordered(),
-            ],
-            additional_outputs=[chatbot],
-            additional_outputs_handler=update_chatbot,
-            ui_args={"title": "Talk with Reachy Mini"},
-        )
-        stream_manager = stream.ui
-        if not settings_app:
-            app = FastAPI()
-        else:
-            app = settings_app
-
-        personality_ui.wire_events(handler, stream_manager)
-
-        app = gr.mount_gradio_app(app, stream.ui, path="/")
-    else:
-        # In headless mode, wire settings_app + instance_path to console LocalStream
-        stream_manager = LocalStream(
-            handler,
-            robot,
-            settings_app=settings_app,
-            instance_path=instance_path,
-        )
+        threading.Thread(target=_run_settings_server, daemon=True).start()
+        logger.info("Settings dashboard available at http://localhost:8321")
 
     # Each async service → its own thread/loop
     movement_manager.start()
@@ -232,7 +184,7 @@ def run(
         logger.info("Shutdown complete.")
 
 
-class ReachyMiniConversationApp(ReachyMiniApp):  # type: ignore[misc]
+class ReachyMiniConversationApp(ReachyMiniApp):
     """Reachy Mini Apps entry point for the conversation app."""
 
     custom_app_url = "http://0.0.0.0:7860/"
@@ -244,9 +196,6 @@ class ReachyMiniConversationApp(ReachyMiniApp):  # type: ignore[misc]
         asyncio.set_event_loop(loop)
 
         args, _ = parse_args()
-
-        # is_wireless = reachy_mini.client.get_status()["wireless_version"]
-        # args.head_tracker = None if is_wireless else "mediapipe"
 
         instance_path = self._get_instance_path().parent
         run(

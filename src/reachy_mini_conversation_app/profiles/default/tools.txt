@@ -10,3 +10,4 @@ speak
 story_time
 soothe_baby
 check_baby_crying
+check_danger

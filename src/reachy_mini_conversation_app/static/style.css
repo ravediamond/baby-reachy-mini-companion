@@ -172,6 +172,23 @@ select option {
   color: var(--text);
 }
 textarea { resize: vertical; }
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  margin: 8px 0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(69, 196, 255, 0.3);
+}
 
 button {
   display: inline-flex;
@@ -306,6 +323,75 @@ button.ghost:hover { border-color: rgba(94, 240, 193, 0.4); }
 }
 .checkbox-grid label {
   margin: 0; font-size: 13px; color: var(--text);
+}
+
+/* Hint / prerequisite callout */
+.hint {
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 181, 71, 0.06);
+  border: 1px solid rgba(255, 181, 71, 0.2);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--warn);
+}
+.hint a { color: var(--warn); text-decoration: underline; }
+.hint code {
+  padding: 2px 5px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06); font-size: 11px;
+}
+.feature-req {
+  margin: 4px 0 0; font-size: 11px; color: var(--warn);
+  opacity: 0.85;
+}
+.feature-req a { color: var(--warn); text-decoration: underline; }
+.feature-req code {
+  padding: 1px 4px; border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06); font-size: 10px;
+}
+
+/* Toggle switch */
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: rgba(255, 255, 255, 0.1); border-radius: 24px;
+  transition: background 0.2s ease;
+}
+.toggle .slider::before {
+  content: ""; position: absolute;
+  width: 18px; height: 18px; left: 3px; bottom: 3px;
+  background: var(--text); border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+.toggle input:checked + .slider { background: var(--accent); }
+.toggle input:checked + .slider::before { transform: translateX(20px); }
+
+/* Feature rows */
+.feature-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  transition: border 0.12s ease, background 0.12s ease;
+}
+.feature-row:hover { border-color: rgba(94, 240, 193, 0.2); background: rgba(255, 255, 255, 0.03); }
+.feature-info { flex: 1; }
+.feature-info .feature-name { font-size: 14px; font-weight: 500; color: var(--text); margin: 0; }
+.feature-info .feature-desc { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+.feature-list { display: flex; flex-direction: column; gap: 8px; }
+.feature-extra {
+  margin-top: 8px; padding-left: 58px;
+}
+.feature-extra input[type="tel"] {
+  width: 100%; max-width: 280px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04); color: var(--text); font-size: 13px;
+}
+.feature-extra input[type="tel"]:focus {
+  border-color: rgba(94, 240, 193, 0.7); outline: none;
+  box-shadow: 0 0 0 3px rgba(94, 240, 193, 0.15);
 }
 
 @media (max-width: 760px) {
