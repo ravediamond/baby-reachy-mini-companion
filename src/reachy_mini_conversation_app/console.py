@@ -666,25 +666,27 @@ class LocalStream:
     async def record_loop(self) -> None:
         """Read mic frames from the recorder and forward them to the handler.
 
-        Uses a direct SoundDevice InputStream for reliable cross-platform
-        microphone capture, bypassing the SDK's media layer which can
-        produce silent frames on some platforms (macOS dtype issue).
-        Falls back to the SDK's get_audio_sample() if SoundDevice is
-        unavailable.
+        Tries a direct SoundDevice InputStream first for reliable capture,
+        then falls back to the SDK's get_audio_sample().
         """
+        import time as _time
         import numpy as np
         from collections import deque
 
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
-        logger.info("Record loop starting at %d Hz", input_sample_rate)
+        print(f"[AUDIO] record_loop started, sample_rate={input_sample_rate}", flush=True)
 
-        # Try direct SoundDevice stream for reliable capture
+        # ---- Attempt 1: direct SoundDevice stream ----
         use_direct_sd = False
+        sd_stream = None
         try:
             import sounddevice as sd
 
+            print(f"[AUDIO] SoundDevice available, default input: {sd.query_devices(kind='input')}", flush=True)
+
             buffer_lock = threading.Lock()
             audio_chunks: deque = deque()
+            _cb_count = [0]
 
             def _audio_callback(
                 indata: np.ndarray,
@@ -693,16 +695,25 @@ class LocalStream:
                 status: sd.CallbackFlags,
             ) -> None:
                 if status:
-                    logger.debug("SoundDevice status: %s", status)
+                    print(f"[AUDIO] SD callback status: {status}", flush=True)
+                _cb_count[0] += 1
+                if _cb_count[0] == 1:
+                    rms = float((indata ** 2).mean() ** 0.5)
+                    print(
+                        f"[AUDIO] First SD callback: shape={indata.shape}, "
+                        f"dtype={indata.dtype}, rms={rms:.6f}, "
+                        f"min={indata.min():.6f}, max={indata.max():.6f}",
+                        flush=True,
+                    )
                 with buffer_lock:
                     audio_chunks.append(indata.copy())
 
-            # Stop the SDK's recording stream to avoid two streams on the
-            # same device.  We keep start_playing() active for TTS output.
+            # Stop the SDK's recording to avoid two streams on the same device
             try:
                 self._robot.media.stop_recording()
-            except Exception:
-                pass
+                print("[AUDIO] Stopped SDK recording stream", flush=True)
+            except Exception as e:
+                print(f"[AUDIO] Could not stop SDK recording: {e}", flush=True)
 
             sd_stream = sd.InputStream(
                 samplerate=input_sample_rate,
@@ -712,11 +723,17 @@ class LocalStream:
             )
             sd_stream.start()
             use_direct_sd = True
-            logger.info("Using direct SoundDevice InputStream for mic capture")
+            print("[AUDIO] Direct SoundDevice InputStream opened OK", flush=True)
         except Exception as e:
-            logger.warning(
-                "Direct SoundDevice unavailable (%s), falling back to SDK audio", e
-            )
+            print(f"[AUDIO] Direct SoundDevice FAILED: {e}, falling back to SDK", flush=True)
+
+        # ---- Attempt 2 (fallback): SDK get_audio_sample ----
+        if not use_direct_sd:
+            print("[AUDIO] Using SDK get_audio_sample() as fallback", flush=True)
+
+        _frame_count = 0
+        _empty_count = 0
+        _last_diag = _time.time()
 
         try:
             while not self._stop_event.is_set():
@@ -731,14 +748,36 @@ class LocalStream:
                     audio_frame = self._robot.media.get_audio_sample()
 
                 if audio_frame is not None:
+                    _frame_count += 1
+                    if _frame_count == 1:
+                        rms = float((np.asarray(audio_frame, dtype=np.float32) ** 2).mean() ** 0.5)
+                        print(
+                            f"[AUDIO] First frame to handler: shape={np.asarray(audio_frame).shape}, "
+                            f"dtype={np.asarray(audio_frame).dtype}, rms={rms:.6f}",
+                            flush=True,
+                        )
                     await self.handler.receive((input_sample_rate, audio_frame))
+                else:
+                    _empty_count += 1
+
+                now = _time.time()
+                if now - _last_diag >= 5.0:
+                    src = "SD-direct" if use_direct_sd else "SDK"
+                    print(
+                        f"[AUDIO] [{src}] {_frame_count} frames, {_empty_count} empty in last 5s",
+                        flush=True,
+                    )
+                    _frame_count = 0
+                    _empty_count = 0
+                    _last_diag = now
 
                 await asyncio.sleep(0)
         finally:
-            if use_direct_sd:
+            if use_direct_sd and sd_stream is not None:
                 try:
                     sd_stream.stop()
                     sd_stream.close()
+                    print("[AUDIO] Direct SoundDevice stream closed", flush=True)
                 except Exception:
                     pass
 
