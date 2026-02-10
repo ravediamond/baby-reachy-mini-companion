@@ -98,6 +98,79 @@
         </div>
       </div>
 
+      <!-- Features panel -->
+      <div id="features-panel" class="panel hidden">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Baby Companion</p>
+            <h2>Features</h2>
+          </div>
+          <span class="chip">Configure</span>
+        </div>
+        <p class="muted">Enable or disable companion features before starting the pipeline.</p>
+        <div class="section">
+          <div class="section-heading">
+            <h3>Safety & Monitoring</h3>
+            <p class="muted small">Autonomous detection and alerts.</p>
+          </div>
+          <div class="feature-list">
+            <div class="feature-row">
+              <label class="toggle"><input type="checkbox" id="feat-cry-detection" checked /><span class="slider"></span></label>
+              <div class="feature-info">
+                <p class="feature-name">Baby Cry Detection</p>
+                <p class="feature-desc">YAMNet audio classifier listens for cries and alerts the LLM.</p>
+              </div>
+            </div>
+            <div class="feature-row">
+              <label class="toggle"><input type="checkbox" id="feat-auto-soothe" checked /><span class="slider"></span></label>
+              <div class="feature-info">
+                <p class="feature-name">Automated Soothing</p>
+                <p class="feature-desc">Robot soothes the baby with rocking motions and lullabies when crying is detected.</p>
+              </div>
+            </div>
+            <div class="feature-row">
+              <label class="toggle"><input type="checkbox" id="feat-danger-detection" checked /><span class="slider"></span></label>
+              <div class="feature-info">
+                <p class="feature-name">Danger Detection</p>
+                <p class="feature-desc">YOLO scans camera for hazardous objects (scissors, knives) and triggers VLM analysis + Signal alert.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-heading">
+            <h3>Interaction</h3>
+            <p class="muted small">Communication and play features.</p>
+          </div>
+          <div class="feature-list">
+            <div class="feature-row">
+              <label class="toggle"><input type="checkbox" id="feat-story-time" checked /><span class="slider"></span></label>
+              <div class="feature-info">
+                <p class="feature-name">Story Time</p>
+                <p class="feature-desc">Tell children's stories with expressive narration and movement.</p>
+              </div>
+            </div>
+            <div class="feature-row">
+              <label class="toggle"><input type="checkbox" id="feat-signal-alerts" checked /><span class="slider"></span></label>
+              <div class="feature-info">
+                <p class="feature-name">Signal Alerts</p>
+                <p class="feature-desc">Send text messages and photos to your phone via Signal.</p>
+              </div>
+            </div>
+            <div id="signal-phone-row" class="feature-extra hidden">
+              <input type="tel" id="signal-phone" placeholder="+1234567890" />
+            </div>
+            <div class="feature-row">
+              <label class="toggle"><input type="checkbox" id="feat-head-tracking" checked /><span class="slider"></span></label>
+              <div class="feature-info">
+                <p class="feature-name">Head Tracking</p>
+                <p class="feature-desc">Robot follows faces using MediaPipe detection.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Local LLM running state -->
       <div id="local-running-panel" class="panel hidden">
         <div class="panel-heading">

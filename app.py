@@ -98,6 +98,31 @@ custom_css = """
 .dot-blue   { background: #3b82f6; }
 .dot-purple { background: #6366f1; }
 
+/* ---- Mission ---- */
+.mission {
+    text-align: center; margin-bottom: 2.5rem; padding: 1.75rem 2rem;
+    background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(236,72,153,0.06) 100%);
+    border: 1px solid rgba(99,102,241,0.15); border-radius: 0.875rem;
+}
+.mission p {
+    font-size: 1.05rem; line-height: 1.7; color: var(--body-text-color);
+    max-width: 640px; margin: 0 auto;
+}
+.mission .signature {
+    font-size: 0.9rem; color: var(--body-text-color-subdued); margin-top: 0.75rem;
+    font-style: italic;
+}
+
+/* ---- Differentiators ---- */
+.diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 2.5rem; }
+@media (max-width: 700px) { .diff-grid { grid-template-columns: 1fr; } }
+.diff-item {
+    display: flex; align-items: baseline; gap: 0.5rem; padding: 0.75rem 1rem;
+    background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
+    border-radius: 0.625rem; font-size: 0.9rem; color: var(--body-text-color-subdued);
+}
+.diff-item strong { color: var(--body-text-color); }
+
 /* ---- Footer ---- */
 .footer {
     text-align: center; padding-top: 2rem; margin-top: 1rem;
@@ -132,6 +157,25 @@ with gr.Blocks(
             <span class="deploy-tag"><span class="deploy-tag-dot dot-purple"></span> Jetson Orin (fully local)</span>
         </div>
 
+        <!-- Mission -->
+        <div class="mission">
+            <p>I'm a new dad building a nursery companion that actually respects our privacy.
+            No cloud, no data leaks &mdash; what happens at home stays at home.
+            Proving that high-end robotics can run on consumer hardware instead of massive servers.</p>
+            <p class="signature">&mdash; A dad building cool tech for his son</p>
+        </div>
+
+        <!-- What makes this different -->
+        <div class="section-label">Why it matters</div>
+        <div class="section-title">What makes this different</div>
+
+        <div class="diff-grid">
+            <div class="diff-item"><strong>100% Local</strong> &mdash; No cloud APIs, no internet required</div>
+            <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, LLM, TTS, VLM, YOLO, YAMNet on-device</div>
+            <div class="diff-item"><strong>Safety Monitor</strong> &mdash; YOLO detects hazards, VLM analyzes, Signal alerts you</div>
+            <div class="diff-item"><strong>NVIDIA Jetson</strong> &mdash; GPU-accelerated vLLM via official NVIDIA AI containers</div>
+        </div>
+
         <!-- Features -->
         <div class="section-label">Capabilities</div>
         <div class="section-title">What it can do</div>
@@ -140,7 +184,7 @@ with gr.Blocks(
             <div class="card">
                 <div class="card-icon card-icon-pink">&#x1F476;</div>
                 <h3>Baby Monitor</h3>
-                <p>Detects crying via on-device YAMNet audio classification, soothes the baby automatically, and sends you a Signal alert.</p>
+                <p>Detects crying via YAMNet audio classification and scans for dangerous objects via YOLO. Soothes the baby, triggers VLM analysis, and sends Signal alerts.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-purple">&#x1F3A4;</div>

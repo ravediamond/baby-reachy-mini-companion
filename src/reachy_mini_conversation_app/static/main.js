@@ -129,6 +129,41 @@ async function fetchAppState() {
   return { state: "configuring" };
 }
 
+// ---------- Feature Settings API ----------
+async function fetchFeatureSettings() {
+  try {
+    const url = new URL("/feature_settings", window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+    const resp = await fetchWithTimeout(url, {}, 2000);
+    if (resp.ok) return await resp.json();
+  } catch (e) {}
+  return {};
+}
+
+function getFeatureSettings() {
+  return {
+    FEATURE_CRY_DETECTION: document.getElementById("feat-cry-detection").checked ? "true" : "false",
+    FEATURE_AUTO_SOOTHE: document.getElementById("feat-auto-soothe").checked ? "true" : "false",
+    FEATURE_DANGER_DETECTION: document.getElementById("feat-danger-detection").checked ? "true" : "false",
+    FEATURE_STORY_TIME: document.getElementById("feat-story-time").checked ? "true" : "false",
+    FEATURE_SIGNAL_ALERTS: document.getElementById("feat-signal-alerts").checked ? "true" : "false",
+    FEATURE_HEAD_TRACKING: document.getElementById("feat-head-tracking").checked ? "true" : "false",
+    SIGNAL_USER_PHONE: (document.getElementById("signal-phone").value || "").trim(),
+  };
+}
+
+function applyFeatureSettings(settings) {
+  document.getElementById("feat-cry-detection").checked = settings.FEATURE_CRY_DETECTION !== false;
+  document.getElementById("feat-auto-soothe").checked = settings.FEATURE_AUTO_SOOTHE !== false;
+  document.getElementById("feat-danger-detection").checked = settings.FEATURE_DANGER_DETECTION !== false;
+  document.getElementById("feat-story-time").checked = settings.FEATURE_STORY_TIME !== false;
+  document.getElementById("feat-signal-alerts").checked = settings.FEATURE_SIGNAL_ALERTS !== false;
+  document.getElementById("feat-head-tracking").checked = settings.FEATURE_HEAD_TRACKING !== false;
+  document.getElementById("signal-phone").value = settings.SIGNAL_USER_PHONE || "";
+  // Show/hide phone field
+  show(document.getElementById("signal-phone-row"), settings.FEATURE_SIGNAL_ALERTS !== false);
+}
+
 // ---------- Personalities API ----------
 async function getPersonalities() {
   const url = new URL("/personalities", window.location.origin);
@@ -246,6 +281,11 @@ async function init() {
   const startLocalBtn = document.getElementById("start-local-btn");
   const localLlmStatus = document.getElementById("local-llm-status");
 
+  // Features panel
+  const featuresPanel = document.getElementById("features-panel");
+  const signalToggle = document.getElementById("feat-signal-alerts");
+  const signalPhoneRow = document.getElementById("signal-phone-row");
+
   // Personality elements
   const pSelect = document.getElementById("personality-select");
   const pApply = document.getElementById("apply-personality");
@@ -271,6 +311,7 @@ async function init() {
   show(personalityPanel, false);
   show(localLlmPanel, false);
   show(localRunningPanel, false);
+  show(featuresPanel, false);
 
   // Detect app mode (local vs openai)
   const appMode = await fetchAppMode();
@@ -297,6 +338,16 @@ async function init() {
       localLlmChip.className = "chip";
       show(localLlmPanel, true);
 
+      // Load and show features panel
+      const featureSettings = await fetchFeatureSettings();
+      applyFeatureSettings(featureSettings);
+      show(featuresPanel, true);
+
+      // Wire Signal toggle to show/hide phone field
+      signalToggle.addEventListener("change", () => {
+        show(signalPhoneRow, signalToggle.checked);
+      });
+
       startLocalBtn.addEventListener("click", async () => {
         localLlmStatus.textContent = "Starting pipeline...";
         localLlmStatus.className = "status";
@@ -307,11 +358,13 @@ async function init() {
             LOCAL_LLM_MODEL: llmModelInput.value.trim(),
             LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
             LOCAL_STT_MODEL: sttModelSelect.value,
+            ...getFeatureSettings(),
           });
           localLlmStatus.textContent = "Pipeline starting... loading models.";
           localLlmStatus.className = "status ok";
-          // Transition UI: hide config, show running
+          // Transition UI: hide config and features, show running
           show(localLlmPanel, false);
+          show(featuresPanel, false);
           show(localRunningPanel, true);
           localRunningInfo.textContent = `Model: ${llmModelInput.value.trim()} | STT: ${sttModelSelect.value}`;
         } catch (e) {

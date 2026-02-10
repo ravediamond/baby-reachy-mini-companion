@@ -43,6 +43,14 @@ class Config:
     # Audio Settings
     MIC_GAIN = float(os.getenv("MIC_GAIN", "1.0"))
 
+    # Feature Flags (all enabled by default)
+    FEATURE_CRY_DETECTION = os.getenv("FEATURE_CRY_DETECTION", "true").lower() == "true"
+    FEATURE_AUTO_SOOTHE = os.getenv("FEATURE_AUTO_SOOTHE", "true").lower() == "true"
+    FEATURE_DANGER_DETECTION = os.getenv("FEATURE_DANGER_DETECTION", "true").lower() == "true"
+    FEATURE_STORY_TIME = os.getenv("FEATURE_STORY_TIME", "true").lower() == "true"
+    FEATURE_SIGNAL_ALERTS = os.getenv("FEATURE_SIGNAL_ALERTS", "true").lower() == "true"
+    FEATURE_HEAD_TRACKING = os.getenv("FEATURE_HEAD_TRACKING", "true").lower() == "true"
+
 
 config = Config()
 

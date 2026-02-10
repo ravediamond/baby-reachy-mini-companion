@@ -110,6 +110,7 @@ def run(
     head_wobbler = HeadWobbler(set_speech_offsets=movement_manager.set_speech_offsets)
 
     audio_classifier_status: Dict[str, Any] = {"latest_event": None, "timestamp": 0.0}
+    vision_threat_status: Dict[str, Any] = {"latest_threat": None, "timestamp": 0.0, "objects": []}
 
     deps = ToolDependencies(
         reachy_mini=robot,
@@ -118,6 +119,7 @@ def run(
         vision_manager=vision_manager,
         head_wobbler=head_wobbler,
         audio_classifier_status=audio_classifier_status,
+        vision_threat_status=vision_threat_status,
     )
     current_file_path = os.path.dirname(os.path.abspath(__file__))
     logger.debug(f"Current file absolute path: {current_file_path}")

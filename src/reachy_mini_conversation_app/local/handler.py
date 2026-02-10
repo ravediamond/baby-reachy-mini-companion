@@ -48,6 +48,11 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.classifier = None
         self.last_cry_time = 0
 
+        # Vision Danger Detection
+        self.danger_detector = None
+        self.danger_detection_task = None
+        self.last_danger_time = 0
+
         self.is_speaking = False
         self.silence_chunks = 0
         self.speech_chunks = 0
@@ -64,36 +69,59 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.signal_polling_task = None
         self.user_phone = config.SIGNAL_USER_PHONE
 
-        # Tool specs cache
+        # Tool specs cache (rebuilt in start_up with feature-based exclusions)
         self.tool_specs = get_tool_specs()
 
     def copy(self) -> "LocalSessionHandler":
         """Create a copy of the handler."""
         return LocalSessionHandler(self.deps, self.llm_url, self.llm_model, self.enable_signal)
 
+    def _build_tool_exclusions(self) -> list[str]:
+        """Build tool exclusion list based on feature flags."""
+        exclusions: list[str] = []
+        if not config.FEATURE_AUTO_SOOTHE:
+            exclusions.extend(["soothe_baby", "check_baby_crying"])
+        if not config.FEATURE_STORY_TIME:
+            exclusions.append("story_time")
+        if not config.FEATURE_SIGNAL_ALERTS:
+            exclusions.extend(["send_signal", "send_signal_photo"])
+        if not config.FEATURE_DANGER_DETECTION:
+            exclusions.append("check_danger")
+        return exclusions
+
     async def start_up(self):
         """Initialize local models."""
         logger.info("Initializing Local AI Pipeline...")
-        
+
         try:
+            # Rebuild tool specs with feature-based exclusions
+            exclusions = self._build_tool_exclusions()
+            if exclusions:
+                logger.info(f"Feature flags: excluding tools {exclusions}")
+            self.tool_specs = get_tool_specs(exclusion_list=exclusions)
+
             logger.info("Loading VAD (Silero)...")
             self.vad = await asyncio.to_thread(SileroVAD)
-            
+
             logger.info(f"Loading STT (Faster-Whisper {config.LOCAL_STT_MODEL})...")
             self.stt = await asyncio.to_thread(LocalSTT, model_size=config.LOCAL_STT_MODEL)
-            
+
             logger.info("Loading LLM Client...")
             self.llm = LocalLLM(base_url=self.llm_url, model=self.llm_model)
-            
+
             logger.info("Loading TTS (Kokoro)...")
             self.tts = await asyncio.to_thread(LocalTTS)
-            
-            logger.info("Loading Audio Classifier (YAMNet)...")
-            try:
-                self.classifier = await asyncio.to_thread(AudioClassifier)
-            except Exception as e:
-                logger.warning(f"Audio Classifier failed to load: {e}")
-            
+
+            # Audio Classifier (YAMNet) — gated by feature flag
+            if config.FEATURE_CRY_DETECTION:
+                logger.info("Loading Audio Classifier (YAMNet)...")
+                try:
+                    self.classifier = await asyncio.to_thread(AudioClassifier)
+                except Exception as e:
+                    logger.warning(f"Audio Classifier failed to load: {e}")
+            else:
+                logger.info("Baby cry detection disabled by feature flag.")
+
             # Load system prompt
             logger.info("Setting system prompt...")
             self.llm.set_system_prompt(get_session_instructions())
@@ -109,14 +137,49 @@ class LocalSessionHandler(AsyncStreamHandler):
             except Exception as e:
                 logger.warning(f"LLM pre-warm failed (non-critical): {e}")
 
-            # Initialize Signal if enabled
-            if self.enable_signal:
+            # Danger Detector (YOLO) — gated by feature flag
+            if config.FEATURE_DANGER_DETECTION and self.deps.camera_worker is not None:
+                logger.info("Loading Danger Detector (YOLO)...")
+                try:
+                    from reachy_mini_conversation_app.vision.danger_detector import DangerDetector
+                    self.danger_detector = await asyncio.to_thread(DangerDetector)
+                    self.danger_detection_task = asyncio.create_task(self._poll_danger_detection())
+                    logger.info("Danger detection started.")
+                except ImportError:
+                    logger.info("YOLO not installed, danger detection disabled.")
+                except Exception as e:
+                    logger.warning(f"Danger Detector failed to load: {e}")
+            elif not config.FEATURE_DANGER_DETECTION:
+                logger.info("Danger detection disabled by feature flag.")
+
+            # Head Tracking — gated by feature flag
+            if config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
+                if self.deps.camera_worker.head_tracker is None:
+                    logger.info("Loading Head Tracker (MediaPipe)...")
+                    try:
+                        from reachy_mini_toolbox.vision import HeadTracker  # type: ignore[import-untyped]
+                        tracker = await asyncio.to_thread(HeadTracker)
+                        self.deps.camera_worker.head_tracker = tracker
+                        self.deps.camera_worker.set_head_tracking_enabled(True)
+                        logger.info("Head tracking (MediaPipe) enabled.")
+                    except ImportError:
+                        logger.info("MediaPipe not installed, head tracking disabled.")
+                    except Exception as e:
+                        logger.warning(f"Head Tracker failed to load: {e}")
+            elif not config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
+                self.deps.camera_worker.set_head_tracking_enabled(False)
+                logger.info("Head tracking disabled by feature flag.")
+
+            # Signal — gated by feature flag
+            if self.enable_signal and config.FEATURE_SIGNAL_ALERTS:
                 self.signal = SignalInterface()
                 if self.signal.available:
                     self.signal_polling_task = asyncio.create_task(self._poll_signal())
                     logger.info("Signal polling started.")
                 else:
                     logger.info("Signal not available, skipping.")
+            elif not config.FEATURE_SIGNAL_ALERTS:
+                logger.info("Signal alerts disabled by feature flag.")
 
             logger.info("Local Pipeline Ready.")
         except Exception as e:
@@ -445,6 +508,46 @@ class LocalSessionHandler(AsyncStreamHandler):
              b64_data = base64.b64encode(audio_int16.tobytes()).decode('utf-8')
              self.deps.head_wobbler.feed(b64_data)
 
+    async def _poll_danger_detection(self):
+        """Background task: run YOLO on camera frames to detect dangerous objects."""
+        import time
+        logger.info("Starting Danger Detection Poller...")
+        while True:
+            try:
+                frame = self.deps.camera_worker.get_latest_frame()
+                if frame is not None:
+                    detections = await asyncio.to_thread(self.danger_detector.detect, frame)
+
+                    if detections:
+                        now = time.time()
+                        # Throttle: one alert per 30 seconds
+                        if now - self.last_danger_time > 30.0:
+                            self.last_danger_time = now
+
+                            # Update shared status for tools
+                            if self.deps.vision_threat_status is not None:
+                                self.deps.vision_threat_status["latest_threat"] = detections[0]["label"]
+                                self.deps.vision_threat_status["timestamp"] = now
+                                self.deps.vision_threat_status["objects"] = detections
+
+                            labels = ", ".join(d["label"] for d in detections)
+                            logger.info(f"Danger Detected: {labels}")
+
+                            # Inject system event — LLM decides what to do (camera analysis, Signal alert, etc.)
+                            asyncio.create_task(
+                                self._process_system_event(
+                                    f"I see a potentially dangerous object near the baby: {labels}. "
+                                    "Please take a photo with the camera tool for a closer look and alert the parent via Signal."
+                                )
+                            )
+
+                await asyncio.sleep(2.0)  # Check every 2 seconds
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Danger detection error: {e}")
+                await asyncio.sleep(5.0)
+
     async def _poll_signal(self):
         """Background task to poll Signal messages."""
         logger.info("Starting Signal Poller...")
@@ -536,5 +639,7 @@ class LocalSessionHandler(AsyncStreamHandler):
         return await wait_for_item(self.output_queue)
 
     async def shutdown(self):
+        if self.danger_detection_task:
+            self.danger_detection_task.cancel()
         if self.signal_polling_task:
             self.signal_polling_task.cancel()

@@ -19,6 +19,27 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 <img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy Mini Companion" />
 
+<video src="docs/assets/reachy-demo.mp4" width="600" controls>
+  <a href="docs/assets/reachy-demo.mp4">Watch the demo video</a>
+</video>
+
+## Why I Built This
+
+I'm a new dad on a mission: building a nursery companion that actually respects our privacy. I wanted a "cool nanny bot" that plays and helps out with the baby — without sending a single byte of data to the cloud. What happens at home stays at home.
+
+Beyond this project, I want to prove that high-end robotics can run on consumer hardware (a Mac or a Jetson Orin) instead of massive servers or cloud subscriptions. This baby companion is my first step toward accessible assistive robotics — technology that helps people, running on hardware anyone can afford.
+
+## What Makes This Different
+
+> **100% Local. No cloud. No exceptions.**
+>
+> The only Reachy Mini application running a fully local AI stack — LLM, speech-to-text, text-to-speech, vision, and audio classification — all on-device with zero cloud dependency.
+
+- **7+ AI models on-device**: VAD, STT, LLM, TTS, VLM, YOLO, and YAMNet — orchestrated together in a single pipeline
+- **Autonomous safety**: Detects baby cries and soothes automatically. YOLO continuously scans for dangerous objects near the baby and triggers a VLM analysis with a Signal photo alert to the parent — all decided by the LLM, not a script
+- **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
+- **NVIDIA Jetson native**: Runs on Jetson Orin using NVIDIA's official AI containers (`ghcr.io/nvidia-ai-iot/vllm`) with GPU-accelerated vLLM inference, quantized models tuned for Jetson's memory bandwidth, and YOLO on GPU for real-time vision
+
 ## Key Features
 
 - **Omni-Channel Interaction:** Talk to Reachy naturally in the room, or text it via Signal when you're away.
@@ -159,6 +180,12 @@ To enable the remote interface:
 1.  **Install Signal-CLI:** `brew install signal-cli`
 2.  **Register:** Link your account using `signal-cli link -n "Reachy"` (see [signal-cli docs](https://github.com/AsamK/signal-cli)).
 3.  The app will automatically poll for messages. You can text "What do you see?" and Reachy will reply with a photo description!
+
+## Architecture
+
+<img src="docs/assets/conversation_app_arch.svg" width="800" alt="Architecture — fully local AI pipeline" />
+
+The entire pipeline runs on-device: audio is captured and processed through VAD, STT, and the LLM with tool calling. The LLM autonomously invokes tools (camera, motion, Signal alerts) based on context. TTS output is streamed back with audio-reactive head movement for natural-looking speech.
 
 ## Deployment Scenarios
 
@@ -333,6 +360,7 @@ The assistant is equipped with a suite of tools it can autonomously use:
 | `play_emotion` | Expresses emotions via antennas (happy, sad, surprised, etc.). |
 | `move_head` | Moves the head to look in a specific direction. |
 | `head_tracking` | Enables/disables face tracking. |
+| `check_danger` | **Visual Safety Monitor:** Queries the YOLO-based danger detector for hazardous objects (scissors, knives, forks) near the baby. |
 | `send_signal` | Sends a text message to your phone. |
 | `send_signal_photo` | Takes a photo and sends it immediately to your phone via Signal. |
 
@@ -349,6 +377,13 @@ The app automatically downloads and runs a **YAMNet** audio classifier. It const
 *   **Baby Crying:** "Baby cry, infant cry", "Crying, sobbing", "Whimper" → *Triggers soothing mode.*
 *   **Human Interactions:** "Laughter", "Coughing" → *Can trigger empathetic responses (e.g., "Are you okay?" or giggling back).*
 *   **Alarms:** "Smoke detector", "Fire alarm" → *Can trigger urgent alerts.*
+
+### Visual Safety Detection
+When YOLO vision is installed (`uv sync --extra yolo_vision`), the app runs a **continuous danger detector** alongside the camera feed. Every 2 seconds it scans for hazardous objects using a general-purpose YOLO model:
+
+*   **Dangerous objects:** Scissors, knives, forks → *YOLO detects the object, then triggers a VLM camera analysis for confirmation, and sends a Signal photo alert to the parent.*
+*   **Two-stage pipeline:** Fast YOLO detection (low compute) acts as a trigger for expensive VLM analysis (high accuracy), keeping GPU usage efficient.
+*   **Throttled:** Alerts are rate-limited to once per 30 seconds to prevent notification spam.
 
 If detected, it triggers a system event that forces the LLM to call appropriate tools (like `soothe_baby`) and alert you via Signal.
 

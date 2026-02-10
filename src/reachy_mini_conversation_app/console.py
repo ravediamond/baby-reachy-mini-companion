@@ -231,12 +231,26 @@ class LocalStream:
         except Exception:
             return False
 
-    def _persist_local_llm_settings(self, settings: dict[str, str]) -> None:
-        """Persist local LLM settings to environment, config, and instance .env.
+    _FEATURE_KEYS = (
+        "FEATURE_CRY_DETECTION",
+        "FEATURE_AUTO_SOOTHE",
+        "FEATURE_DANGER_DETECTION",
+        "FEATURE_STORY_TIME",
+        "FEATURE_SIGNAL_ALERTS",
+        "FEATURE_HEAD_TRACKING",
+    )
 
-        Accepted keys: LOCAL_LLM_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY, LOCAL_STT_MODEL.
+    def _persist_local_llm_settings(self, settings: dict[str, str]) -> None:
+        """Persist local LLM and feature settings to environment, config, and instance .env.
+
+        Accepted keys: LOCAL_LLM_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY, LOCAL_STT_MODEL,
+        SIGNAL_USER_PHONE, and all FEATURE_* flags.
         """
-        env_keys = ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL")
+        env_keys = (
+            "LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL",
+            "SIGNAL_USER_PHONE",
+            *self._FEATURE_KEYS,
+        )
         for key in env_keys:
             val = (settings.get(key) or "").strip()
             if not val:
@@ -246,7 +260,11 @@ class LocalStream:
             except Exception:
                 pass
             try:
-                setattr(config, key, val)
+                # Feature flags are booleans on config
+                if key.startswith("FEATURE_"):
+                    setattr(config, key, val.lower() == "true")
+                else:
+                    setattr(config, key, val)
             except Exception:
                 pass
 
@@ -385,6 +403,19 @@ class LocalStream:
                 "LOCAL_LLM_MODEL": config.LOCAL_LLM_MODEL or "",
                 "LOCAL_LLM_API_KEY": config.LOCAL_LLM_API_KEY or "",
                 "LOCAL_STT_MODEL": config.LOCAL_STT_MODEL or "",
+            })
+
+        # GET /feature_settings -> current feature flags
+        @self._settings_app.get("/feature_settings")
+        def _get_feature_settings() -> JSONResponse:
+            return JSONResponse({
+                "FEATURE_CRY_DETECTION": config.FEATURE_CRY_DETECTION,
+                "FEATURE_AUTO_SOOTHE": config.FEATURE_AUTO_SOOTHE,
+                "FEATURE_DANGER_DETECTION": config.FEATURE_DANGER_DETECTION,
+                "FEATURE_STORY_TIME": config.FEATURE_STORY_TIME,
+                "FEATURE_SIGNAL_ALERTS": config.FEATURE_SIGNAL_ALERTS,
+                "FEATURE_HEAD_TRACKING": config.FEATURE_HEAD_TRACKING,
+                "SIGNAL_USER_PHONE": config.SIGNAL_USER_PHONE or "",
             })
 
         # POST /start_app -> save settings and start the pipeline
