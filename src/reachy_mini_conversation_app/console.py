@@ -425,6 +425,72 @@ class LocalStream:
                 "MIC_GAIN": config.MIC_GAIN,
             })
 
+        # POST /test_mic -> record a short audio clip and check signal level
+        @self._settings_app.post("/test_mic")
+        async def _test_mic(request: Request) -> JSONResponse:
+            try:
+                raw = await request.json()
+            except Exception:
+                raw = {}
+            gain = float(raw.get("MIC_GAIN", 1.0))
+            try:
+                import sounddevice as sd
+                duration = 1.5  # seconds
+                sr = 16000
+                recording = sd.rec(int(duration * sr), samplerate=sr, channels=1, dtype="float32")
+                sd.wait()
+                audio = recording.flatten() * gain
+                rms = float((audio ** 2).mean() ** 0.5)
+                peak = float(abs(audio).max())
+                # Thresholds tuned for speech detection
+                if peak < 0.005:
+                    verdict = "no_signal"
+                    msg = "No audio signal detected. Check that your microphone is connected and not muted."
+                elif rms < 0.01:
+                    verdict = "too_quiet"
+                    msg = f"Audio detected but very quiet (RMS: {rms:.4f}). Try increasing the mic gain or moving closer."
+                else:
+                    verdict = "ok"
+                    msg = f"Microphone working (RMS: {rms:.4f}, Peak: {peak:.4f})."
+                return JSONResponse({"ok": True, "verdict": verdict, "message": msg, "rms": round(rms, 5), "peak": round(peak, 5)})
+            except Exception as e:
+                return JSONResponse({"ok": False, "verdict": "error", "message": f"Mic test failed: {e}"}, status_code=500)
+
+        # POST /test_llm -> check if the LLM endpoint is reachable
+        @self._settings_app.post("/test_llm")
+        async def _test_llm(request: Request) -> JSONResponse:
+            try:
+                raw = await request.json()
+            except Exception:
+                raw = {}
+            url = (raw.get("LOCAL_LLM_URL") or config.LOCAL_LLM_URL or "").strip().rstrip("/")
+            model = (raw.get("LOCAL_LLM_MODEL") or config.LOCAL_LLM_MODEL or "").strip()
+            api_key = (raw.get("LOCAL_LLM_API_KEY") or config.LOCAL_LLM_API_KEY or "").strip()
+            if not url:
+                return JSONResponse({"ok": False, "verdict": "no_url", "message": "No server URL configured."})
+            try:
+                import httpx
+                headers = {}
+                if api_key and api_key != "ollama":
+                    headers["Authorization"] = f"Bearer {api_key}"
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(f"{url}/models", headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        models = [m.get("id", "") for m in data.get("data", [])]
+                        if model and model in models:
+                            return JSONResponse({"ok": True, "verdict": "ok", "message": f"Connected. Model '{model}' is available.", "models": models})
+                        elif model:
+                            return JSONResponse({"ok": True, "verdict": "model_missing", "message": f"Connected but model '{model}' not found. Available: {', '.join(models[:5])}", "models": models})
+                        else:
+                            return JSONResponse({"ok": True, "verdict": "ok", "message": f"Connected. Available models: {', '.join(models[:5])}", "models": models})
+                    else:
+                        return JSONResponse({"ok": False, "verdict": "error", "message": f"Server returned {resp.status_code}."})
+            except httpx.ConnectError:
+                return JSONResponse({"ok": False, "verdict": "unreachable", "message": f"Cannot connect to {url}. Is the server running?"})
+            except Exception as e:
+                return JSONResponse({"ok": False, "verdict": "error", "message": f"Connection test failed: {e}"})
+
         # POST /start_app -> save settings and start the pipeline
         @self._settings_app.post("/start_app")
         async def _start_app(request: Request) -> JSONResponse:

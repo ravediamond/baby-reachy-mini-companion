@@ -286,6 +286,10 @@ async function init() {
   const localLlmStatus = document.getElementById("local-llm-status");
   const micGainSlider = document.getElementById("mic-gain");
   const micGainValue = document.getElementById("mic-gain-value");
+  const testLlmBtn = document.getElementById("test-llm-btn");
+  const testLlmStatus = document.getElementById("test-llm-status");
+  const testMicBtn = document.getElementById("test-mic-btn");
+  const testMicStatus = document.getElementById("test-mic-status");
 
   // Features panel
   const featuresPanel = document.getElementById("features-panel");
@@ -352,6 +356,52 @@ async function init() {
       // Wire mic gain slider label
       micGainSlider.addEventListener("input", () => {
         micGainValue.textContent = micGainSlider.value;
+      });
+
+      // Test LLM connection
+      testLlmBtn.addEventListener("click", async () => {
+        testLlmStatus.textContent = "Testing...";
+        testLlmStatus.className = "status";
+        testLlmBtn.disabled = true;
+        try {
+          const resp = await fetch("/test_llm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              LOCAL_LLM_URL: llmUrlInput.value.trim(),
+              LOCAL_LLM_MODEL: llmModelInput.value.trim(),
+              LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
+            }),
+          });
+          const data = await resp.json();
+          testLlmStatus.textContent = data.message;
+          testLlmStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "model_missing" ? "warn" : "error");
+        } catch (e) {
+          testLlmStatus.textContent = "Test failed: " + e.message;
+          testLlmStatus.className = "status error";
+        }
+        testLlmBtn.disabled = false;
+      });
+
+      // Test microphone
+      testMicBtn.addEventListener("click", async () => {
+        testMicStatus.textContent = "Recording 1.5s...";
+        testMicStatus.className = "status";
+        testMicBtn.disabled = true;
+        try {
+          const resp = await fetch("/test_mic", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ MIC_GAIN: micGainSlider.value }),
+          });
+          const data = await resp.json();
+          testMicStatus.textContent = data.message;
+          testMicStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
+        } catch (e) {
+          testMicStatus.textContent = "Test failed: " + e.message;
+          testMicStatus.className = "status error";
+        }
+        testMicBtn.disabled = false;
       });
 
       // Wire Signal toggle to show/hide phone field
