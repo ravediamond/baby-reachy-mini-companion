@@ -1,5 +1,5 @@
 # /// script
-# dependencies = ["gradio>=5.0"]
+# dependencies = ["gradio>=6.0"]
 # ///
 import gradio as gr
 
@@ -134,11 +134,7 @@ custom_css = """
 .footer a:hover { text-decoration: underline; }
 """
 
-with gr.Blocks(
-    theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"),
-    css=custom_css,
-    title="Baby Reachy-Mini Companion",
-) as demo:
+with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
     gr.HTML("""
     <div class="page">
@@ -252,4 +248,7 @@ with gr.Blocks(
     """)
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(
+        theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"),
+        css=custom_css,
+    )
