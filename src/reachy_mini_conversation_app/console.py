@@ -35,12 +35,12 @@ try:
     from fastapi.responses import FileResponse, JSONResponse
     from starlette.staticfiles import StaticFiles
 except Exception:  # pragma: no cover - only loaded when settings_app is used
-    FastAPI = object
-    Request = object
-    FileResponse = object
-    JSONResponse = object
-    StaticFiles = object
-    BaseModel = object
+    FastAPI = object  # type: ignore[misc,assignment]
+    Request = object  # type: ignore[misc,assignment]
+    FileResponse = object  # type: ignore[misc,assignment]
+    JSONResponse = object  # type: ignore[misc,assignment]
+    StaticFiles = object  # type: ignore[misc,assignment]
+    BaseModel = object  # type: ignore[misc,assignment]
 
 
 logger = logging.getLogger(__name__)

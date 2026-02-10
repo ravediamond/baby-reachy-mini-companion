@@ -238,7 +238,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 "voice": get_session_voice(),
                             },
                         },
-                        "tools": get_tool_specs(),
+                        "tools": get_tool_specs(),  # type: ignore[typeddict-item]
                         "tool_choice": "auto",
                     },
                 )
