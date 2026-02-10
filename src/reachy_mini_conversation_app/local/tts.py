@@ -15,7 +15,7 @@ class LocalTTS:
         """Initialize the TTS engine."""
         self.model_path = model_path
         self.voices_path = voices_path
-        self.kokoro = None
+        self.kokoro: Kokoro | None = None
         self._init_model()
 
     def _init_model(self):

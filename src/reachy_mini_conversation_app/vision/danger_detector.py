@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 
 
 try:
-    from ultralytics import YOLO  # type: ignore
+    from ultralytics import YOLO
 except ImportError as e:
     raise ImportError(
         "To use the danger detector, please install the extra dependencies: pip install '.[yolo_vision]'",

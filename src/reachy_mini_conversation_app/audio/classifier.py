@@ -20,7 +20,7 @@ class AudioClassifier:
         self.model_path = model_path
         self.map_path = map_path
         self.session = None
-        self.class_names = []
+        self.class_names: list[str] = []
         self._ensure_files_exist()
         self._load_model()
 

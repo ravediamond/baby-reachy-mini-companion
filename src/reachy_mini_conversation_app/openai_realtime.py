@@ -238,7 +238,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
                                 "voice": get_session_voice(),
                             },
                         },
-                        "tools": get_tool_specs(),  # type: ignore[typeddict-item]
+                        "tools": get_tool_specs(),
                         "tool_choice": "auto",
                     },
                 )
@@ -500,7 +500,7 @@ class OpenaiRealtimeHandler(AsyncStreamHandler):
 
             self.last_activity_time = asyncio.get_event_loop().time()  # avoid repeated resets
 
-        return await wait_for_item(self.output_queue)  # type: ignore[no-any-return]
+        return await wait_for_item(self.output_queue)
 
     async def shutdown(self) -> None:
         """Shutdown the handler."""

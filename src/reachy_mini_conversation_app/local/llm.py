@@ -54,12 +54,13 @@ class LocalLLM:
             messages.extend(tool_outputs)
 
         try:
-            stream = await self.client.chat.completions.create(
-                model=self.model,
+            create_kwargs: Dict[str, Any] = dict(
+                model=self.model or "",
                 messages=messages,
                 tools=tools,
-                stream=True
+                stream=True,
             )
+            stream: Any = await self.client.chat.completions.create(**create_kwargs)
 
             full_content = ""
             tool_calls_buffer: Dict[int, Any] = {}

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: ignore-errors
 """Benchmark Ollama response times with and without tools."""
 
 import sys

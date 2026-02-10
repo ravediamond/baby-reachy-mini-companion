@@ -40,9 +40,9 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.llm_model = llm_model or config.LOCAL_LLM_MODEL
         self.enable_signal = enable_signal
 
-        self.output_queue = asyncio.Queue()
-        self.audio_buffer = []
-        self.lookback_buffer = deque(maxlen=20)  # 20 * 32ms = 640ms lookback
+        self.output_queue: asyncio.Queue[object] = asyncio.Queue()
+        self.audio_buffer: list[np.ndarray] = []
+        self.lookback_buffer: deque[np.ndarray] = deque(maxlen=20)  # 20 * 32ms = 640ms lookback
         self.vad_buffer = np.array([], dtype=np.float32)
 
         # Audio Classification Buffer (1s window)
@@ -144,7 +144,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 logger.info("Loading Danger Detector (YOLO)...")
                 try:
                     from reachy_mini_conversation_app.vision.danger_detector import DangerDetector
-                    self.danger_detector = await asyncio.to_thread(DangerDetector)
+                    self.danger_detector = await asyncio.to_thread(DangerDetector)  # type: ignore[func-returns-value,arg-type]
                     self.danger_detection_task = asyncio.create_task(self._poll_danger_detection())
                     logger.info("Danger detection started.")
                 except ImportError:
@@ -159,7 +159,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 if self.deps.camera_worker.head_tracker is None:
                     logger.info("Loading Head Tracker (MediaPipe)...")
                     try:
-                        from reachy_mini_toolbox.vision import HeadTracker  # type: ignore[import-untyped]
+                        from reachy_mini_toolbox.vision import HeadTracker
                         tracker = await asyncio.to_thread(HeadTracker)
                         self.deps.camera_worker.head_tracker = tracker
                         self.deps.camera_worker.set_head_tracking_enabled(True)
