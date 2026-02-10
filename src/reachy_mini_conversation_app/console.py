@@ -666,7 +666,7 @@ class LocalStream:
     async def record_loop(self) -> None:
         """Read mic frames from the recorder and forward them to the handler."""
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
-        logger.info(f"Record loop started at {input_sample_rate} Hz")
+        print(f"[RECORD] Record loop started at {input_sample_rate} Hz", flush=True)
 
         import time as _time
         _frame_count = 0
@@ -677,15 +677,17 @@ class LocalStream:
             audio_frame = self._robot.media.get_audio_sample()
             if audio_frame is not None:
                 _frame_count += 1
+                if _frame_count == 1:
+                    import numpy as _np
+                    _rms = float((_np.array(audio_frame, dtype=_np.float32) ** 2).mean() ** 0.5)
+                    print(f"[RECORD] First audio frame: shape={_np.array(audio_frame).shape}, dtype={_np.array(audio_frame).dtype}, rms={_rms:.6f}", flush=True)
                 await self.handler.receive((input_sample_rate, audio_frame))
             else:
                 _none_count += 1
 
             now = _time.time()
             if now - _last_diag >= 5.0:
-                logger.info(
-                    f"Record loop: {_frame_count} frames, {_none_count} empty in last 5s"
-                )
+                print(f"[RECORD] {_frame_count} frames, {_none_count} empty in last 5s", flush=True)
                 _frame_count = 0
                 _none_count = 0
                 _last_diag = now
