@@ -158,7 +158,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <!-- Hero Image -->
         <div class="hero-image">
-            <img src="/file=docs/assets/baby-reachy-mini.jpg" alt="Reachy Mini robot among baby toys" />
+            <img src="https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion/resolve/main/docs/assets/baby-reachy-mini.jpg" alt="Reachy Mini robot among baby toys" />
         </div>
 
         <!-- Deploy tags -->
