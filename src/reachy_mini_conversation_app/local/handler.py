@@ -2,7 +2,7 @@ import re
 import json
 import asyncio
 import logging
-from typing import Tuple
+from typing import Tuple, Optional
 from collections import deque
 
 import numpy as np
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class LocalSessionHandler(AsyncStreamHandler):
     """Local processing handler for Reachy Mini (VAD -> STT -> LLM -> TTS + Signal)."""
 
-    def __init__(self, deps: ToolDependencies, llm_url: str = None, llm_model: str = None, enable_signal: bool = True):
+    def __init__(self, deps: ToolDependencies, llm_url: Optional[str] = None, llm_model: Optional[str] = None, enable_signal: bool = True):
         """Initialize the local session handler."""
         super().__init__(
             expected_layout="mono",
@@ -60,11 +60,11 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.speech_chunks = 0
 
         # Initialize models lazily or in start_up
-        self.vad = None
-        self.stt = None
-        self.llm = None
-        self.tts = None
-        self.pipeline_task = None
+        self.vad: Optional[SileroVAD] = None
+        self.stt: Optional[LocalSTT] = None
+        self.llm: Optional[LocalLLM] = None
+        self.tts: Optional[LocalTTS] = None
+        self.pipeline_task: Optional[asyncio.Task[None]] = None
 
         # Signal integration
         self.signal = None

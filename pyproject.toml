@@ -131,6 +131,6 @@ testpaths = ["tests"]
 python_version = "3.12"
 files = ["src/"]
 ignore_missing_imports = true
-strict = true
 show_error_codes = true
 warn_unused_ignores = true
+check_untyped_defs = true

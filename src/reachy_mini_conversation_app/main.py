@@ -27,7 +27,7 @@ def main() -> None:
 
 def run(
     args: argparse.Namespace,
-    robot: ReachyMini = None,
+    robot: Optional[ReachyMini] = None,
     app_stop_event: Optional[threading.Event] = None,
     settings_app: Optional[FastAPI] = None,
     instance_path: Optional[str] = None,
@@ -108,6 +108,7 @@ def run(
         if instance_path is None:
             instance_path = str(Path.cwd())
 
+    handler: Any
     if args.openai_realtime:
         from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
         logger.info("Using OpenAI Realtime API")
