@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import re
 import json
 import asyncio
 import logging
-from typing import Tuple, Optional
+from typing import TYPE_CHECKING, Tuple, Optional
 from collections import deque
 
 import numpy as np
@@ -12,12 +14,14 @@ from scipy.signal import resample
 from reachy_mini_conversation_app.config import config
 from reachy_mini_conversation_app.prompts import get_session_instructions
 from reachy_mini_conversation_app.local.llm import LocalLLM
-from reachy_mini_conversation_app.local.stt import LocalSTT
-from reachy_mini_conversation_app.local.tts import LocalTTS
-from reachy_mini_conversation_app.local.vad import SileroVAD
-from reachy_mini_conversation_app.audio.classifier import AudioClassifier
 from reachy_mini_conversation_app.tools.core_tools import ToolDependencies, get_tool_specs, dispatch_tool_call
 from reachy_mini_conversation_app.input.signal_interface import SignalInterface
+
+if TYPE_CHECKING:
+    from reachy_mini_conversation_app.audio.classifier import AudioClassifier
+    from reachy_mini_conversation_app.local.stt import LocalSTT
+    from reachy_mini_conversation_app.local.tts import LocalTTS
+    from reachy_mini_conversation_app.local.vad import SileroVAD
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +99,12 @@ class LocalSessionHandler(AsyncStreamHandler):
         """Initialize local models."""
         logger.info("Initializing Local AI Pipeline...")
 
+        # Lazy imports: these pull in heavy optional deps (torch, faster-whisper, kokoro-onnx, onnxruntime)
+        # that are only available when installed with the 'local_audio' extra.
+        from reachy_mini_conversation_app.local.stt import LocalSTT
+        from reachy_mini_conversation_app.local.tts import LocalTTS
+        from reachy_mini_conversation_app.local.vad import SileroVAD
+
         try:
             # Rebuild tool specs with feature-based exclusions
             exclusions = self._build_tool_exclusions()
@@ -118,7 +128,10 @@ class LocalSessionHandler(AsyncStreamHandler):
             if config.FEATURE_CRY_DETECTION:
                 logger.info("Loading Audio Classifier (YAMNet)...")
                 try:
+                    from reachy_mini_conversation_app.audio.classifier import AudioClassifier
                     self.classifier = await asyncio.to_thread(AudioClassifier)
+                except ImportError:
+                    logger.info("onnxruntime not installed, audio classification disabled.")
                 except Exception as e:
                     logger.warning(f"Audio Classifier failed to load: {e}")
             else:
