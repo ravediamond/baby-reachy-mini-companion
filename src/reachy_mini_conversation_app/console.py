@@ -664,35 +664,83 @@ class LocalStream:
         self.handler.output_queue = asyncio.Queue()
 
     async def record_loop(self) -> None:
-        """Read mic frames from the recorder and forward them to the handler."""
+        """Read mic frames from the recorder and forward them to the handler.
+
+        Uses a direct SoundDevice InputStream for reliable cross-platform
+        microphone capture, bypassing the SDK's media layer which can
+        produce silent frames on some platforms (macOS dtype issue).
+        Falls back to the SDK's get_audio_sample() if SoundDevice is
+        unavailable.
+        """
+        import numpy as np
+        from collections import deque
+
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
-        print(f"[RECORD] Record loop started at {input_sample_rate} Hz", flush=True)
+        logger.info("Record loop starting at %d Hz", input_sample_rate)
 
-        import time as _time
-        _frame_count = 0
-        _none_count = 0
-        _last_diag = _time.time()
+        # Try direct SoundDevice stream for reliable capture
+        use_direct_sd = False
+        try:
+            import sounddevice as sd
 
-        while not self._stop_event.is_set():
-            audio_frame = self._robot.media.get_audio_sample()
-            if audio_frame is not None:
-                _frame_count += 1
-                if _frame_count == 1:
-                    import numpy as _np
-                    _rms = float((_np.array(audio_frame, dtype=_np.float32) ** 2).mean() ** 0.5)
-                    print(f"[RECORD] First audio frame: shape={_np.array(audio_frame).shape}, dtype={_np.array(audio_frame).dtype}, rms={_rms:.6f}", flush=True)
-                await self.handler.receive((input_sample_rate, audio_frame))
-            else:
-                _none_count += 1
+            buffer_lock = threading.Lock()
+            audio_chunks: deque = deque()
 
-            now = _time.time()
-            if now - _last_diag >= 5.0:
-                print(f"[RECORD] {_frame_count} frames, {_none_count} empty in last 5s", flush=True)
-                _frame_count = 0
-                _none_count = 0
-                _last_diag = now
+            def _audio_callback(
+                indata: np.ndarray,
+                frames: int,
+                time_info: object,
+                status: sd.CallbackFlags,
+            ) -> None:
+                if status:
+                    logger.debug("SoundDevice status: %s", status)
+                with buffer_lock:
+                    audio_chunks.append(indata.copy())
 
-            await asyncio.sleep(0)  # avoid busy loop
+            # Stop the SDK's recording stream to avoid two streams on the
+            # same device.  We keep start_playing() active for TTS output.
+            try:
+                self._robot.media.stop_recording()
+            except Exception:
+                pass
+
+            sd_stream = sd.InputStream(
+                samplerate=input_sample_rate,
+                channels=2,
+                dtype="float32",
+                callback=_audio_callback,
+            )
+            sd_stream.start()
+            use_direct_sd = True
+            logger.info("Using direct SoundDevice InputStream for mic capture")
+        except Exception as e:
+            logger.warning(
+                "Direct SoundDevice unavailable (%s), falling back to SDK audio", e
+            )
+
+        try:
+            while not self._stop_event.is_set():
+                if use_direct_sd:
+                    with buffer_lock:
+                        if audio_chunks:
+                            audio_frame = np.concatenate(audio_chunks, axis=0)
+                            audio_chunks.clear()
+                        else:
+                            audio_frame = None
+                else:
+                    audio_frame = self._robot.media.get_audio_sample()
+
+                if audio_frame is not None:
+                    await self.handler.receive((input_sample_rate, audio_frame))
+
+                await asyncio.sleep(0)
+        finally:
+            if use_direct_sd:
+                try:
+                    sd_stream.stop()
+                    sd_stream.close()
+                except Exception:
+                    pass
 
     async def play_loop(self) -> None:
         """Fetch outputs from the handler: log text and play audio frames."""
