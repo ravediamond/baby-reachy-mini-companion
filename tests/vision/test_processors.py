@@ -98,7 +98,7 @@ def test_vision_processor_process_image_api_success() -> None:
         mock_config.LOCAL_LLM_API_KEY = "test"
         mock_config.LOCAL_LLM_MODEL = "qwen2.5:3b"
 
-        with patch("reachy_mini_conversation_app.vision.processors.OpenAI") as mock_openai_cls:
+        with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
             mock_client.chat.completions.create.return_value = mock_response
             mock_openai_cls.return_value = mock_client
@@ -123,7 +123,7 @@ def test_vision_processor_process_image_api_error() -> None:
         mock_config.LOCAL_LLM_API_KEY = "test"
         mock_config.LOCAL_LLM_MODEL = "qwen2.5:3b"
 
-        with patch("reachy_mini_conversation_app.vision.processors.OpenAI") as mock_openai_cls:
+        with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
             mock_client.chat.completions.create.side_effect = Exception("Connection refused")
             mock_openai_cls.return_value = mock_client
@@ -171,7 +171,8 @@ def test_vision_manager_initialization(mock_camera: Mock) -> None:
 def test_vision_manager_start_stop(mock_camera: Mock) -> None:
     """Test VisionManager can start and stop."""
     with patch("reachy_mini_conversation_app.vision.processors.config"):
-        manager = VisionManager(mock_camera, VisionConfig())
+        cfg = VisionConfig(continuous_mode=True)
+        manager = VisionManager(mock_camera, cfg)
 
         manager.start()
         assert manager._thread is not None
