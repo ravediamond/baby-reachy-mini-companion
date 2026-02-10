@@ -1,15 +1,16 @@
 """Tool to send a photo via Signal."""
 
+import os
 import logging
 import tempfile
-import os
 from typing import Any, Dict
 
 import cv2
 
+from reachy_mini_conversation_app.config import config
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 from reachy_mini_conversation_app.tools.send_signal import get_signal_interface
-from reachy_mini_conversation_app.config import config
+
 
 logger = logging.getLogger(__name__)
 

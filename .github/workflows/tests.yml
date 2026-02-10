@@ -55,7 +55,7 @@ jobs:
 
       - name: Install (locked)
         run: |
-          uv sync --frozen --group dev --extra all_vision
+          uv sync --frozen --group dev --extra local
 
       # Prefetch HF dataset to avoid download during test collection
       - name: Prefetch HF dataset

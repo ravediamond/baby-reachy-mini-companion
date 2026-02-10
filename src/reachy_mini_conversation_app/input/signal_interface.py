@@ -1,9 +1,9 @@
-import subprocess
-import json
-import logging
-import asyncio
 import re
-from typing import List, Dict, Optional
+import asyncio
+import logging
+import subprocess
+from typing import Dict, List, Optional
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class SignalInterface:
         Args:
             username: The registered phone number (with country code).
                       If None, tries to find one or logs a warning.
+
         """
         self.username = username
         self.available = self._check_availability()
@@ -56,6 +57,7 @@ class SignalInterface:
             text: The message text.
             recipient: The recipient phone number.
             attachment: Optional path to a file to attach.
+
         """
         if not self.available or not self.username:
             logger.warning(f"[MOCK] Signal send to {recipient}: {text}")

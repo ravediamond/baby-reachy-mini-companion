@@ -2,7 +2,7 @@ import time
 import base64
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from dataclasses import dataclass
 
 import cv2
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VisionConfig:
     """Configuration for vision processing."""
+
     vision_interval: float = 5.0
     max_new_tokens: int = 64
     jpeg_quality: int = 85
@@ -44,14 +45,14 @@ class VisionProcessor:
         """Process image using OpenAI-compatible API."""
         try:
             from openai import OpenAI
-            
+
             client = OpenAI(base_url=config.LOCAL_LLM_URL, api_key=config.LOCAL_LLM_API_KEY)
-            
+
             # Use the same model as the chat
             model_name = config.LOCAL_LLM_MODEL or "qwen2.5:3b"
 
             logger.debug(f"Encoding image for VLM (model={model_name} at {config.LOCAL_LLM_URL})...")
-            
+
             # Encode image
             success, jpeg_buffer = cv2.imencode(
                 ".jpg",
@@ -64,7 +65,7 @@ class VisionProcessor:
 
             image_base64 = base64.b64encode(jpeg_buffer.tobytes()).decode("utf-8")
 
-            logger.debug(f"Sending vision request...")
+            logger.debug("Sending vision request...")
             start_time = time.time()
             response = client.chat.completions.create(
                 model=model_name,
@@ -84,7 +85,7 @@ class VisionProcessor:
             )
             duration = time.time() - start_time
             logger.debug(f"Vision request took {duration:.2f}s")
-            
+
             content = response.choices[0].message.content
             return content if content else "No response from VLM"
 

@@ -1,9 +1,10 @@
-import logging
 import asyncio
-import numpy as np
-import soundfile as sf
-from kokoro_onnx import Kokoro
+import logging
 from typing import Tuple
+
+import numpy as np
+from kokoro_onnx import Kokoro
+
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +12,7 @@ class LocalTTS:
     """Wrapper for Kokoro-ONNX TTS."""
 
     def __init__(self, model_path: str = "kokoro-v0_19.onnx", voices_path: str = "voices.npz"):
+        """Initialize the TTS engine."""
         self.model_path = model_path
         self.voices_path = voices_path
         self.kokoro = None
@@ -19,6 +21,7 @@ class LocalTTS:
     def _init_model(self):
         try:
             import os
+
             from huggingface_hub import hf_hub_download
 
             # v0.19 files were removed from main, pin to last commit with them
@@ -32,7 +35,7 @@ class LocalTTS:
                     local_dir=".",
                     revision=revision,
                 )
-            
+
             if not os.path.exists(self.voices_path):
                 logger.info(f"Downloading Kokoro voices to {self.voices_path}...")
                 # Download the pre-packaged .npz directly if available, or fall back to known location
@@ -42,7 +45,7 @@ class LocalTTS:
                 # If we assume 'voices.npz' MUST exist, we can just warn.
                 # BUT, to make it "just work", we should probably download a pre-made .npz from a repo that has it.
                 # However, you asked to "remove the other stuff".
-                
+
                 # Let's trust the user or a standard download.
                 # If we remove the conversion, we must ensure voices.npz is available.
                 # Since we have it locally, this is fine for you.

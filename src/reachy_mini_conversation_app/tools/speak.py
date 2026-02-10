@@ -1,5 +1,7 @@
-from typing import Dict, Any
+from typing import Any, Dict
+
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
 
 class Speak(Tool):
     """Tool for the robot to speak a given text."""
@@ -23,7 +25,6 @@ class Speak(Tool):
 
     async def __call__(self, deps: ToolDependencies, text: str, emotion: str = None) -> Dict[str, Any]:
         """Execute the speak tool."""
-        
         # If emotion is provided, we could optionally trigger play_emotion here or append it to text
         full_text = text
         if emotion:

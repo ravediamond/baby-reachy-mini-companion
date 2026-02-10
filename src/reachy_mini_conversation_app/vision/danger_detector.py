@@ -7,7 +7,6 @@ analysis and alerts the parent via Signal.
 """
 
 from __future__ import annotations
-
 import logging
 from typing import Dict, List
 
@@ -43,6 +42,7 @@ class DangerDetector:
         confidence_threshold: float = 0.5,
         device: str = "cpu",
     ) -> None:
+        """Initialize the danger detector with a YOLO model."""
         self.confidence_threshold = confidence_threshold
         try:
             self.model = YOLO(model_name).to(device)
@@ -57,6 +57,7 @@ class DangerDetector:
         Returns:
             List of dicts with keys: label, confidence, bbox.
             Empty list when nothing dangerous is detected.
+
         """
         try:
             results = self.model(frame, verbose=False)

@@ -70,7 +70,7 @@ def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> 
         # running a continuous background process.
         try:
             from reachy_mini_conversation_app.vision.processors import initialize_vision_manager
-            
+
             # continuous_mode=False ensures we don't run the heavy background loop
             vision_manager = initialize_vision_manager(camera_worker, continuous_mode=False)
             if vision_manager:
