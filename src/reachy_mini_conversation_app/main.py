@@ -112,10 +112,10 @@ def run(
             instance_path = str(Path.cwd())
 
         def _run_settings_server() -> None:
-            uvicorn.run(settings_app, host="0.0.0.0", port=8000, log_level="warning")
+            uvicorn.run(settings_app, host="0.0.0.0", port=8321, log_level="warning")
 
         threading.Thread(target=_run_settings_server, daemon=True).start()
-        logger.info("Settings dashboard available at http://localhost:8000")
+        logger.info("Settings dashboard available at http://localhost:8321")
 
     if args.openai_realtime:
         from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
