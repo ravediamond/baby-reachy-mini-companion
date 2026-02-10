@@ -186,28 +186,16 @@ class LocalSessionHandler(AsyncStreamHandler):
             logger.error(f"Failed to initialize local pipeline: {e}")
             raise
 
-    _receive_log_count = 0
-
     async def receive(self, frame: Tuple[int, np.ndarray]) -> None:
         """Process incoming audio frame."""
         sr, audio = frame
-
-        # Periodic diagnostic (first frame + every ~5s worth of frames)
-        self.__class__._receive_log_count += 1
-        if self.__class__._receive_log_count <= 3 or self.__class__._receive_log_count % 500 == 0:
-            rms = float((audio.astype(np.float32).ravel() ** 2).mean() ** 0.5)
-            print(
-                f"[HANDLER] receive #{self.__class__._receive_log_count}: "
-                f"sr={sr}, shape={audio.shape}, dtype={audio.dtype}, rms={rms:.6f}",
-                flush=True,
-            )
-
+        
         # 1. Convert to float32 safely
         if audio.dtype == np.float32:
             audio_float = audio.copy()
         else:
             audio_float = audio.astype(np.float32) / 32768.0
-
+        
         # Apply microphone gain
         if config.MIC_GAIN != 1.0:
             audio_float = audio_float * config.MIC_GAIN
@@ -221,7 +209,7 @@ class LocalSessionHandler(AsyncStreamHandler):
         if sr != target_sr:
             num_samples = int(len(audio_float) * target_sr / sr)
             audio_float = resample(audio_float, num_samples)
-
+            
         # 4. Add to VAD buffer
         self.vad_buffer = np.concatenate((self.vad_buffer, audio_float))
         
