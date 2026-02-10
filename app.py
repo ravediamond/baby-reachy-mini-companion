@@ -33,7 +33,7 @@ custom_css = """
     margin: 2rem auto 2.5rem; text-align: center;
 }
 .hero-image img {
-    max-width: 100%; height: auto; border-radius: 1rem;
+    max-width: 560px; width: 100%; height: auto; border-radius: 1rem;
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 
