@@ -29,6 +29,9 @@ dependencies = [
     "reachy-mini >= 1.2.11",
     "eclipse-zenoh~=1.7.0",
     "gradio_client>=1.13.3",
+
+    #Required at import time by camera_worker and console
+    "scipy",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +41,6 @@ local_audio = [
   "faster-whisper",
   "kokoro-onnx",
   "soundfile",
-  "scipy",
 ]
 yolo_vision = [
   "ultralytics",
@@ -70,7 +72,7 @@ dev = [
 reachy-mini-conversation-app = "reachy_mini_conversation_app.main:main"
 
 [project.entry-points."reachy_mini_apps"]
-reachy_mini_conversation_app = "reachy_mini_conversation_app.main:ReachyMiniConversationApp"
+baby-reachy-mini-companion = "reachy_mini_conversation_app.main:ReachyMiniConversationApp"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
