@@ -158,6 +158,21 @@ On subsequent launches, the saved settings are pre-populated in the form. You ca
 
 ## Running the App
 
+### Starting the Daemon
+
+Before running the conversation app, start the Reachy Mini daemon with `--deactivate-audio`. This prevents the daemon from monopolizing the microphone — the conversation app needs direct access to capture audio for speech recognition.
+
+```bash
+# Mac (simulation mode)
+uv run reachy-mini-daemon --sim --deactivate-audio
+
+# Jetson (physical robot)
+uv run reachy-mini-daemon --serialport /dev/ttyACM0 --deactivate-audio
+```
+
+> [!IMPORTANT]
+> Without `--deactivate-audio`, the daemon's internal audio handling captures all microphone input, and the conversation app receives only silence. This flag is **required** for the conversation app to work.
+
 ### Standalone (CLI)
 
 ```bash
@@ -356,10 +371,11 @@ docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_cache
 ## Troubleshooting
 
 ### General
+- **Microphone returns silence / no speech detected** — The most common issue. Make sure the daemon is started with `--deactivate-audio`. Without this flag, the daemon captures all microphone input internally and the app receives only zeros. See [Starting the Daemon](#starting-the-daemon).
 - **"Connection refused" from LLM** — Make sure your Ollama (or other LLM server) is running and the URL is correct (check `.env` or the settings UI).
 - **Slow first response** — The app pre-warms the LLM on startup. If using Ollama, the first model load can be slow; subsequent requests are fast.
 - **STT too slow or inaccurate** — Try a different STT model. `tiny.en` is fastest, `medium.en` is most accurate, `small.en` is a good balance.
-- **No audio input** — Check `MIC_GAIN` in `.env`. On some systems you may need to increase it (e.g., `2.0` or `3.0`).
+- **No audio input after confirming `--deactivate-audio`** — Check `MIC_GAIN` in `.env`. On some systems you may need to increase it (e.g., `2.0` or `3.0`).
 - **MediaPipe/YOLO import errors** — Make sure you installed the right extra: `uv sync --extra mediapipe_vision` or `uv sync --extra yolo_vision`.
 - **Settings not taking effect** — In headless mode, settings are applied when you click Start. If already running, they take effect on the next restart.
 
