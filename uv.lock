@@ -4360,6 +4360,8 @@ dependencies = [
     { name = "reachy-mini" },
     { name = "reachy-mini-dances-library" },
     { name = "reachy-mini-toolbox" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 
 [package.optional-dependencies]
@@ -4369,8 +4371,6 @@ local = [
     { name = "kokoro-onnx" },
     { name = "mediapipe" },
     { name = "pygobject" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "silero-vad" },
     { name = "soundfile" },
     { name = "supervision" },
@@ -4380,8 +4380,6 @@ local = [
 local-audio = [
     { name = "faster-whisper" },
     { name = "kokoro-onnx" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "silero-vad" },
     { name = "soundfile" },
     { name = "torch" },
@@ -4429,7 +4427,7 @@ requires-dist = [
     { name = "reachy-mini-conversation-app", extras = ["local-audio", "yolo-vision", "mediapipe-vision", "reachy-mini-wireless"], marker = "extra == 'local'" },
     { name = "reachy-mini-dances-library" },
     { name = "reachy-mini-toolbox" },
-    { name = "scipy", marker = "extra == 'local-audio'" },
+    { name = "scipy" },
     { name = "silero-vad", marker = "extra == 'local-audio'" },
     { name = "soundfile", marker = "extra == 'local-audio'" },
     { name = "supervision", marker = "extra == 'yolo-vision'" },
