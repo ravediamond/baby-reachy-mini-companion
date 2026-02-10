@@ -77,6 +77,10 @@ class LocalStream:
         self._start_event = threading.Event()
         self._pipeline_started = False
 
+        # Register dashboard routes immediately so the UI is available
+        # while the robot and pipeline are still initializing.
+        self._init_settings_ui_if_needed()
+
     # ---- Settings UI (only when API key is missing) ----
     def _read_env_lines(self, env_path: Path) -> list[str]:
         """Load env file contents or a template as a list of lines."""
@@ -248,7 +252,7 @@ class LocalStream:
         """
         env_keys = (
             "LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL",
-            "SIGNAL_USER_PHONE",
+            "SIGNAL_USER_PHONE", "MIC_GAIN",
             *self._FEATURE_KEYS,
         )
         for key in env_keys:
@@ -263,6 +267,8 @@ class LocalStream:
                 # Feature flags are booleans on config
                 if key.startswith("FEATURE_"):
                     setattr(config, key, val.lower() == "true")
+                elif key == "MIC_GAIN":
+                    setattr(config, key, float(val))
                 else:
                     setattr(config, key, val)
             except Exception:
@@ -416,6 +422,7 @@ class LocalStream:
                 "FEATURE_SIGNAL_ALERTS": config.FEATURE_SIGNAL_ALERTS,
                 "FEATURE_HEAD_TRACKING": config.FEATURE_HEAD_TRACKING,
                 "SIGNAL_USER_PHONE": config.SIGNAL_USER_PHONE or "",
+                "MIC_GAIN": config.MIC_GAIN,
             })
 
         # POST /start_app -> save settings and start the pipeline
@@ -505,10 +512,6 @@ class LocalStream:
                     self._persist_api_key(key)
             except Exception as e:
                 logger.warning(f"Failed to download API key from HuggingFace: {e}")
-
-        # Always expose settings UI if a settings app is available
-        # (do this AFTER loading/downloading the key so status endpoint sees the right value)
-        self._init_settings_ui_if_needed()
 
         # In local mode, wait for user to configure settings and click "Start"
         if is_local and self._settings_app is not None:

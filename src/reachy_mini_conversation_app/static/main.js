@@ -162,6 +162,10 @@ function applyFeatureSettings(settings) {
   document.getElementById("signal-phone").value = settings.SIGNAL_USER_PHONE || "";
   // Show/hide phone field
   show(document.getElementById("signal-phone-row"), settings.FEATURE_SIGNAL_ALERTS !== false);
+  // Mic gain
+  const gain = settings.MIC_GAIN != null ? settings.MIC_GAIN : 1.0;
+  document.getElementById("mic-gain").value = gain;
+  document.getElementById("mic-gain-value").textContent = gain;
 }
 
 // ---------- Personalities API ----------
@@ -280,6 +284,8 @@ async function init() {
   const sttModelSelect = document.getElementById("stt-model");
   const startLocalBtn = document.getElementById("start-local-btn");
   const localLlmStatus = document.getElementById("local-llm-status");
+  const micGainSlider = document.getElementById("mic-gain");
+  const micGainValue = document.getElementById("mic-gain-value");
 
   // Features panel
   const featuresPanel = document.getElementById("features-panel");
@@ -343,6 +349,11 @@ async function init() {
       applyFeatureSettings(featureSettings);
       show(featuresPanel, true);
 
+      // Wire mic gain slider label
+      micGainSlider.addEventListener("input", () => {
+        micGainValue.textContent = micGainSlider.value;
+      });
+
       // Wire Signal toggle to show/hide phone field
       signalToggle.addEventListener("change", () => {
         show(signalPhoneRow, signalToggle.checked);
@@ -358,6 +369,7 @@ async function init() {
             LOCAL_LLM_MODEL: llmModelInput.value.trim(),
             LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
             LOCAL_STT_MODEL: sttModelSelect.value,
+            MIC_GAIN: micGainSlider.value,
             ...getFeatureSettings(),
           });
           localLlmStatus.textContent = "Pipeline starting... loading models.";

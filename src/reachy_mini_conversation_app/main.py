@@ -105,17 +105,9 @@ def run(
 
     # Launch a standalone settings dashboard when --dashboard is passed
     if args.dashboard and settings_app is None:
-        import uvicorn
-
         settings_app = FastAPI(title="Reachy Mini Settings")
         if instance_path is None:
             instance_path = str(Path.cwd())
-
-        def _run_settings_server() -> None:
-            uvicorn.run(settings_app, host="0.0.0.0", port=8321, log_level="warning")
-
-        threading.Thread(target=_run_settings_server, daemon=True).start()
-        logger.info("Settings dashboard available at http://localhost:8321")
 
     if args.openai_realtime:
         from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
@@ -128,12 +120,23 @@ def run(
         handler = LocalSessionHandler(deps)
 
     # Headless mode: wire settings_app + instance_path to console LocalStream
+    # Routes are registered in __init__ so the dashboard is ready immediately.
     stream_manager = LocalStream(
         handler,
         robot,
         settings_app=settings_app,
         instance_path=instance_path,
     )
+
+    # Start uvicorn AFTER routes are registered
+    if args.dashboard and settings_app is not None:
+        import uvicorn
+
+        def _run_settings_server() -> None:
+            uvicorn.run(settings_app, host="0.0.0.0", port=8321, log_level="warning")
+
+        threading.Thread(target=_run_settings_server, daemon=True).start()
+        logger.info("Settings dashboard available at http://localhost:8321")
 
     # Each async service → its own thread/loop
     movement_manager.start()
