@@ -251,21 +251,26 @@ class LocalStream:
     )
 
     def _persist_local_llm_settings(self, settings: dict[str, str]) -> None:
-        """Persist local LLM and feature settings to environment, config, and instance .env.
+        """Persist local LLM settings to environment, config, and instance .env.
 
-        Accepted keys: LOCAL_LLM_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY, LOCAL_STT_MODEL,
-        SIGNAL_USER_PHONE, and all FEATURE_* flags.
+        Feature flags are applied in-memory only (not persisted to .env) so
+        stale values from previous installs cannot leak across sessions.
+
+        Accepted keys: LOCAL_LLM_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY,
+        LOCAL_STT_MODEL, SIGNAL_USER_PHONE, MIC_GAIN, and FEATURE_* flags.
         """
-        env_keys = (
+        # Keys that get persisted to .env
+        persist_keys = (
             "LOCAL_LLM_URL",
             "LOCAL_LLM_MODEL",
             "LOCAL_LLM_API_KEY",
             "LOCAL_STT_MODEL",
             "SIGNAL_USER_PHONE",
             "MIC_GAIN",
-            *self._FEATURE_KEYS,
         )
-        for key in env_keys:
+        all_keys = (*persist_keys, *self._FEATURE_KEYS)
+
+        for key in all_keys:
             val = (settings.get(key) or "").strip()
             if not val:
                 continue
@@ -290,7 +295,11 @@ class LocalStream:
             inst = Path(self._instance_path)
             env_path = inst / ".env"
             lines = self._read_env_lines(env_path)
-            for key in env_keys:
+
+            # Strip stale FEATURE_* lines from .env (they're session-only now)
+            lines = [ln for ln in lines if not any(ln.strip().startswith(f"{fk}=") for fk in self._FEATURE_KEYS)]
+
+            for key in persist_keys:
                 val = (settings.get(key) or "").strip()
                 if not val:
                     continue
@@ -690,14 +699,6 @@ class LocalStream:
                         if val:
                             try:
                                 setattr(config, env_key, val)
-                            except Exception:
-                                pass
-                    # Reload feature flags from instance .env
-                    for fkey in self._FEATURE_KEYS:
-                        fval = os.getenv(fkey, "").strip()
-                        if fval:
-                            try:
-                                setattr(config, fkey, fval.lower() == "true")
                             except Exception:
                                 pass
                     # Reload mic gain
