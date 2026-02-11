@@ -49,28 +49,20 @@ class LocalTTS:
             logger.warning("Ensure kokoro-v0_19.onnx and voices.npz are present!")
 
     def _download_and_convert_voices(self) -> None:
-        """Download voices-v1.0.bin and convert to voices.npz."""
+        """Download voices-v1.0.bin (already npz format) and save as voices.npz."""
         import os
         from urllib.request import urlretrieve
 
-        import torch
-
-        bin_path = "voices-v1.0.bin"
         url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
 
         try:
-            if not os.path.exists(bin_path):
-                logger.info(f"Downloading {url} ...")
-                urlretrieve(url, bin_path)
-
-            data = torch.load(bin_path, weights_only=False, map_location="cpu")
-            np_data = {k: v.numpy() if hasattr(v, "numpy") else np.array(v) for k, v in data.items()}
-            np.savez(self.voices_path, **np_data)
-            logger.info(f"Converted {len(np_data)} voices to {self.voices_path}")
-
-            os.remove(bin_path)
+            logger.info(f"Downloading {url} ...")
+            urlretrieve(url, self.voices_path)
+            # Verify it loads as npz
+            data = np.load(self.voices_path)
+            logger.info(f"Downloaded voices.npz with {len(data.files)} voices")
         except Exception as e:
-            logger.error(f"Failed to download/convert voices: {e}")
+            logger.error(f"Failed to download voices: {e}")
             raise
 
     async def synthesize(self, text: str, voice: str = "af_sarah", speed: float = 1.0) -> Tuple[int, np.ndarray]:
