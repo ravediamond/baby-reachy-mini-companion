@@ -197,7 +197,7 @@ pytest tests/ -v
 ## Design Philosophy
 
 - **Privacy is non-negotiable** — all processing local, no cloud, no data leaves the device
-- **Consumer hardware enables adoption** — runs on $200 Jetson or existing Mac
+- **Consumer hardware enables adoption** — runs on $700 Jetson Orin NX or existing Mac
 - **Physical safety by design** — Reachy Mini has no hands/manipulators
 - **Empathy is the key to acceptance** — a robot that ignores human distress has failed its purpose
 - **AI companions for children should be explored openly** — better to build transparent, parent-controlled experiences than wait for closed commercial products

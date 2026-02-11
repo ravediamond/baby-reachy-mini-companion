@@ -17,7 +17,11 @@ A fully local Reachy Mini AI Companion for babies and kids.
 
 This "Dual-Interface" companion can interact with you both **locally via voice** (in the room) and **remotely via Signal** text messages. It features advanced audio perception, including baby cry detection, and uses your local LLM as a vision model.
 
+> **The only fully local Reachy Mini AI stack** — 7 AI models running concurrently, autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX. No cloud. No data leaves your home.
+
 <img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy Mini Companion" />
+
+<img src="docs/assets/reachy.gif" width="600" alt="Baby cry detected — Reachy automatically soothes and alerts parent" />
 
 <video src="docs/assets/reachy-demo.mp4" width="600" controls>
   <a href="docs/assets/reachy-demo.mp4">Watch the demo video</a>
@@ -27,7 +31,7 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 I'm a new dad on a mission: building a nursery companion that actually respects our privacy. I wanted a "cool nanny bot" that plays and helps out with the baby — without sending a single byte of data to the cloud. What happens at home stays at home.
 
-Beyond this project, I want to prove that high-end robotics can run on consumer hardware — a Mac for the app and a $200 Jetson Orin for GPU inference — instead of massive servers or cloud subscriptions. If companion robotics only works on expensive cloud platforms, adoption will stay limited to tech demos. Running locally on hardware anyone can afford is how this technology actually reaches homes.
+Beyond this project, I want to prove that high-end robotics can run on consumer hardware — a Mac for the app and a $700 Jetson Orin NX 16GB for GPU inference — instead of massive servers or cloud subscriptions. If companion robotics only works on expensive cloud platforms, adoption will stay limited to tech demos. Running locally on hardware anyone can afford is how this technology actually reaches homes.
 
 ### On AI Companions and Children
 

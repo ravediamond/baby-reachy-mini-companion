@@ -170,8 +170,27 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         elem_classes=["hero-image"],
     )
 
+    gr.Image(
+        value="docs/assets/reachy.gif",
+        show_label=False,
+        interactive=False,
+        container=False,
+        elem_classes=["hero-image"],
+    )
+
     gr.HTML("""
     <div class="page">
+
+        <!-- At a glance -->
+        <div style="text-align:center; margin-bottom: 2rem; padding: 1rem 1.5rem;
+                    background: linear-gradient(135deg, rgba(99,102,241,0.10) 0%, rgba(236,72,153,0.10) 100%);
+                    border: 1px solid rgba(99,102,241,0.25); border-radius: 0.75rem;">
+            <p style="font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--body-text-color);">
+                The only fully local Reachy Mini AI stack &mdash; 7 AI models running concurrently,
+                autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX.
+                No cloud. No data leaves your home.
+            </p>
+        </div>
 
         <!-- Deploy tags -->
         <div class="deploy-tags">
@@ -193,7 +212,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <div class="diff-grid">
             <div class="diff-item"><strong>Privacy first</strong> &mdash; Something running in your home, around your child, should never send data to a third party</div>
-            <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac with a $200 Jetson for GPU inference &mdash; not a data center. That's how robotics reaches homes</div>
+            <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac with a $700 Jetson Orin NX for GPU inference &mdash; not a data center. That's how robotics reaches homes</div>
             <div class="diff-item"><strong>Physically safe</strong> &mdash; Reachy Mini has no hands or manipulators &mdash; it can express and communicate, not grab or push. Its antennas are only used for emotional expression</div>
             <div class="diff-item"><strong>Empathy matters</strong> &mdash; A robot that ignores human distress has failed. Detecting emotions and responding with care is the goal</div>
         </div>
