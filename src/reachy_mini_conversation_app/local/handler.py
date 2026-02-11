@@ -77,6 +77,7 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.llm: Optional[LocalLLM] = None
         self.tts: Optional[LocalTTS] = None
         self.pipeline_task: Optional[asyncio.Task[None]] = None
+        self._receive_frame_count = 0
 
         # Signal integration
         self.signal: Optional[SignalInterface] = None
@@ -215,6 +216,15 @@ class LocalSessionHandler(AsyncStreamHandler):
     async def receive(self, frame: Tuple[int, np.ndarray]) -> None:
         """Process incoming audio frame."""
         sr, audio = frame
+        self._receive_frame_count += 1
+
+        # Log audio diagnostics on first frame and periodically
+        if self._receive_frame_count == 1:
+            logger.info(
+                f"Audio frame: dtype={audio.dtype}, shape={audio.shape}, "
+                f"sr={sr}, min={audio.min():.6f}, max={audio.max():.6f}, "
+                f"vad_loaded={self.vad is not None}"
+            )
 
         # 1. Convert to float32 safely
         if audio.dtype == np.float32:
@@ -235,6 +245,15 @@ class LocalSessionHandler(AsyncStreamHandler):
         if sr != target_sr:
             num_samples = int(len(audio_float) * target_sr / sr)
             audio_float = resample(audio_float, num_samples)
+
+        # Log RMS level periodically (every 500 frames ~= 25s)
+        if self._receive_frame_count % 500 == 0:
+            rms = float(np.sqrt(np.mean(audio_float**2)))
+            peak = float(np.abs(audio_float).max())
+            logger.info(
+                f"Audio level (frame {self._receive_frame_count}): "
+                f"rms={rms:.6f}, peak={peak:.6f}, samples={len(audio_float)}"
+            )
 
         # 4. Add to VAD buffer
         self.vad_buffer = np.concatenate((self.vad_buffer, audio_float))
