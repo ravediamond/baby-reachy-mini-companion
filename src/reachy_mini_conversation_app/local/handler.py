@@ -193,10 +193,10 @@ class LocalSessionHandler(AsyncStreamHandler):
                         self.deps.camera_worker.head_tracker = tracker
                         self.deps.camera_worker.set_head_tracking_enabled(True)
                         logger.info("Head tracking (MediaPipe) enabled.")
-                    except ImportError:
-                        logger.info("MediaPipe not installed, head tracking disabled.")
-                    except Exception as e:
-                        logger.warning(f"Head Tracker failed to load: {e}")
+                    except (ImportError, SystemExit):
+                        # SystemExit: reachy_mini_toolbox calls exit() at
+                        # import time when dependencies are missing
+                        logger.info("Head tracker not available (missing dependencies), head tracking disabled.")
             elif not config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
                 self.deps.camera_worker.set_head_tracking_enabled(False)
                 logger.info("Head tracking disabled by feature flag.")
@@ -213,7 +213,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 logger.info("Signal alerts disabled by feature flag.")
 
             logger.info("Local Pipeline Ready.")
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             logger.error(f"Failed to initialize local pipeline: {e}")
             logger.error("Pipeline will remain inactive. The settings dashboard is still accessible.")
 

@@ -772,6 +772,9 @@ class LocalStream:
                     await asyncio.gather(*self._tasks)
                 except asyncio.CancelledError:
                     logger.info("Tasks cancelled during shutdown")
+                except SystemExit:
+                    # A dependency (e.g. reachy_mini_toolbox) called exit()
+                    logger.error("A dependency called exit() — caught to keep the app alive")
                 except Exception as e:
                     logger.error(f"Pipeline error: {e}", exc_info=True)
                 finally:
