@@ -64,7 +64,7 @@ class LocalStream:
         """
         self.handler = handler
         self._robot = robot
-        self._stop_event = asyncio.Event()
+        self._stop_event = threading.Event()  # thread-safe (set from uvicorn, polled from asyncio)
         self._tasks: List[asyncio.Task[None]] = []
         # Allow the handler to flush the player queue when appropriate.
         self.handler._clear_queue = self.clear_audio_queue
@@ -640,35 +640,31 @@ class LocalStream:
         self._settings_initialized = True
 
     def _stop_pipeline(self) -> None:
-        """Stop the running pipeline and return to configuring state."""
+        """Stop the running pipeline and return to configuring state.
+
+        This method is called from the FastAPI (uvicorn) thread, so it must
+        NOT directly touch asyncio tasks or media streams.  It only sets
+        thread-safe flags and schedules task cancellation on the event loop.
+        Actual media cleanup happens in _main_loop() after tasks exit.
+        """
         if self._pipeline_state != "running":
             return
-        self._pipeline_state = "stopping"
+        self._pipeline_state = "configuring"
         logger.info("Stopping pipeline...")
 
-        # Stop media pipelines (only stop recording if we started it)
-        if self._mic_device is None:
-            try:
-                self._robot.media.stop_recording()
-            except Exception as e:
-                logger.debug(f"Error stopping recording: {e}")
-        try:
-            self._robot.media.stop_playing()
-        except Exception as e:
-            logger.debug(f"Error stopping playback: {e}")
-
-        # Cancel all running tasks
-        for task in self._tasks:
-            if not task.done():
-                task.cancel()
-
-        # Signal the stop event so async loops exit
+        # Signal async loops to exit (threading.Event — thread-safe)
         self._stop_event.set()
 
-        self._pipeline_state = "configuring"
-        # Reset the start gate so we wait for user click again
+        # Cancel tasks via the event loop thread (thread-safe)
+        loop = self._asyncio_loop
+        if loop is not None and loop.is_running():
+            for task in self._tasks:
+                if not task.done():
+                    loop.call_soon_threadsafe(task.cancel)
+
+        # Reset the start gate so _main_loop waits for user click again
         self._start_event.clear()
-        logger.info("Pipeline stopped. Ready for reconfiguration.")
+        logger.info("Pipeline stop requested.")
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops.
@@ -776,8 +772,20 @@ class LocalStream:
                     await asyncio.gather(*self._tasks)
                 except asyncio.CancelledError:
                     logger.info("Tasks cancelled during shutdown")
+                except Exception as e:
+                    logger.error(f"Pipeline error: {e}", exc_info=True)
                 finally:
                     await self.handler.shutdown()
+                    # Stop media here (same thread that started it — no race)
+                    if self._mic_device is None:
+                        try:
+                            self._robot.media.stop_recording()
+                        except Exception as e:
+                            logger.debug(f"Error stopping recording: {e}")
+                    try:
+                        self._robot.media.stop_playing()
+                    except Exception as e:
+                        logger.debug(f"Error stopping playback: {e}")
 
                 # If stop was not requested (tasks ended naturally), break out
                 if self._pipeline_state != "configuring":
@@ -790,32 +798,22 @@ class LocalStream:
     def close(self) -> None:
         """Stop the stream and underlying media pipelines.
 
-        This method:
-        - Stops audio recording and playback first
-        - Sets the stop event to signal async loops to terminate
-        - Cancels all pending async tasks (openai-handler, record-loop, play-loop)
+        Called from the stop-event polling thread during full app shutdown.
+        Sets flags and schedules cancellation — media cleanup happens in
+        _main_loop() after tasks exit.
         """
         logger.info("Stopping LocalStream...")
 
-        # Stop media pipelines FIRST before cancelling async tasks
-        # This ensures clean shutdown before PortAudio cleanup
-        try:
-            self._robot.media.stop_recording()
-        except Exception as e:
-            logger.debug(f"Error stopping recording (may already be stopped): {e}")
-
-        try:
-            self._robot.media.stop_playing()
-        except Exception as e:
-            logger.debug(f"Error stopping playback (may already be stopped): {e}")
-
-        # Now signal async loops to stop
+        # Signal async loops to stop
+        self._pipeline_state = "shutting_down"
         self._stop_event.set()
 
-        # Cancel all running tasks
-        for task in self._tasks:
-            if not task.done():
-                task.cancel()
+        # Cancel all running tasks via the event loop thread
+        loop = self._asyncio_loop
+        if loop is not None and loop.is_running():
+            for task in self._tasks:
+                if not task.done():
+                    loop.call_soon_threadsafe(task.cancel)
 
     def clear_audio_queue(self) -> None:
         """Flush the player's appsrc to drop any queued audio immediately."""
