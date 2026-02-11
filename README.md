@@ -64,6 +64,17 @@ A few things that inform the design:
 > [!IMPORTANT]
 > This is a personal project and technology demonstration — not a finished product. It is not intended to replace parental supervision or serve as a certified childcare device. Always supervise your child around any robotic device.
 
+### Beyond the nursery
+
+The architecture is use-case agnostic. The core loop — **detect → reason (LLM) → act (tools) → alert** — doesn't know it's watching a baby. It just knows how to listen, see, think, and respond. Swap the system prompt, detection targets, and tools, and the same pipeline adapts to other scenarios:
+
+- **Pet monitoring** — Detect barking or distress sounds, watch for escape attempts, alert the owner with a photo
+- **Home security** — Detect unusual activity or unfamiliar faces, trigger a VLM scene analysis, send alerts
+- **Elderly companion** — Listen for falls or calls for help, provide conversational company, notify family members
+- **Classroom assistant** — Interactive storytelling, educational Q&A, expressive engagement for children with different needs
+
+The profile system already supports this — each profile has its own system prompt, tool set, and personality. Creating a new use case is a configuration change, not an engineering effort.
+
 ## Installation
 
 > [!IMPORTANT]
