@@ -38,7 +38,7 @@ class DangerDetector:
 
     def __init__(
         self,
-        model_name: str = "yolo26n.pt",
+        model_name: str = "yolo11n.pt",
         confidence_threshold: float = 0.5,
         device: str = "cpu",
     ) -> None:

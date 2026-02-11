@@ -70,7 +70,7 @@ src/reachy_mini_conversation_app/
 │   └── ...
 ├── vision/
 │   ├── processors.py        # VisionProcessor (API-based VLM) + VisionManager
-│   ├── yolo_head_tracker.py # YOLOv26 face detection for head tracking
+│   ├── yolo_head_tracker.py # YOLOv11 face detection for head tracking
 │   └── danger_detector.py   # YOLO general object detection for baby safety
 ├── audio/
 │   ├── classifier.py        # YAMNet ONNX audio event classifier
@@ -125,8 +125,8 @@ Profiles live in `src/.../profiles/<name>/`. Each has `instructions.txt` (system
 | TTS | Kokoro (ONNX) | Neural speech synthesis |
 | VAD | Silero VAD (PyTorch) | Voice activity detection |
 | Vision | Qwen2.5-VL / Qwen3-VL (via Ollama) | Visual question answering |
-| Face Detection | MediaPipe or YOLOv26 | Head tracking |
-| Object Detection | YOLOv26 (general COCO model) | Danger detection |
+| Face Detection | MediaPipe or YOLO v11 | Head tracking |
+| Object Detection | YOLO v11 (general COCO model) | Danger detection |
 | Audio Classification | YAMNet (ONNX) | Baby cry / environmental sound detection |
 | Messaging | signal-cli | Remote text + photo alerts |
 | Robot SDK | reachy-mini SDK (Zenoh) | Robot control |
