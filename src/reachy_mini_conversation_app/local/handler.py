@@ -108,6 +108,39 @@ class LocalSessionHandler(AsyncStreamHandler):
         """Initialize local models."""
         logger.info("Initializing Local AI Pipeline...")
 
+        # --- Mic diagnostic: list all audio devices and test default input ---
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            default_input = sd.default.device[0]
+            logger.info(f"=== AUDIO DEVICES (default input: {default_input}) ===")
+            for i, d in enumerate(devices):
+                if d["max_input_channels"] > 0:
+                    marker = " <<< DEFAULT" if i == default_input else ""
+                    logger.info(
+                        f"  [{i}] {d['name']}  "
+                        f"in_ch={d['max_input_channels']}  "
+                        f"sr={d['default_samplerate']}{marker}"
+                    )
+            # Quick recording test on default device
+            logger.info("Testing default mic (0.5s capture)...")
+            try:
+                rec = sd.rec(int(0.5 * 16000), samplerate=16000, channels=1, dtype="float32")
+                sd.wait()
+                audio = rec.flatten()
+                rms = float(np.sqrt(np.mean(audio**2)))
+                peak = float(np.abs(audio).max())
+                logger.info(f"Mic test: rms={rms:.6f}, peak={peak:.6f}, samples={len(audio)}")
+                if peak < 0.001:
+                    logger.warning("Mic test: NO signal detected — mic may be muted or captured by another process")
+                else:
+                    logger.info("Mic test: signal OK")
+            except Exception as e:
+                logger.warning(f"Mic test FAILED: {e}")
+        except Exception as e:
+            logger.warning(f"Audio device enumeration failed: {e}")
+        logger.info("=== END AUDIO DEVICES ===")
+
         # Lazy imports: these pull in heavy deps (torch, faster-whisper, kokoro-onnx, onnxruntime)
         # at import time, so we defer to avoid slowing down module loading.
         from reachy_mini_conversation_app.local.stt import LocalSTT
