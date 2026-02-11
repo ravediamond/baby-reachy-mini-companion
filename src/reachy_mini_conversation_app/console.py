@@ -549,6 +549,10 @@ class LocalStream:
                 raw = {}
             # Persist whatever settings were sent
             if raw:
+                # Log feature flags as received from the dashboard
+                feat_vals = {k: raw.get(k) for k in self._FEATURE_KEYS if k in raw}
+                if feat_vals:
+                    logger.info(f"start_app received feature flags: {feat_vals}")
                 self._persist_local_llm_settings(raw)
                 # Also update the handler's live LLM URL and model so start_up() uses them
                 try:
@@ -822,13 +826,19 @@ class LocalStream:
     async def record_loop(self) -> None:
         """Read mic frames from the recorder and forward them to the handler."""
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
-        logger.debug(f"Audio recording started at {input_sample_rate} Hz")
+        logger.info(f"record_loop started (sample_rate={input_sample_rate}, stop_event={self._stop_event.is_set()})")
 
+        frame_count = 0
         while not self._stop_event.is_set():
             audio_frame = self._robot.media.get_audio_sample()
             if audio_frame is not None:
+                frame_count += 1
+                if frame_count == 1 or frame_count % 500 == 0:
+                    logger.info(f"record_loop: {frame_count} frames received")
                 await self.handler.receive((input_sample_rate, audio_frame))
             await asyncio.sleep(0)  # avoid busy loop
+
+        logger.info(f"record_loop exited (stop_event={self._stop_event.is_set()}, frames={frame_count})")
 
     async def play_loop(self) -> None:
         """Fetch outputs from the handler: log text and play audio frames."""
