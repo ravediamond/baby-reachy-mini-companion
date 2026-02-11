@@ -36,7 +36,7 @@ People have asked me about the effects of AI companions and robots on children �
 A few things that inform the design:
 
 - **Privacy is non-negotiable.** Something running in your home, around your child, should never send data to a third party. That's why this is 100% local.
-- **Physical safety is addressed by design.** Reachy Mini is a social robot with no hands and no manipulators — it can express, move its head, and communicate, but it cannot grab, push, or physically interact with the baby. The risk is minimal by the nature of the hardware.
+- **Physical safety is addressed by design.** Reachy Mini is a social robot with no hands and no manipulators — it can express, move its head, and communicate, but it cannot grab, push, or physically interact with the baby. Its antennas are used solely for emotional expression. The risk is minimal by the nature of the hardware.
 - **Empathy is the key to acceptance.** A robot that executes tasks while a human is suffering has failed its purpose. One of my core goals is to explore giving the robot genuine empathetic behavior — detecting distress, adjusting tone, soothing rather than ignoring. When a companion robot truly acknowledges what you're feeling, that's when it becomes something people will accept in their lives.
 
 ## What Makes This Different
@@ -49,6 +49,15 @@ A few things that inform the design:
 - **Autonomous safety**: Detects baby cries and soothes automatically. YOLO continuously scans for dangerous objects near the baby and triggers a VLM analysis with a Signal photo alert to the parent — all decided by the LLM, not a script
 - **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
 - **NVIDIA Jetson native**: Runs on Jetson Orin using NVIDIA's official AI containers (`ghcr.io/nvidia-ai-iot/vllm`) with GPU-accelerated vLLM inference, quantized models tuned for Jetson's memory bandwidth, and YOLO on GPU for real-time vision
+
+## A Complete Companion
+
+An all-in-one solution for your child — no screens required:
+
+- **Entertain** — Play, chat, and interact through voice conversations, dances, and expressive movements. Screen-free engagement that keeps your child naturally entertained.
+- **Soothe & Sleep** — Sing lullabies and nursery rhymes to calm or put your baby to sleep. Gentle rocking motions and soft speech for a soothing bedtime routine.
+- **Spark Imagination** — Tell stories tailored to your child's world. Pick characters, animals, or themes and let the companion weave them into an adventure.
+- **Learn & Discover** — Recite the alphabet, explore animals, discover the solar system — interactive lessons adapted to your child's curiosity and pace.
 
 ## Key Features
 

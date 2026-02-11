@@ -69,6 +69,10 @@ custom_css = """
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2.5rem; }
 @media (max-width: 700px) { .feature-grid { grid-template-columns: 1fr; } }
 
+/* ---- Benefit Grid ---- */
+.benefit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2.5rem; }
+@media (max-width: 700px) { .benefit-grid { grid-template-columns: 1fr; } }
+
 /* ---- Install Panel ---- */
 .install-panel {
     background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
@@ -178,20 +182,20 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <!-- Mission -->
         <div class="mission">
-            <p>I'm a new dad building a nursery companion that actually respects our privacy.
+            <p>I'm building a nursery companion that actually respects our family's privacy.
             No cloud, no data leaks &mdash; what happens at home stays at home.
             Proving that high-end robotics can run on consumer hardware instead of massive servers.</p>
             <p class="signature">&mdash; A dad building cool tech for his son</p>
         </div>
 
         <!-- Principles -->
-        <div class="section-label">Our beliefs</div>
+        <div class="section-label">Our belief</div>
         <div class="section-title">Design principles</div>
 
         <div class="diff-grid">
             <div class="diff-item"><strong>Privacy first</strong> &mdash; Something running in your home, around your child, should never send data to a third party</div>
             <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac or a $200 Jetson &mdash; not a data center. That's how robotics reaches homes</div>
-            <div class="diff-item"><strong>Physically safe</strong> &mdash; Reachy Mini has no hands or manipulators &mdash; it can express and communicate, not grab or push</div>
+            <div class="diff-item"><strong>Physically safe</strong> &mdash; Reachy Mini has no hands or manipulators &mdash; it can express and communicate, not grab or push. Its antennas are only used for emotional expression</div>
             <div class="diff-item"><strong>Empathy matters</strong> &mdash; A robot that ignores human distress has failed. Detecting emotions and responding with care is the goal</div>
         </div>
 
@@ -204,6 +208,33 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, LLM, TTS, VLM, YOLO, YAMNet on-device</div>
             <div class="diff-item"><strong>Safety Monitor</strong> &mdash; YOLO detects hazards, VLM analyzes, Signal alerts you</div>
             <div class="diff-item"><strong>NVIDIA Jetson</strong> &mdash; GPU-accelerated vLLM via official NVIDIA AI containers</div>
+        </div>
+
+        <!-- All-in-one companion -->
+        <div class="section-label">All-in-one solution</div>
+        <div class="section-title">A complete companion for your child</div>
+
+        <div class="benefit-grid">
+            <div class="card">
+                <div class="card-icon card-icon-pink">&#x1F3AD;</div>
+                <h3>Entertain</h3>
+                <p>Play, chat, and interact with your child &mdash; all screen-free. Voice conversations, dances, and expressive movements keep them engaged naturally.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-blue">&#x1F319;</div>
+                <h3>Soothe &amp; Sleep</h3>
+                <p>Sing lullabies and nursery rhymes to calm or put your baby to sleep. Gentle rocking motions and soft speech create a soothing bedtime routine.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-amber">&#x2728;</div>
+                <h3>Spark Imagination</h3>
+                <p>Tell stories tailored to your child's world &mdash; pick characters, animals, or themes and let the companion weave them into an adventure.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon card-icon-green">&#x1F393;</div>
+                <h3>Learn &amp; Discover</h3>
+                <p>Recite the alphabet, explore animals, discover the solar system &mdash; interactive lessons adapted to your child's curiosity and pace.</p>
+            </div>
         </div>
 
         <!-- Features -->
