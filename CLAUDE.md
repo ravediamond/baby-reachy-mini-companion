@@ -109,7 +109,7 @@ Six toggleable features in `config.py`, controllable via `.env` or the settings 
 - `FEATURE_DANGER_DETECTION` — YOLO visual safety scanner + check_danger tool
 - `FEATURE_STORY_TIME` — story_time tool
 - `FEATURE_SIGNAL_ALERTS` — Signal messaging tools
-- `FEATURE_HEAD_TRACKING` — MediaPipe face following
+- `FEATURE_HEAD_TRACKING` — YOLO face following
 
 Feature flags work by: (1) excluding tools from `tool_specs` via `get_tool_specs(exclusion_list=...)`, and (2) conditionally loading background services in `handler.start_up()`.
 
@@ -125,7 +125,7 @@ Profiles live in `src/.../profiles/<name>/`. Each has `instructions.txt` (system
 | TTS | Kokoro (ONNX) | Neural speech synthesis |
 | VAD | Silero VAD (PyTorch) | Voice activity detection |
 | Vision | Qwen2.5-VL / Qwen3-VL (via Ollama) | Visual question answering |
-| Face Detection | MediaPipe or YOLO v11 | Head tracking |
+| Face Detection | YOLOv11 | Head tracking |
 | Object Detection | YOLO v11 (general COCO model) | Danger detection |
 | Audio Classification | YAMNet (ONNX) | Baby cry / environmental sound detection |
 | Messaging | signal-cli | Remote text + photo alerts |

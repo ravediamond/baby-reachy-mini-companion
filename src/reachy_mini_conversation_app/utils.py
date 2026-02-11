@@ -12,7 +12,7 @@ def parse_args() -> Tuple[argparse.Namespace, list]:
     parser = argparse.ArgumentParser("Reachy Mini Conversation App")
     parser.add_argument(
         "--head-tracker",
-        choices=["yolo", "mediapipe", None],
+        choices=["yolo", None],
         default=None,
         help="Choose head tracker (default: None)",
     )
@@ -57,11 +57,6 @@ def handle_vision_stuff(args: argparse.Namespace, current_robot: ReachyMini) -> 
                 from reachy_mini_conversation_app.vision.yolo_head_tracker import HeadTracker
 
                 head_tracker = HeadTracker()
-            elif args.head_tracker == "mediapipe":
-                from reachy_mini_toolbox.vision import HeadTracker  # type: ignore[no-redef]
-
-                head_tracker = HeadTracker()
-
         # Initialize camera worker
         camera_worker = CameraWorker(current_robot, head_tracker)
 

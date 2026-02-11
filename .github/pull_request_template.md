@@ -21,7 +21,7 @@
 
 ### Vision / motion
 - [ ] Local vision (`--local-vision`)
-- [ ] YOLO or MediaPipe head tracker (`--head-tracker {yolo,mediapipe}`)
+- [ ] YOLO head tracker (`--head-tracker yolo`)
 - [ ] Camera pipeline (with/without `--no-camera`)
 - [ ] Movement manager (dances, emotions, head motion)
 - [ ] Head wobble

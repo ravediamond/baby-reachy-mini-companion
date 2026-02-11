@@ -33,9 +33,6 @@ dependencies = [
     #Required at import time by camera_worker and console
     "scipy",
 
-    #Head tracking (MediaPipe)
-    "mediapipe==0.10.14",
-
     #Local AI pipeline (STT/TTS/VAD)
     "torch>=2.4.0",
     "silero-vad",

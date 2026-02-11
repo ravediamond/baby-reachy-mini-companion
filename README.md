@@ -21,9 +21,7 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 <img src="docs/assets/reachy.gif" width="600" alt="Baby cry detected — Reachy automatically soothes and alerts parent" />
 
-<video src="docs/assets/reachy-demo.mp4" width="600" controls>
-  <a href="docs/assets/reachy-demo.mp4">Watch the demo video</a>
-</video>
+<img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy-Mini Companion — a nursery robot among baby toys" />
 
 ## Why I Built This
 
@@ -68,7 +66,7 @@ An all-in-one solution for your child — no screens required:
 - **Smart Sound Detection:** Beyond crying, Reachy can detect and react to other environmental sounds (like coughing, laughing, or shouting), enabling context-aware interactions.
 - **Local Vision (VLM):** Uses your local multimodal LLM (like Qwen 2.5 VL via Ollama) to see and describe the world through the `camera` tool.
 - **Neural Speech:** High-quality TTS via `Kokoro` (ONNX) and fast STT via `faster-whisper`.
-- **Smart Motion:** Integrated head tracking (YOLO or MediaPipe), expressive dances, and emotional gestures.
+- **Smart Motion:** Integrated head tracking (YOLO), expressive dances, and emotional gestures.
 - **Privacy First:** All processing—voice, vision, and chat—happens locally on your device.
 
 ## Installation
@@ -96,7 +94,7 @@ uv sync
 
 # Add vision extras as needed
 uv sync --extra yolo_vision        # + YOLO face tracking & danger detection
-uv sync --extra local              # Everything (YOLO, MediaPipe, wireless)
+uv sync --extra local              # Everything (YOLO, wireless)
 ```
 
 #### With pip
@@ -251,9 +249,6 @@ uv run reachy-mini-conversation-app --dashboard
 # With YOLO face tracking
 uv run reachy-mini-conversation-app --head-tracker yolo
 
-# With MediaPipe face tracking (lighter)
-uv run reachy-mini-conversation-app --head-tracker mediapipe
-
 # Use OpenAI Realtime API instead of local processing
 uv run reachy-mini-conversation-app --openai-realtime
 ```
@@ -262,7 +257,7 @@ uv run reachy-mini-conversation-app --openai-realtime
 
 | Flag | Description |
 |------|-------------|
-| `--head-tracker {yolo,mediapipe,None}` | Choose face-tracking backend (default: `None`). |
+| `--head-tracker {yolo,None}` | Choose face-tracking backend (default: `None`). |
 | `--no-camera` | Disable camera usage entirely. |
 | `--smolvlm` | Use SmolVLM local vision model for periodic scene description. |
 | `--gradio` | Open the Gradio web interface. |
@@ -487,11 +482,11 @@ docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_cache
 
 ## Why Not Run Everything on Jetson?
 
-We initially attempted to run the full conversation app (STT, TTS, VAD, YOLO, MediaPipe, audio pipeline, robot control) alongside vLLM on the Jetson Orin. It works — there is a [working Jetson-native version](cloned_repo_jetson/) in this repo — but the experience taught us it's not the right approach for this project. Here's why:
+We initially attempted to run the full conversation app (STT, TTS, VAD, YOLO, audio pipeline, robot control) alongside vLLM on the Jetson Orin. It works — there is a [working Jetson-native version](cloned_repo_jetson/) in this repo — but the experience taught us it's not the right approach for this project. Here's why:
 
 ### Memory pressure
 
-The Jetson Orin NX has **16GB of unified memory** shared between CPU and GPU. vLLM alone needs 8-10GB for a 4B quantized model. Adding the Python runtime, PyTorch, faster-whisper, YOLO, MediaPipe, and the Reachy Mini daemon leaves almost no headroom. The system swaps constantly, killing inference speed and making the whole experience sluggish.
+The Jetson Orin NX has **16GB of unified memory** shared between CPU and GPU. vLLM alone needs 8-10GB for a 4B quantized model. Adding the Python runtime, PyTorch, faster-whisper, YOLO, and the Reachy Mini daemon leaves almost no headroom. The system swaps constantly, killing inference speed and making the whole experience sluggish.
 
 ### Python overhead
 
@@ -517,7 +512,7 @@ Running everything on a Jetson *could* work well with the right architecture —
 
 - **[dora-rs](https://dora-rs.ai/)** — A Rust-based robotics dataflow framework with zero-copy shared memory. Instead of each Python process holding its own copy of data, dora-rs nodes share tensors through memory-mapped buffers. On a unified memory device like the Jetson, this eliminates redundant copies entirely.
 - **Rust daemon** — The Reachy Mini SDK includes a Rust-based daemon. Using it natively (instead of the Python wrapper) would eliminate one Python process and its memory overhead.
-- **DLA cores** — The Jetson Orin has **2 Deep Learning Accelerator** (DLA) cores that can run inference independently of the GPU. YOLO and MediaPipe models can be compiled to DLA via TensorRT, freeing the GPU entirely for vLLM. This is the key to running vision + LLM simultaneously without contention.
+- **DLA cores** — The Jetson Orin has **2 Deep Learning Accelerator** (DLA) cores that can run inference independently of the GPU. YOLO models can be compiled to DLA via TensorRT, freeing the GPU entirely for vLLM. This is the key to running vision + LLM simultaneously without contention.
 - **C++ inference** — Running STT (whisper.cpp) and TTS natively instead of through Python wrappers would dramatically reduce memory footprint.
 
 This would be a significant engineering effort but would make a truly self-contained Jetson deployment viable.
@@ -528,7 +523,7 @@ This would be a significant engineering effort but would make a truly self-conta
 - **"Connection refused" from LLM** — Make sure your Ollama (or other LLM server) is running and the URL is correct (check `.env` or the settings UI).
 - **Slow first response** — The app pre-warms the LLM on startup. If using Ollama, the first model load can be slow; subsequent requests are fast.
 - **STT too slow or inaccurate** — Try a different STT model. `tiny.en` is fastest, `medium.en` is most accurate, `small.en` is a good balance.
-- **MediaPipe/YOLO import errors** — MediaPipe is included in the base install. For YOLO, install the extra: `uv sync --extra yolo_vision`.
+- **YOLO import errors** — Install the extra: `uv sync --extra yolo_vision`.
 - **Settings not taking effect** — In headless mode, settings are applied when you click Start. If already running, stop and start again.
 - **Robot repeats itself / echo loop** — The microphone is picking up the robot's own TTS output. The app has built-in echo suppression (VAD is muted during and 3 seconds after each response), but if your speaker is very loud or close to the mic, try reducing the volume or increasing the distance between them.
 

@@ -185,18 +185,16 @@ class LocalSessionHandler(AsyncStreamHandler):
             # Head Tracking — gated by feature flag
             if config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
                 if self.deps.camera_worker.head_tracker is None:
-                    logger.info("Loading Head Tracker (MediaPipe)...")
+                    logger.info("Loading Head Tracker (YOLO)...")
                     try:
-                        from reachy_mini_toolbox.vision import HeadTracker
+                        from reachy_mini_conversation_app.vision.yolo_head_tracker import HeadTracker
 
                         tracker = await asyncio.to_thread(HeadTracker)
                         self.deps.camera_worker.head_tracker = tracker
                         self.deps.camera_worker.set_head_tracking_enabled(True)
-                        logger.info("Head tracking (MediaPipe) enabled.")
-                    except (ImportError, SystemExit):
-                        # SystemExit: reachy_mini_toolbox calls exit() at
-                        # import time when dependencies are missing
-                        logger.info("Head tracker not available (missing dependencies), head tracking disabled.")
+                        logger.info("Head tracking (YOLO) enabled.")
+                    except ImportError:
+                        logger.info("YOLO not installed, head tracking disabled. Install with: uv sync --extra yolo_vision")
             elif not config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
                 self.deps.camera_worker.set_head_tracking_enabled(False)
                 logger.info("Head tracking disabled by feature flag.")
