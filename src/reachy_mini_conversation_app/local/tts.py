@@ -22,6 +22,8 @@ class LocalTTS:
         try:
             import os
 
+            logger.info("TTS init v2 — auto-download voices enabled")
+
             from huggingface_hub import hf_hub_download
 
             # v0.19 files were removed from main, pin to last commit with them
