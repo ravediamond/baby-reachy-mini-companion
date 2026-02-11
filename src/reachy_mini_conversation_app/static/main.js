@@ -328,12 +328,6 @@ async function init() {
   // Stop button
   const stopLocalBtn = document.getElementById("stop-local-btn");
 
-  // Pipeline log elements
-  const pipelineLogPanel = document.getElementById("pipeline-log-panel");
-  const pipelineLog = document.getElementById("pipeline-log");
-  const contextBadge = document.getElementById("context-badge");
-  let eventSource = null;
-
   statusEl.textContent = "Checking configuration...";
   show(formPanel, false);
   show(configuredPanel, false);
@@ -351,62 +345,15 @@ async function init() {
     statusEl.textContent = "";
 
     // -- State transition helpers --
-    function connectEventSource() {
-      if (eventSource) eventSource.close();
-      eventSource = new EventSource("/events");
-      pipelineLog.innerHTML = "";
-      eventSource.onmessage = (e) => {
-        try {
-          const ev = JSON.parse(e.data);
-          const entry = document.createElement("div");
-          entry.className = "log-entry log-" + ev.type;
-          const label = { stt: "STT", llm_input: "LLM IN", llm_output: "LLM OUT", tool_call: "TOOL" }[ev.type] || ev.type.toUpperCase();
-          const labelSpan = document.createElement("span");
-          labelSpan.className = "log-label";
-          labelSpan.textContent = label;
-          entry.appendChild(labelSpan);
-          const textSpan = document.createElement("span");
-          textSpan.className = "log-text";
-          if (ev.type === "tool_call") {
-            textSpan.textContent = ev.data.name + "(" + ev.data.args + ")";
-          } else {
-            textSpan.textContent = ev.data.text || "";
-          }
-          entry.appendChild(textSpan);
-          pipelineLog.appendChild(entry);
-          // Cap DOM entries
-          while (pipelineLog.children.length > 200) {
-            pipelineLog.removeChild(pipelineLog.firstChild);
-          }
-          pipelineLog.scrollTop = pipelineLog.scrollHeight;
-          // Update context badge
-          if (ev.data.context_messages != null) {
-            contextBadge.textContent = "Context: " + ev.data.context_messages + " msgs";
-          }
-        } catch {}
-      };
-    }
-
-    function disconnectEventSource() {
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
-    }
-
     function showRunningState(model, stt) {
       show(localLlmPanel, false);
       show(featuresPanel, false);
       show(localRunningPanel, true);
-      show(pipelineLogPanel, true);
       localRunningInfo.textContent = `Model: ${model || "—"} | STT: ${stt || "—"}`;
-      connectEventSource();
     }
 
     function showConfiguringState() {
-      disconnectEventSource();
       show(localRunningPanel, false);
-      show(pipelineLogPanel, false);
       show(localLlmPanel, true);
       show(featuresPanel, true);
       startLocalBtn.disabled = false;

@@ -4,7 +4,7 @@ import json
 import time
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Callable, Tuple, Optional
+from typing import TYPE_CHECKING, Tuple, Optional
 from collections import deque
 
 import numpy as np
@@ -86,9 +86,6 @@ class LocalSessionHandler(AsyncStreamHandler):
         # Tool specs cache (rebuilt in start_up with feature-based exclusions)
         self.tool_specs = get_tool_specs()
 
-        # Pipeline event callback for live logging (set by console.py)
-        self.pipeline_event_callback: Optional[Callable[[str, dict], None]] = None
-
     def copy(self) -> "LocalSessionHandler":
         """Create a copy of the handler."""
         return LocalSessionHandler(self.deps, self.llm_url, self.llm_model, self.enable_signal)
@@ -105,14 +102,6 @@ class LocalSessionHandler(AsyncStreamHandler):
         if not config.FEATURE_DANGER_DETECTION:
             exclusions.append("check_danger")
         return exclusions
-
-    def _publish_event(self, event_type: str, data: dict) -> None:
-        """Publish a pipeline event to the callback if registered."""
-        if self.pipeline_event_callback is not None:
-            try:
-                self.pipeline_event_callback(event_type, data)
-            except Exception:
-                pass
 
     async def start_up(self):
         """Initialize local models."""
@@ -406,8 +395,6 @@ class LocalSessionHandler(AsyncStreamHandler):
         if not transcript.strip():
             return
 
-        self._publish_event("stt", {"text": transcript})
-
         # 1.5 Inject Vision Context
         vision_context = ""
         if self.deps.vision_manager and self.deps.vision_manager.latest_description:
@@ -432,12 +419,6 @@ class LocalSessionHandler(AsyncStreamHandler):
             llm_user_input = current_input if turn == 1 else None
 
             logger.info(f"LLM Turn {turn} (Input: {llm_user_input or 'Tool Outputs'})")
-
-            self._publish_event("llm_input", {
-                "text": llm_user_input or "(tool outputs)",
-                "turn": turn,
-                "context_messages": len(self.llm.history),
-            })
 
             tool_calls = []
 
@@ -467,10 +448,6 @@ class LocalSessionHandler(AsyncStreamHandler):
             if full_response_text:
                 logger.info(f"Assistant: {full_response_text}")
                 await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
-                self._publish_event("llm_output", {
-                    "text": full_response_text,
-                    "context_messages": len(self.llm.history),
-                })
 
             # If no tool calls, we are done
             if not tool_calls:
@@ -484,7 +461,6 @@ class LocalSessionHandler(AsyncStreamHandler):
                 call_id = tc["id"]
 
                 logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
-                self._publish_event("tool_call", {"name": func_name, "args": args_str})
 
                 # Execute
                 result = await dispatch_tool_call(func_name, args_str, self.deps)

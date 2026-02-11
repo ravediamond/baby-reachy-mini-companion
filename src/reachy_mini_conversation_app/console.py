@@ -12,12 +12,10 @@ Once set, values are persisted to the app instance's ``.env`` file
 
 import os
 import sys
-import json
 import time
 import asyncio
 import logging
 import threading
-from collections import deque
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
@@ -34,14 +32,13 @@ try:
     # FastAPI is provided by the Reachy Mini Apps runtime
     from fastapi import FastAPI, Request, Response
     from pydantic import BaseModel
-    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+    from fastapi.responses import FileResponse, JSONResponse
     from starlette.staticfiles import StaticFiles
 except Exception:  # pragma: no cover - only loaded when settings_app is used
     FastAPI = object  # type: ignore[misc,assignment]
     Request = object  # type: ignore[misc,assignment]
     FileResponse = object  # type: ignore[misc,assignment]
     JSONResponse = object  # type: ignore[misc,assignment]
-    StreamingResponse = object  # type: ignore[misc,assignment]
     StaticFiles = object  # type: ignore[misc,assignment]
     BaseModel = object  # type: ignore[misc,assignment]
 
@@ -78,10 +75,6 @@ class LocalStream:
         # Gate for local mode: blocks launch() until user clicks "Start" in the UI
         self._start_event = threading.Event()
         self._pipeline_state = "configuring"  # "configuring" | "running" | "stopping"
-
-        # Pipeline event log for SSE streaming
-        self._event_log: deque[Dict[str, Any]] = deque(maxlen=200)
-        self._event_counter = 0
 
         # Register dashboard routes immediately so the UI is available
         # while the robot and pipeline are still initializing.
@@ -585,26 +578,6 @@ class LocalStream:
             self._stop_pipeline()
             return JSONResponse({"ok": True})
 
-        # GET /events -> SSE stream of pipeline events
-        @self._settings_app.get("/events")
-        async def _events() -> StreamingResponse:
-            last_seen = 0
-
-            async def event_generator():
-                nonlocal last_seen
-                while True:
-                    new_events = [e for e in self._event_log if e["id"] > last_seen]
-                    for ev in new_events:
-                        last_seen = ev["id"]
-                        yield f"data: {json.dumps(ev)}\n\n"
-                    await asyncio.sleep(0.3)
-
-            return StreamingResponse(
-                event_generator(),
-                media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-            )
-
         # Mount personality routes early so /personalities is available on page load
         # (before the pipeline starts). get_loop returns None until runner() sets
         # self._asyncio_loop; routes that need the loop (apply, voices) handle that
@@ -621,16 +594,6 @@ class LocalStream:
             pass
 
         self._settings_initialized = True
-
-    def _on_pipeline_event(self, event_type: str, data: dict) -> None:
-        """Append a timestamped pipeline event to the log deque."""
-        self._event_counter += 1
-        self._event_log.append({
-            "id": self._event_counter,
-            "ts": time.time(),
-            "type": event_type,
-            "data": data,
-        })
 
     def _stop_pipeline(self) -> None:
         """Stop the running pipeline and return to configuring state."""
@@ -744,9 +707,6 @@ class LocalStream:
             """Persistent loop that supports stop/restart cycles."""
             loop = asyncio.get_running_loop()
             self._asyncio_loop = loop  # type: ignore[assignment]
-
-            # Wire pipeline event callback
-            self.handler.pipeline_event_callback = self._on_pipeline_event
 
             while True:
                 # Wait for start signal (already set on first run, re-set after stop)
