@@ -250,8 +250,12 @@ class LocalStream:
         SIGNAL_USER_PHONE, and all FEATURE_* flags.
         """
         env_keys = (
-            "LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL",
-            "SIGNAL_USER_PHONE", "MIC_GAIN",
+            "LOCAL_LLM_URL",
+            "LOCAL_LLM_MODEL",
+            "LOCAL_LLM_API_KEY",
+            "LOCAL_STT_MODEL",
+            "SIGNAL_USER_PHONE",
+            "MIC_GAIN",
             *self._FEATURE_KEYS,
         )
         for key in env_keys:
@@ -396,33 +400,39 @@ class LocalStream:
         # GET /app_state -> configuring or running
         @self._settings_app.get("/app_state")
         def _app_state() -> JSONResponse:
-            return JSONResponse({
-                "state": "running" if self._pipeline_started else "configuring",
-            })
+            return JSONResponse(
+                {
+                    "state": "running" if self._pipeline_started else "configuring",
+                }
+            )
 
         # GET /local_llm_settings -> current local LLM configuration
         @self._settings_app.get("/local_llm_settings")
         def _get_local_llm_settings() -> JSONResponse:
-            return JSONResponse({
-                "LOCAL_LLM_URL": config.LOCAL_LLM_URL or "",
-                "LOCAL_LLM_MODEL": config.LOCAL_LLM_MODEL or "",
-                "LOCAL_LLM_API_KEY": config.LOCAL_LLM_API_KEY or "",
-                "LOCAL_STT_MODEL": config.LOCAL_STT_MODEL or "",
-            })
+            return JSONResponse(
+                {
+                    "LOCAL_LLM_URL": config.LOCAL_LLM_URL or "",
+                    "LOCAL_LLM_MODEL": config.LOCAL_LLM_MODEL or "",
+                    "LOCAL_LLM_API_KEY": config.LOCAL_LLM_API_KEY or "",
+                    "LOCAL_STT_MODEL": config.LOCAL_STT_MODEL or "",
+                }
+            )
 
         # GET /feature_settings -> current feature flags
         @self._settings_app.get("/feature_settings")
         def _get_feature_settings() -> JSONResponse:
-            return JSONResponse({
-                "FEATURE_CRY_DETECTION": config.FEATURE_CRY_DETECTION,
-                "FEATURE_AUTO_SOOTHE": config.FEATURE_AUTO_SOOTHE,
-                "FEATURE_DANGER_DETECTION": config.FEATURE_DANGER_DETECTION,
-                "FEATURE_STORY_TIME": config.FEATURE_STORY_TIME,
-                "FEATURE_SIGNAL_ALERTS": config.FEATURE_SIGNAL_ALERTS,
-                "FEATURE_HEAD_TRACKING": config.FEATURE_HEAD_TRACKING,
-                "SIGNAL_USER_PHONE": config.SIGNAL_USER_PHONE or "",
-                "MIC_GAIN": config.MIC_GAIN,
-            })
+            return JSONResponse(
+                {
+                    "FEATURE_CRY_DETECTION": config.FEATURE_CRY_DETECTION,
+                    "FEATURE_AUTO_SOOTHE": config.FEATURE_AUTO_SOOTHE,
+                    "FEATURE_DANGER_DETECTION": config.FEATURE_DANGER_DETECTION,
+                    "FEATURE_STORY_TIME": config.FEATURE_STORY_TIME,
+                    "FEATURE_SIGNAL_ALERTS": config.FEATURE_SIGNAL_ALERTS,
+                    "FEATURE_HEAD_TRACKING": config.FEATURE_HEAD_TRACKING,
+                    "SIGNAL_USER_PHONE": config.SIGNAL_USER_PHONE or "",
+                    "MIC_GAIN": config.MIC_GAIN,
+                }
+            )
 
         # POST /test_mic -> record a short audio clip and check signal level
         @self._settings_app.post("/test_mic")
@@ -434,12 +444,13 @@ class LocalStream:
             gain = float(raw.get("MIC_GAIN", 1.0))
             try:
                 import sounddevice as sd
+
                 duration = 1.5  # seconds
                 sr = 16000
                 recording = sd.rec(int(duration * sr), samplerate=sr, channels=1, dtype="float32")
                 sd.wait()
                 audio = recording.flatten() * gain
-                rms = float((audio ** 2).mean() ** 0.5)
+                rms = float((audio**2).mean() ** 0.5)
                 peak = float(abs(audio).max())
                 # Thresholds tuned for speech detection
                 if peak < 0.005:
@@ -451,9 +462,13 @@ class LocalStream:
                 else:
                     verdict = "ok"
                     msg = f"Microphone working (RMS: {rms:.4f}, Peak: {peak:.4f})."
-                return JSONResponse({"ok": True, "verdict": verdict, "message": msg, "rms": round(rms, 5), "peak": round(peak, 5)})
+                return JSONResponse(
+                    {"ok": True, "verdict": verdict, "message": msg, "rms": round(rms, 5), "peak": round(peak, 5)}
+                )
             except Exception as e:
-                return JSONResponse({"ok": False, "verdict": "error", "message": f"Mic test failed: {e}"}, status_code=500)
+                return JSONResponse(
+                    {"ok": False, "verdict": "error", "message": f"Mic test failed: {e}"}, status_code=500
+                )
 
         # POST /test_llm -> check if the LLM endpoint is reachable
         @self._settings_app.post("/test_llm")
@@ -469,6 +484,7 @@ class LocalStream:
                 return JSONResponse({"ok": False, "verdict": "no_url", "message": "No server URL configured."})
             try:
                 import httpx
+
                 headers = {}
                 if api_key and api_key != "ollama":
                     headers["Authorization"] = f"Bearer {api_key}"
@@ -478,15 +494,44 @@ class LocalStream:
                         data = resp.json()
                         models = [m.get("id", "") for m in data.get("data", [])]
                         if model and model in models:
-                            return JSONResponse({"ok": True, "verdict": "ok", "message": f"Connected. Model '{model}' is available.", "models": models})
+                            return JSONResponse(
+                                {
+                                    "ok": True,
+                                    "verdict": "ok",
+                                    "message": f"Connected. Model '{model}' is available.",
+                                    "models": models,
+                                }
+                            )
                         elif model:
-                            return JSONResponse({"ok": True, "verdict": "model_missing", "message": f"Connected but model '{model}' not found. Available: {', '.join(models[:5])}", "models": models})
+                            return JSONResponse(
+                                {
+                                    "ok": True,
+                                    "verdict": "model_missing",
+                                    "message": f"Connected but model '{model}' not found. Available: {', '.join(models[:5])}",
+                                    "models": models,
+                                }
+                            )
                         else:
-                            return JSONResponse({"ok": True, "verdict": "ok", "message": f"Connected. Available models: {', '.join(models[:5])}", "models": models})
+                            return JSONResponse(
+                                {
+                                    "ok": True,
+                                    "verdict": "ok",
+                                    "message": f"Connected. Available models: {', '.join(models[:5])}",
+                                    "models": models,
+                                }
+                            )
                     else:
-                        return JSONResponse({"ok": False, "verdict": "error", "message": f"Server returned {resp.status_code}."})
+                        return JSONResponse(
+                            {"ok": False, "verdict": "error", "message": f"Server returned {resp.status_code}."}
+                        )
             except httpx.ConnectError:
-                return JSONResponse({"ok": False, "verdict": "unreachable", "message": f"Cannot connect to {url}. Is the server running?"})
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "verdict": "unreachable",
+                        "message": f"Cannot connect to {url}. Is the server running?",
+                    }
+                )
             except Exception as e:
                 return JSONResponse({"ok": False, "verdict": "error", "message": f"Connection test failed: {e}"})
 
@@ -515,6 +560,21 @@ class LocalStream:
             # Unblock launch()
             self._start_event.set()
             return JSONResponse({"ok": True})
+
+        # Mount personality routes early so /personalities is available on page load
+        # (before the pipeline starts). get_loop returns None until runner() sets
+        # self._asyncio_loop; routes that need the loop (apply, voices) handle that
+        # gracefully (503 / fallback).
+        try:
+            mount_personality_routes(
+                self._settings_app,
+                self.handler,
+                lambda: self._asyncio_loop,
+                persist_personality=self._persist_personality,
+                get_persisted_personality=self._read_persisted_personality,
+            )
+        except Exception:
+            pass
 
         self._settings_initialized = True
 
@@ -563,12 +623,14 @@ class LocalStream:
         # If key is still missing, try to download one from HuggingFace
         # ONLY if we are using OpenAI Realtime. Local handler doesn't need it.
         from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+
         is_local = isinstance(self.handler, LocalSessionHandler)
 
         if not is_local and not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
             logger.info("OPENAI_API_KEY not set, attempting to download from HuggingFace...")
             try:
                 from gradio_client import Client
+
                 client = Client("HuggingFaceM4/gradium_setup", verbose=False)
                 key, status = client.predict(api_name="/claim_b_key")
                 if key and key.strip():
@@ -595,18 +657,6 @@ class LocalStream:
             # Capture loop for cross-thread personality actions
             loop = asyncio.get_running_loop()
             self._asyncio_loop = loop  # type: ignore[assignment]
-            # Mount personality routes now that loop and handler are available
-            try:
-                if self._settings_app is not None:
-                    mount_personality_routes(
-                        self._settings_app,
-                        self.handler,
-                        lambda: self._asyncio_loop,
-                        persist_personality=self._persist_personality,
-                        get_persisted_personality=self._read_persisted_personality,
-                    )
-            except Exception:
-                pass
             self._tasks = [
                 asyncio.create_task(self.handler.start_up(), name="openai-handler"),
                 asyncio.create_task(self.record_loop(), name="stream-record-loop"),
@@ -658,7 +708,10 @@ class LocalStream:
         if self._robot.media.backend == MediaBackend.GSTREAMER:
             # Directly flush gstreamer audio pipe
             self._robot.media.audio.clear_player()
-        elif self._robot.media.backend == MediaBackend.DEFAULT or self._robot.media.backend == MediaBackend.DEFAULT_NO_VIDEO:
+        elif (
+            self._robot.media.backend == MediaBackend.DEFAULT
+            or self._robot.media.backend == MediaBackend.DEFAULT_NO_VIDEO
+        ):
             self._robot.media.audio.clear_output_buffer()
         self.handler.output_queue = asyncio.Queue()
 
