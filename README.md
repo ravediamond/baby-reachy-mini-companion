@@ -19,8 +19,6 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 > **The only fully local Reachy Mini AI stack** — 7 AI models running concurrently, autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX. No cloud. No data leaves your home.
 
-<img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy Mini Companion" />
-
 <img src="docs/assets/reachy.gif" width="600" alt="Baby cry detected — Reachy automatically soothes and alerts parent" />
 
 <video src="docs/assets/reachy-demo.mp4" width="600" controls>
