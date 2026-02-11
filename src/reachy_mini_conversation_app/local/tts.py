@@ -38,24 +38,38 @@ class LocalTTS:
 
             if not os.path.exists(self.voices_path):
                 logger.info(f"Downloading Kokoro voices to {self.voices_path}...")
-                # Download the pre-packaged .npz directly if available, or fall back to known location
-                # For now, we assume the user has it or we download the .json and fail if conversion needed?
-                # Actually, let's just download voices.json as voices.npz? No, that won't work.
-                # Reverting to the original behavior of downloading voices.json is not right if we need .npz.
-                # If we assume 'voices.npz' MUST exist, we can just warn.
-                # BUT, to make it "just work", we should probably download a pre-made .npz from a repo that has it.
-                # However, you asked to "remove the other stuff".
-
-                # Let's trust the user or a standard download.
-                # If we remove the conversion, we must ensure voices.npz is available.
-                # Since we have it locally, this is fine for you.
-                pass
+                self._download_and_convert_voices()
 
             self.kokoro = Kokoro(self.model_path, self.voices_path)
             logger.info(f"Kokoro TTS loaded from {self.model_path}")
         except Exception as e:
             logger.error(f"Failed to load Kokoro TTS: {e}")
-            logger.warning("Ensure kokoro-v0_19.onnx and voices.json are present!")
+            logger.warning("Ensure kokoro-v0_19.onnx and voices.npz are present!")
+
+    def _download_and_convert_voices(self) -> None:
+        """Download voices-v1.0.bin and convert to voices.npz."""
+        import os
+        from urllib.request import urlretrieve
+
+        import torch
+
+        bin_path = "voices-v1.0.bin"
+        url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+
+        try:
+            if not os.path.exists(bin_path):
+                logger.info(f"Downloading {url} ...")
+                urlretrieve(url, bin_path)
+
+            data = torch.load(bin_path, weights_only=False, map_location="cpu")
+            np_data = {k: v.numpy() if hasattr(v, "numpy") else np.array(v) for k, v in data.items()}
+            np.savez(self.voices_path, **np_data)
+            logger.info(f"Converted {len(np_data)} voices to {self.voices_path}")
+
+            os.remove(bin_path)
+        except Exception as e:
+            logger.error(f"Failed to download/convert voices: {e}")
+            raise
 
     async def synthesize(self, text: str, voice: str = "af_sarah", speed: float = 1.0) -> Tuple[int, np.ndarray]:
         """Synthesize text to audio. Returns (sample_rate, audio_float32)."""
