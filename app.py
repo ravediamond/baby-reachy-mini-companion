@@ -189,7 +189,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         </div>
 
         <!-- Principles -->
-        <div class="section-label">Our belief</div>
+        <div class="section-label">My belief</div>
         <div class="section-title">Design principles</div>
 
         <div class="diff-grid">
