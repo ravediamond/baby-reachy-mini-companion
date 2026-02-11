@@ -13,9 +13,7 @@ tags:
 
 # Baby Reachy-Mini Companion
 
-A fully local Reachy Mini AI Companion for babies and kids.
-
-This "Dual-Interface" companion can interact with you both **locally via voice** (in the room) and **remotely via Signal** text messages. It features advanced audio perception, including baby cry detection, and uses your local LLM as a vision model.
+Baby cries → robot soothes → parent gets a Signal photo. It also talks, tells stories, sings lullabies, tracks faces, detects dangers, and sees the world — all local, zero cloud.
 
 > **The only fully local Reachy Mini AI stack** — 7 AI models running concurrently, autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX. No cloud. No data leaves your home.
 
