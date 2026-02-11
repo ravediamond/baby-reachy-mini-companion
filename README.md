@@ -278,7 +278,7 @@ To enable the remote interface:
 
 ## Architecture
 
-<img src="docs/assets/conversation_app_arch.svg" width="800" alt="Architecture — fully local AI pipeline" />
+<img src="docs/assets/architecture.svg" width="800" alt="Fully local AI pipeline — 7 models, zero cloud" />
 
 The entire pipeline runs on-device: audio is captured and processed through VAD, STT, and the LLM with tool calling. The LLM autonomously invokes tools (camera, motion, Signal alerts) based on context. TTS output is streamed back with audio-reactive head movement for natural-looking speech.
 

@@ -286,6 +286,24 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             </div>
         </div>
 
+        <!-- Architecture -->
+        <div class="section-label">Under the hood</div>
+        <div class="section-title">Architecture</div>
+
+    </div>
+    """)
+
+    gr.Image(
+        value="docs/assets/architecture.svg",
+        show_label=False,
+        interactive=False,
+        container=False,
+        elem_classes=["hero-image"],
+    )
+
+    gr.HTML("""
+    <div class="page">
+
         <!-- Install -->
         <div class="install-panel">
             <h2>Getting Started</h2>
