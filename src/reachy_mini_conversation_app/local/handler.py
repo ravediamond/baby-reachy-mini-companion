@@ -1,8 +1,9 @@
+from __future__ import annotations
 import re
 import json
 import asyncio
 import logging
-from typing import Tuple, Optional
+from typing import TYPE_CHECKING, Tuple, Optional
 from collections import deque
 
 import numpy as np
@@ -12,20 +13,30 @@ from scipy.signal import resample
 from reachy_mini_conversation_app.config import config
 from reachy_mini_conversation_app.prompts import get_session_instructions
 from reachy_mini_conversation_app.local.llm import LocalLLM
-from reachy_mini_conversation_app.local.stt import LocalSTT
-from reachy_mini_conversation_app.local.tts import LocalTTS
-from reachy_mini_conversation_app.local.vad import SileroVAD
-from reachy_mini_conversation_app.audio.classifier import AudioClassifier
 from reachy_mini_conversation_app.tools.core_tools import ToolDependencies, get_tool_specs, dispatch_tool_call
 from reachy_mini_conversation_app.input.signal_interface import SignalInterface
 
 
+if TYPE_CHECKING:
+    from reachy_mini_conversation_app.local.stt import LocalSTT
+    from reachy_mini_conversation_app.local.tts import LocalTTS
+    from reachy_mini_conversation_app.local.vad import SileroVAD
+    from reachy_mini_conversation_app.audio.classifier import AudioClassifier
+
+
 logger = logging.getLogger(__name__)
+
 
 class LocalSessionHandler(AsyncStreamHandler):
     """Local processing handler for Reachy Mini (VAD -> STT -> LLM -> TTS + Signal)."""
 
-    def __init__(self, deps: ToolDependencies, llm_url: Optional[str] = None, llm_model: Optional[str] = None, enable_signal: bool = True):
+    def __init__(
+        self,
+        deps: ToolDependencies,
+        llm_url: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        enable_signal: bool = True,
+    ):
         """Initialize the local session handler."""
         super().__init__(
             expected_layout="mono",
@@ -95,6 +106,12 @@ class LocalSessionHandler(AsyncStreamHandler):
         """Initialize local models."""
         logger.info("Initializing Local AI Pipeline...")
 
+        # Lazy imports: these pull in heavy deps (torch, faster-whisper, kokoro-onnx, onnxruntime)
+        # at import time, so we defer to avoid slowing down module loading.
+        from reachy_mini_conversation_app.local.stt import LocalSTT
+        from reachy_mini_conversation_app.local.tts import LocalTTS
+        from reachy_mini_conversation_app.local.vad import SileroVAD
+
         try:
             # Rebuild tool specs with feature-based exclusions
             exclusions = self._build_tool_exclusions()
@@ -118,7 +135,11 @@ class LocalSessionHandler(AsyncStreamHandler):
             if config.FEATURE_CRY_DETECTION:
                 logger.info("Loading Audio Classifier (YAMNet)...")
                 try:
+                    from reachy_mini_conversation_app.audio.classifier import AudioClassifier
+
                     self.classifier = await asyncio.to_thread(AudioClassifier)
+                except ImportError:
+                    logger.info("onnxruntime not installed, audio classification disabled.")
                 except Exception as e:
                     logger.warning(f"Audio Classifier failed to load: {e}")
             else:
@@ -144,6 +165,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 logger.info("Loading Danger Detector (YOLO)...")
                 try:
                     from reachy_mini_conversation_app.vision.danger_detector import DangerDetector
+
                     self.danger_detector = await asyncio.to_thread(DangerDetector)  # type: ignore[func-returns-value,arg-type]
                     self.danger_detection_task = asyncio.create_task(self._poll_danger_detection())
                     logger.info("Danger detection started.")
@@ -160,6 +182,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                     logger.info("Loading Head Tracker (MediaPipe)...")
                     try:
                         from reachy_mini_toolbox.vision import HeadTracker
+
                         tracker = await asyncio.to_thread(HeadTracker)
                         self.deps.camera_worker.head_tracker = tracker
                         self.deps.camera_worker.set_head_tracking_enabled(True)
@@ -186,7 +209,7 @@ class LocalSessionHandler(AsyncStreamHandler):
             logger.info("Local Pipeline Ready.")
         except Exception as e:
             logger.error(f"Failed to initialize local pipeline: {e}")
-            raise
+            logger.error("Pipeline will remain inactive. The settings dashboard is still accessible.")
 
     async def receive(self, frame: Tuple[int, np.ndarray]) -> None:
         """Process incoming audio frame."""
@@ -221,10 +244,11 @@ class LocalSessionHandler(AsyncStreamHandler):
             # Process every ~1 second (16000 samples)
             if len(self.classifier_buffer) >= 16000:
                 chunk_to_classify = self.classifier_buffer[:16000]
-                self.classifier_buffer = self.classifier_buffer[16000:] # Slide window
+                self.classifier_buffer = self.classifier_buffer[16000:]  # Slide window
 
                 # Check for cry (throttled to once every 10s to avoid spam)
                 import time
+
                 now = time.time()
                 if now - self.last_cry_time > 10.0:
                     # Run in thread
@@ -288,7 +312,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                         self.deps.movement_manager.set_listening(False)
 
                         # Trigger pipeline if we had enough speech
-                        if self.speech_chunks > 5: # Lowered from 10 to catch short commands
+                        if self.speech_chunks > 5:  # Lowered from 10 to catch short commands
                             full_audio = np.concatenate(self.audio_buffer)
                             logger.info("Triggering AI pipeline...")
                             asyncio.create_task(self._run_pipeline(full_audio))
@@ -327,7 +351,9 @@ class LocalSessionHandler(AsyncStreamHandler):
 
             tool_calls = []
 
-            async for event in self.llm.chat_stream(user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs):
+            async for event in self.llm.chat_stream(
+                user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
+            ):
                 if event["type"] == "text":
                     token = event["content"]
                     full_response_text += token
@@ -358,11 +384,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
                 result = await dispatch_tool_call(func_name, args_str, self.deps)
                 result_str = json.dumps(result)
-                tool_outputs.append({
-                    "role": "tool",
-                    "content": result_str,
-                    "tool_call_id": call_id
-                })
+                tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
                 logger.info(f"   -> Result: {result_str}")
 
     async def _run_pipeline(self, audio: np.ndarray):
@@ -387,7 +409,7 @@ class LocalSessionHandler(AsyncStreamHandler):
         max_turns = 3  # Prevent infinite loops
         turn = 0
 
-        tool_outputs = None # For subsequent turns
+        tool_outputs = None  # For subsequent turns
 
         while turn < max_turns:
             turn += 1
@@ -401,8 +423,9 @@ class LocalSessionHandler(AsyncStreamHandler):
 
             tool_calls = []
 
-            async for event in self.llm.chat_stream(user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs):
-
+            async for event in self.llm.chat_stream(
+                user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
+            ):
                 if event["type"] == "text":
                     token = event["content"]
                     full_response_text += token
@@ -444,11 +467,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 result = await dispatch_tool_call(func_name, args_str, self.deps)
                 result_str = json.dumps(result)
 
-                tool_outputs.append({
-                    "role": "tool",
-                    "content": result_str,
-                    "tool_call_id": call_id
-                })
+                tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
 
                 logger.info(f"   -> Result: {result_str}")
 
@@ -468,17 +487,17 @@ class LocalSessionHandler(AsyncStreamHandler):
 
         # --- 2. Clean Text for TTS ---
         # Remove the command strings we just found (more robust regex)
-        text = re.sub(r'\(?play_emotion\s*\([^)]+\)\)?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r"\(?play_emotion\s*\([^)]+\)\)?", "", text, flags=re.IGNORECASE)
 
         # Remove bold/italic markdown (*word*, **word**)
         text = text.replace("**", "").replace("*", "")
 
         # Remove action descriptions in parentheses or asterisks if they remain
         # e.g. (waves hands) or *laughs*
-        text = re.sub(r'\s*\([^)]*\)', '', text)
+        text = re.sub(r"\s*\([^)]*\)", "", text)
 
         # Remove emojis (Broad unicode range for common emojis)
-        text = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+        text = re.sub(r"[\U00010000-\U0010ffff]", "", text)
 
         # Remove other common artifacts if any
         text = text.strip()
@@ -488,7 +507,7 @@ class LocalSessionHandler(AsyncStreamHandler):
 
         # Simple Tone Analysis
         speed = 1.0
-        voice = "af_sarah" # Default cheerful
+        voice = "af_sarah"  # Default cheerful
 
         if "[HAPPY]" in text:
             text = text.replace("[HAPPY]", "")
@@ -509,13 +528,15 @@ class LocalSessionHandler(AsyncStreamHandler):
 
         # Feed head wobbler
         if self.deps.head_wobbler:
-             import base64
-             b64_data = base64.b64encode(audio_int16.tobytes()).decode('utf-8')
-             self.deps.head_wobbler.feed(b64_data)
+            import base64
+
+            b64_data = base64.b64encode(audio_int16.tobytes()).decode("utf-8")
+            self.deps.head_wobbler.feed(b64_data)
 
     async def _poll_danger_detection(self):
         """Background task: run YOLO on camera frames to detect dangerous objects."""
         import time
+
         if self.danger_detector is None or self.deps.camera_worker is None:
             return
         logger.info("Starting Danger Detection Poller...")
@@ -598,7 +619,9 @@ class LocalSessionHandler(AsyncStreamHandler):
 
             tool_calls = []
 
-            async for event in self.llm.chat_stream(user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs):
+            async for event in self.llm.chat_stream(
+                user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
+            ):
                 if event["type"] == "text":
                     full_response_text += event["content"]
                 elif event["type"] == "tool_call":
@@ -616,7 +639,9 @@ class LocalSessionHandler(AsyncStreamHandler):
             if not tool_calls:
                 if full_response_text.strip():
                     logger.info(f"Signal Response: {full_response_text}")
-                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": f"[Signal] {full_response_text}"}))
+                    await self.output_queue.put(
+                        AdditionalOutputs({"role": "assistant", "content": f"[Signal] {full_response_text}"})
+                    )
 
                     target = sender if sender else self.user_phone
                     if target and self.signal:
@@ -636,11 +661,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                 result = await dispatch_tool_call(func_name, args_str, self.deps)
                 result_str = json.dumps(result)
 
-                tool_outputs.append({
-                    "role": "tool",
-                    "content": result_str,
-                    "tool_call_id": call_id
-                })
+                tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
 
                 logger.info(f"   -> Result: {result_str}")
 

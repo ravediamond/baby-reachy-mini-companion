@@ -2,9 +2,11 @@ import logging
 
 import numpy as np
 import torch
+from silero_vad import load_silero_vad
 
 
 logger = logging.getLogger(__name__)
+
 
 class SileroVAD:
     """Wrapper for Silero VAD."""
@@ -14,18 +16,11 @@ class SileroVAD:
         self.sample_rate = sample_rate
         self.threshold = threshold
         self.model = None
-        self.utils = None
         self._init_model()
 
     def _init_model(self):
         try:
-            # Load Silero VAD from torch hub
-            self.model, self.utils = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
-                force_reload=False,
-                onnx=False
-            )
+            self.model = load_silero_vad(onnx=False)
             logger.info("Silero VAD loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load Silero VAD: {e}")
