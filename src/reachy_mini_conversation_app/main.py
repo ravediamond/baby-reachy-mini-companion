@@ -4,6 +4,7 @@ import sys
 import time
 import asyncio
 import argparse
+import webbrowser
 import threading
 from typing import Any, Dict, Optional
 from pathlib import Path
@@ -137,6 +138,10 @@ def run(
 
         threading.Thread(target=_run_settings_server, daemon=True).start()
         logger.info("Settings dashboard available at http://localhost:8321")
+        try:
+            threading.Timer(1.5, lambda: webbrowser.open("http://localhost:8321")).start()
+        except Exception:
+            pass  # headless environments (e.g. Jetson) may not have a browser
 
     # Each async service → its own thread/loop
     movement_manager.start()
@@ -196,6 +201,11 @@ class ReachyMiniConversationApp(ReachyMiniApp):
         asyncio.set_event_loop(loop)
 
         args, _ = parse_args()
+
+        try:
+            threading.Timer(1.5, lambda: webbrowser.open("http://localhost:7860")).start()
+        except Exception:
+            pass  # headless environments may not have a browser
 
         instance_path = self._get_instance_path().parent
         run(

@@ -158,7 +158,6 @@
               <div class="feature-info">
                 <p class="feature-name">Danger Detection</p>
                 <p class="feature-desc">YOLO scans camera for hazardous objects (scissors, knives) and triggers VLM analysis + Signal alert.</p>
-                <p class="feature-req">Requires: <code>uv sync --extra yolo_vision</code> and a connected camera.</p>
               </div>
             </div>
           </div>
@@ -181,7 +180,7 @@
               <div class="feature-info">
                 <p class="feature-name">Signal Alerts</p>
                 <p class="feature-desc">Send text messages and photos to your phone via Signal.</p>
-                <p class="feature-req">Requires: <a href="https://github.com/AsamK/signal-cli" target="_blank">signal-cli</a> installed and registered. See <a href="https://github.com/pollen-robotics/reachy-mini-conversation-app#signal-integration" target="_blank">README</a> for setup.</p>
+                <p class="feature-req signal-warning">Requires <a href="https://github.com/AsamK/signal-cli" target="_blank">signal-cli</a> installed and registered beforehand. See <a href="https://github.com/pollen-robotics/reachy-mini-conversation-app#signal-integration" target="_blank">README</a> for setup.</p>
               </div>
             </div>
             <div id="signal-phone-row" class="feature-extra hidden">
@@ -192,7 +191,6 @@
               <div class="feature-info">
                 <p class="feature-name">Head Tracking</p>
                 <p class="feature-desc">Robot follows faces using MediaPipe detection.</p>
-                <p class="feature-req">Requires: <code>uv sync --extra mediapipe_vision</code> and a connected camera.</p>
               </div>
             </div>
           </div>
@@ -210,6 +208,21 @@
         </div>
         <p class="muted">The local AI pipeline is running. You can manage personalities below.</p>
         <p class="status" id="local-running-info"></p>
+        <div class="actions">
+          <button id="stop-local-btn" class="ghost btn-stop">Stop</button>
+        </div>
+      </div>
+
+      <!-- Pipeline log panel (visible when running) -->
+      <div id="pipeline-log-panel" class="panel hidden">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Pipeline</p>
+            <h2>Live Log</h2>
+          </div>
+          <span id="context-badge" class="chip">Context: --</span>
+        </div>
+        <div id="pipeline-log" class="log-container"></div>
       </div>
 
       <div id="personality-panel" class="panel hidden">
@@ -220,7 +233,7 @@
           </div>
           <span class="chip">Live</span>
         </div>
-        <p class="muted">Create lean instruction sets, toggle tools, and apply a voice for your Reachy Mini.</p>
+        <p class="muted">Create lean instruction sets and apply a voice for your Reachy Mini.</p>
         <div class="section">
           <div class="section-heading">
             <h3>Select & launch</h3>
@@ -244,7 +257,7 @@
         <div class="section">
           <div class="section-heading">
             <h3>Create / edit</h3>
-            <p class="muted small">Adjust instructions, tools, and voice, then save your profile.</p>
+            <p class="muted small">Adjust instructions and voice, then save your profile.</p>
           </div>
           <div class="row">
             <label for="personality-name">Name</label>
@@ -255,14 +268,6 @@
           <div class="row">
             <label for="instructions-ta">Instructions</label>
             <textarea id="instructions-ta" rows="8" placeholder="# Write your instructions here"></textarea>
-          </div>
-          <div class="row">
-            <label for="tools-ta">tools.txt</label>
-            <textarea id="tools-ta" rows="6" placeholder="# tools enabled for this profile"></textarea>
-          </div>
-          <div class="row">
-            <label for="tools-available">Available tools</label>
-            <div id="tools-available" class="checkbox-grid"></div>
           </div>
           <div class="row row-save">
             <label></label>

@@ -394,6 +394,56 @@ button.ghost:hover { border-color: rgba(94, 240, 193, 0.4); }
   box-shadow: 0 0 0 3px rgba(94, 240, 193, 0.15);
 }
 
+/* Pipeline log panel */
+.log-container {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.log-entry {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.log-label {
+  flex-shrink: 0;
+  width: 64px;
+  font-weight: 600;
+  text-align: right;
+}
+.log-text {
+  color: var(--muted);
+  word-break: break-word;
+}
+.log-stt .log-label { color: #4ce0e0; }
+.log-llm_input .log-label { color: #ffb547; }
+.log-llm_output .log-label { color: var(--ok); }
+.log-tool_call .log-label { color: #c084fc; }
+
+/* Stop button */
+.btn-stop {
+  border-color: rgba(255, 92, 112, 0.4) !important;
+  color: var(--error) !important;
+}
+.btn-stop:hover {
+  border-color: rgba(255, 92, 112, 0.7) !important;
+  background: rgba(255, 92, 112, 0.1) !important;
+}
+
+/* Signal warning (more prominent) */
+.signal-warning {
+  font-size: 12px !important;
+  opacity: 1 !important;
+  font-weight: 500;
+}
+
 @media (max-width: 760px) {
   .hero h1 { font-size: 26px; }
   .row { grid-template-columns: 1fr; }

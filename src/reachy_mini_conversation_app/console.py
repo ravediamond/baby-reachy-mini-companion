@@ -12,11 +12,13 @@ Once set, values are persisted to the app instance's ``.env`` file
 
 import os
 import sys
+import json
 import time
 import asyncio
 import logging
 import threading
-from typing import Any, List, Optional
+from collections import deque
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 
 from fastrtc import AdditionalOutputs, audio_to_float32
@@ -32,13 +34,14 @@ try:
     # FastAPI is provided by the Reachy Mini Apps runtime
     from fastapi import FastAPI, Request, Response
     from pydantic import BaseModel
-    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
     from starlette.staticfiles import StaticFiles
 except Exception:  # pragma: no cover - only loaded when settings_app is used
     FastAPI = object  # type: ignore[misc,assignment]
     Request = object  # type: ignore[misc,assignment]
     FileResponse = object  # type: ignore[misc,assignment]
     JSONResponse = object  # type: ignore[misc,assignment]
+    StreamingResponse = object  # type: ignore[misc,assignment]
     StaticFiles = object  # type: ignore[misc,assignment]
     BaseModel = object  # type: ignore[misc,assignment]
 
@@ -74,7 +77,11 @@ class LocalStream:
         self._asyncio_loop = None
         # Gate for local mode: blocks launch() until user clicks "Start" in the UI
         self._start_event = threading.Event()
-        self._pipeline_started = False
+        self._pipeline_state = "configuring"  # "configuring" | "running" | "stopping"
+
+        # Pipeline event log for SSE streaming
+        self._event_log: deque[Dict[str, Any]] = deque(maxlen=200)
+        self._event_counter = 0
 
         # Register dashboard routes immediately so the UI is available
         # while the robot and pipeline are still initializing.
@@ -397,14 +404,10 @@ class LocalStream:
         def _app_mode() -> JSONResponse:
             return JSONResponse({"mode": "local" if self._is_local_handler() else "openai"})
 
-        # GET /app_state -> configuring or running
+        # GET /app_state -> configuring, running, or stopping
         @self._settings_app.get("/app_state")
         def _app_state() -> JSONResponse:
-            return JSONResponse(
-                {
-                    "state": "running" if self._pipeline_started else "configuring",
-                }
-            )
+            return JSONResponse({"state": self._pipeline_state})
 
         # GET /local_llm_settings -> current local LLM configuration
         @self._settings_app.get("/local_llm_settings")
@@ -538,7 +541,7 @@ class LocalStream:
         # POST /start_app -> save settings and start the pipeline
         @self._settings_app.post("/start_app")
         async def _start_app(request: Request) -> JSONResponse:
-            if self._pipeline_started:
+            if self._pipeline_state == "running":
                 return JSONResponse({"ok": True, "already_running": True})
             try:
                 raw = await request.json()
@@ -561,6 +564,34 @@ class LocalStream:
             self._start_event.set()
             return JSONResponse({"ok": True})
 
+        # POST /stop_app -> stop the pipeline and return to configuring
+        @self._settings_app.post("/stop_app")
+        async def _stop_app() -> JSONResponse:
+            if self._pipeline_state != "running":
+                return JSONResponse({"ok": False, "error": "not_running"}, status_code=400)
+            self._stop_pipeline()
+            return JSONResponse({"ok": True})
+
+        # GET /events -> SSE stream of pipeline events
+        @self._settings_app.get("/events")
+        async def _events() -> StreamingResponse:
+            last_seen = 0
+
+            async def event_generator():
+                nonlocal last_seen
+                while True:
+                    new_events = [e for e in self._event_log if e["id"] > last_seen]
+                    for ev in new_events:
+                        last_seen = ev["id"]
+                        yield f"data: {json.dumps(ev)}\n\n"
+                    await asyncio.sleep(0.3)
+
+            return StreamingResponse(
+                event_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
         # Mount personality routes early so /personalities is available on page load
         # (before the pipeline starts). get_loop returns None until runner() sets
         # self._asyncio_loop; routes that need the loop (apply, voices) handle that
@@ -577,6 +608,46 @@ class LocalStream:
             pass
 
         self._settings_initialized = True
+
+    def _on_pipeline_event(self, event_type: str, data: dict) -> None:
+        """Append a timestamped pipeline event to the log deque."""
+        self._event_counter += 1
+        self._event_log.append({
+            "id": self._event_counter,
+            "ts": time.time(),
+            "type": event_type,
+            "data": data,
+        })
+
+    def _stop_pipeline(self) -> None:
+        """Stop the running pipeline and return to configuring state."""
+        if self._pipeline_state != "running":
+            return
+        self._pipeline_state = "stopping"
+        logger.info("Stopping pipeline...")
+
+        # Stop media pipelines
+        try:
+            self._robot.media.stop_recording()
+        except Exception as e:
+            logger.debug(f"Error stopping recording: {e}")
+        try:
+            self._robot.media.stop_playing()
+        except Exception as e:
+            logger.debug(f"Error stopping playback: {e}")
+
+        # Cancel all running tasks
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+
+        # Signal the stop event so async loops exit
+        self._stop_event.set()
+
+        self._pipeline_state = "configuring"
+        # Reset the start gate so we wait for user click again
+        self._start_event.clear()
+        logger.info("Pipeline stopped. Ready for reconfiguration.")
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops.
@@ -645,32 +716,50 @@ class LocalStream:
             logger.info("Local mode: waiting for user to configure settings via UI and click Start...")
             self._start_event.wait()  # blocks until POST /start_app is called
             logger.info("Start signal received, launching pipeline...")
+        elif not is_local:
+            # Non-local mode: start immediately
+            self._start_event.set()
 
-        self._pipeline_started = True
-
-        # Start media after key is set/available
-        self._robot.media.start_recording()
-        self._robot.media.start_playing()
-        time.sleep(1)  # give some time to the pipelines to start
-
-        async def runner() -> None:
-            # Capture loop for cross-thread personality actions
+        async def _main_loop() -> None:
+            """Persistent loop that supports stop/restart cycles."""
             loop = asyncio.get_running_loop()
             self._asyncio_loop = loop  # type: ignore[assignment]
-            self._tasks = [
-                asyncio.create_task(self.handler.start_up(), name="openai-handler"),
-                asyncio.create_task(self.record_loop(), name="stream-record-loop"),
-                asyncio.create_task(self.play_loop(), name="stream-play-loop"),
-            ]
-            try:
-                await asyncio.gather(*self._tasks)
-            except asyncio.CancelledError:
-                logger.info("Tasks cancelled during shutdown")
-            finally:
-                # Ensure handler connection is closed
-                await self.handler.shutdown()
 
-        asyncio.run(runner())
+            # Wire pipeline event callback
+            self.handler.pipeline_event_callback = self._on_pipeline_event
+
+            while True:
+                # Wait for start signal (already set on first run, re-set after stop)
+                while not self._start_event.is_set():
+                    await asyncio.sleep(0.1)
+
+                self._stop_event.clear()
+                self._pipeline_state = "running"
+
+                # Start media
+                self._robot.media.start_recording()
+                self._robot.media.start_playing()
+                await asyncio.sleep(1)  # give pipelines time to start
+
+                self._tasks = [
+                    asyncio.create_task(self.handler.start_up(), name="openai-handler"),
+                    asyncio.create_task(self.record_loop(), name="stream-record-loop"),
+                    asyncio.create_task(self.play_loop(), name="stream-play-loop"),
+                ]
+                try:
+                    await asyncio.gather(*self._tasks)
+                except asyncio.CancelledError:
+                    logger.info("Tasks cancelled during shutdown")
+                finally:
+                    await self.handler.shutdown()
+
+                # If stop was not requested (tasks ended naturally), break out
+                if self._pipeline_state != "configuring":
+                    break
+
+                logger.info("Pipeline stopped, awaiting next start signal...")
+
+        asyncio.run(_main_loop())
 
     def close(self) -> None:
         """Stop the stream and underlying media pipelines.

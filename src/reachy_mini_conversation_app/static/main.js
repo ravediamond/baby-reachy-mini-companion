@@ -129,6 +129,15 @@ async function fetchAppState() {
   return { state: "configuring" };
 }
 
+async function stopApp() {
+  const resp = await fetch("/stop_app", { method: "POST" });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || "stop_failed");
+  }
+  return await resp.json();
+}
+
 // ---------- Feature Settings API ----------
 async function fetchFeatureSettings() {
   try {
@@ -305,15 +314,20 @@ async function init() {
   const pStartupLabel = document.getElementById("startup-label");
   const pName = document.getElementById("personality-name");
   const pInstr = document.getElementById("instructions-ta");
-  const pTools = document.getElementById("tools-ta");
   const pStatus = document.getElementById("personality-status");
   const pVoice = document.getElementById("voice-select");
-  const pAvail = document.getElementById("tools-available");
 
-  const AUTO_WITH = {
-    dance: ["stop_dance"],
-    play_emotion: ["stop_emotion"],
-  };
+  // Hidden tools_text for round-tripping saves (not displayed in UI)
+  let _toolsText = "";
+
+  // Stop button
+  const stopLocalBtn = document.getElementById("stop-local-btn");
+
+  // Pipeline log elements
+  const pipelineLogPanel = document.getElementById("pipeline-log-panel");
+  const pipelineLog = document.getElementById("pipeline-log");
+  const contextBadge = document.getElementById("context-badge");
+  let eventSource = null;
 
   statusEl.textContent = "Checking configuration...";
   show(formPanel, false);
@@ -331,12 +345,75 @@ async function init() {
     // --- Local LLM mode ---
     statusEl.textContent = "";
 
+    // -- State transition helpers --
+    function connectEventSource() {
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource("/events");
+      pipelineLog.innerHTML = "";
+      eventSource.onmessage = (e) => {
+        try {
+          const ev = JSON.parse(e.data);
+          const entry = document.createElement("div");
+          entry.className = "log-entry log-" + ev.type;
+          const label = { stt: "STT", llm_input: "LLM IN", llm_output: "LLM OUT", tool_call: "TOOL" }[ev.type] || ev.type.toUpperCase();
+          const labelSpan = document.createElement("span");
+          labelSpan.className = "log-label";
+          labelSpan.textContent = label;
+          entry.appendChild(labelSpan);
+          const textSpan = document.createElement("span");
+          textSpan.className = "log-text";
+          if (ev.type === "tool_call") {
+            textSpan.textContent = ev.data.name + "(" + ev.data.args + ")";
+          } else {
+            textSpan.textContent = ev.data.text || "";
+          }
+          entry.appendChild(textSpan);
+          pipelineLog.appendChild(entry);
+          // Cap DOM entries
+          while (pipelineLog.children.length > 200) {
+            pipelineLog.removeChild(pipelineLog.firstChild);
+          }
+          pipelineLog.scrollTop = pipelineLog.scrollHeight;
+          // Update context badge
+          if (ev.data.context_messages != null) {
+            contextBadge.textContent = "Context: " + ev.data.context_messages + " msgs";
+          }
+        } catch {}
+      };
+    }
+
+    function disconnectEventSource() {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+    }
+
+    function showRunningState(model, stt) {
+      show(localLlmPanel, false);
+      show(featuresPanel, false);
+      show(localRunningPanel, true);
+      show(pipelineLogPanel, true);
+      localRunningInfo.textContent = `Model: ${model || "—"} | STT: ${stt || "—"}`;
+      connectEventSource();
+    }
+
+    function showConfiguringState() {
+      disconnectEventSource();
+      show(localRunningPanel, false);
+      show(pipelineLogPanel, false);
+      show(localLlmPanel, true);
+      show(featuresPanel, true);
+      startLocalBtn.disabled = false;
+      localLlmStatus.textContent = "";
+      localLlmStatus.className = "status";
+    }
+
     // Check if pipeline is already running (e.g., page refresh after start)
     const appState = await fetchAppState();
     if (appState.state === "running") {
       const runSettings = await fetchLocalLlmSettings();
-      show(localRunningPanel, true);
-      localRunningInfo.textContent = `Model: ${runSettings.LOCAL_LLM_MODEL || "—"} | STT: ${runSettings.LOCAL_STT_MODEL || "—"}`;
+      showRunningState(runSettings.LOCAL_LLM_MODEL, runSettings.LOCAL_STT_MODEL);
     } else {
       // Show configuration form
       const settings = await fetchLocalLlmSettings();
@@ -424,11 +501,7 @@ async function init() {
           });
           localLlmStatus.textContent = "Pipeline starting... loading models.";
           localLlmStatus.className = "status ok";
-          // Transition UI: hide config and features, show running
-          show(localLlmPanel, false);
-          show(featuresPanel, false);
-          show(localRunningPanel, true);
-          localRunningInfo.textContent = `Model: ${llmModelInput.value.trim()} | STT: ${sttModelSelect.value}`;
+          showRunningState(llmModelInput.value.trim(), sttModelSelect.value);
         } catch (e) {
           localLlmStatus.textContent = "Failed to start. Check your settings and try again.";
           localLlmStatus.className = "status error";
@@ -436,6 +509,17 @@ async function init() {
         }
       });
     }
+
+    // Stop button handler
+    stopLocalBtn.addEventListener("click", async () => {
+      stopLocalBtn.disabled = true;
+      try {
+        await stopApp();
+        showConfiguringState();
+      } catch (e) {
+        stopLocalBtn.disabled = false;
+      }
+    });
   } else {
     // --- OpenAI mode ---
     const st = (await waitForStatus()) || { has_key: false };
@@ -550,75 +634,12 @@ async function init() {
     }
     setStartupLabel(startupChoice);
 
-    function renderToolCheckboxes(available, enabled) {
-      pAvail.innerHTML = "";
-      const enabledSet = new Set(enabled);
-      for (const t of available) {
-        const wrap = document.createElement("div");
-        wrap.className = "chk";
-        const id = `tool-${t}`;
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.id = id;
-        cb.value = t;
-        cb.checked = enabledSet.has(t);
-        const lab = document.createElement("label");
-        lab.htmlFor = id;
-        lab.textContent = t;
-        wrap.appendChild(cb);
-        wrap.appendChild(lab);
-        pAvail.appendChild(wrap);
-      }
-    }
-
-    function getSelectedTools() {
-      const selected = new Set();
-      pAvail.querySelectorAll('input[type="checkbox"]').forEach((el) => {
-        if (el.checked) selected.add(el.value);
-      });
-      // Auto-include dependencies
-      for (const [main, deps] of Object.entries(AUTO_WITH)) {
-        if (selected.has(main)) {
-          for (const d of deps) selected.add(d);
-        }
-      }
-      return Array.from(selected);
-    }
-
-    function syncToolsTextarea() {
-      const selected = getSelectedTools();
-      const comments = pTools.value
-        .split("\n")
-        .filter((ln) => ln.trim().startsWith("#"));
-      const body = selected.join("\n");
-      pTools.value = (comments.join("\n") + (comments.length ? "\n" : "") + body).trim() + "\n";
-    }
-
-    function attachToolHandlers() {
-      pAvail.addEventListener("change", (ev) => {
-        const target = ev.target;
-        if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return;
-        const name = target.value;
-        // If a main tool toggled, propagate to deps
-        if (AUTO_WITH[name]) {
-          for (const dep of AUTO_WITH[name]) {
-            const depEl = pAvail.querySelector(`input[value="${dep}"]`);
-            if (depEl) depEl.checked = target.checked || depEl.checked;
-          }
-        }
-        syncToolsTextarea();
-      });
-    }
-
     async function loadSelected() {
       const selected = pSelect.value;
       const data = await loadPersonality(selected);
       pInstr.value = data.instructions || "";
-      pTools.value = data.tools_text || "";
+      _toolsText = data.tools_text || "";
       pVoice.value = data.voice || "cedar";
-      // Available tools as checkboxes
-      renderToolCheckboxes(data.available_tools, data.enabled_tools);
-      attachToolHandlers();
       // Default name field to last segment of selection
       const idx = selected.lastIndexOf("/");
       pName.value = idx >= 0 ? selected.slice(idx + 1) : "";
@@ -629,8 +650,6 @@ async function init() {
     pSelect.addEventListener("change", loadSelected);
     await loadSelected();
     show(personalityPanel, true);
-
-    // pAvail change handler registered in attachToolHandlers()
 
     pApply.addEventListener("click", async () => {
       pStatus.textContent = "Applying...";
@@ -663,11 +682,7 @@ async function init() {
     pNew.addEventListener("click", () => {
       pName.value = "";
       pInstr.value = "# Write your instructions here\n# e.g., Keep responses concise and friendly.";
-      pTools.value = "# tools enabled for this profile\n";
-      // Keep available tools list, clear selection
-      pAvail.querySelectorAll('input[type="checkbox"]').forEach((el) => {
-        el.checked = false;
-      });
+      _toolsText = "";
       pVoice.value = "cedar";
       pStatus.textContent = "Fill fields and click Save.";
       pStatus.className = "status";
@@ -683,12 +698,10 @@ async function init() {
       pStatus.textContent = "Saving...";
       pStatus.className = "status";
       try {
-        // Ensure tools.txt reflects checkbox selection and auto-includes
-        syncToolsTextarea();
         const res = await savePersonality({
           name,
           instructions: pInstr.value || "",
-          tools_text: pTools.value || "",
+          tools_text: _toolsText,
           voice: pVoice.value || "cedar",
         });
         // Refresh select choices
