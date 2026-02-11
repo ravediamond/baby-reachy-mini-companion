@@ -79,6 +79,10 @@ class LocalSessionHandler(AsyncStreamHandler):
         self.pipeline_task: Optional[asyncio.Task[None]] = None
         self._receive_frame_count = 0
 
+        # Echo suppression: prevent VAD from triggering on robot's own TTS output
+        self._active_pipeline_count = 0
+        self._suppress_vad_until = 0.0
+
         # Signal integration
         self.signal: Optional[SignalInterface] = None
         self.signal_polling_task: Optional[asyncio.Task[None]] = None
@@ -286,7 +290,20 @@ class LocalSessionHandler(AsyncStreamHandler):
                             asyncio.create_task(self._process_system_event(f"I hear a {label.lower()} nearby."))
                             break
 
-        # 5. Process VAD in 512-sample chunks (32ms at 16k)
+        # 5. Echo suppression: skip VAD while pipeline is generating/playing TTS
+        now_mono = time.monotonic()
+        if self._active_pipeline_count > 0 or now_mono < self._suppress_vad_until:
+            # Discard accumulated VAD buffer to avoid processing stale audio
+            self.vad_buffer = np.array([], dtype=np.float32)
+            self.lookback_buffer.clear()
+            if self.is_speaking:
+                self.is_speaking = False
+                self.audio_buffer = []
+                self.speech_chunks = 0
+                self.silence_chunks = 0
+            return
+
+        # 6. Process VAD in 512-sample chunks (32ms at 16k)
         chunk_size = 512
 
         while len(self.vad_buffer) >= chunk_size:
@@ -350,60 +367,68 @@ class LocalSessionHandler(AsyncStreamHandler):
         logger.info(f"System Event: {event_text}")
         await self.output_queue.put(AdditionalOutputs({"role": "system", "content": event_text}))
 
-        # 2. LLM Loop
-        current_input = f"[System Notification: {event_text}]"
+        # Suppress VAD while we generate and play TTS (echo prevention)
+        self._active_pipeline_count += 1
+        try:
+            # 2. LLM Loop
+            current_input = f"[System Notification: {event_text}]"
 
-        # Reuse the logic from _run_pipeline essentially, but simplified
-        max_turns = 3
-        turn = 0
-        tool_outputs = None
+            # Reuse the logic from _run_pipeline essentially, but simplified
+            max_turns = 3
+            turn = 0
+            tool_outputs = None
 
-        while turn < max_turns:
-            turn += 1
-            full_response_text = ""
-            current_sentence = ""
+            while turn < max_turns:
+                turn += 1
+                full_response_text = ""
+                current_sentence = ""
 
-            llm_user_input = current_input if turn == 1 else None
+                llm_user_input = current_input if turn == 1 else None
 
-            logger.info(f"LLM Turn {turn} (Event: {llm_user_input or 'Tool Outputs'})")
+                logger.info(f"LLM Turn {turn} (Event: {llm_user_input or 'Tool Outputs'})")
 
-            tool_calls = []
+                tool_calls = []
 
-            async for event in self.llm.chat_stream(
-                user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
-            ):
-                if event["type"] == "text":
-                    token = event["content"]
-                    full_response_text += token
-                    current_sentence += token
-                    if token in [".", "!", "?", "\n"]:
-                        await self._process_sentence(current_sentence)
-                        current_sentence = ""
-                elif event["type"] == "tool_call":
-                    tool_calls.append(event["tool_call"])
-                elif event["type"] == "error":
-                    logger.error(f"LLM Error: {event['content']}")
+                async for event in self.llm.chat_stream(
+                    user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
+                ):
+                    if event["type"] == "text":
+                        token = event["content"]
+                        full_response_text += token
+                        current_sentence += token
+                        if token in [".", "!", "?", "\n"]:
+                            await self._process_sentence(current_sentence)
+                            current_sentence = ""
+                    elif event["type"] == "tool_call":
+                        tool_calls.append(event["tool_call"])
+                    elif event["type"] == "error":
+                        logger.error(f"LLM Error: {event['content']}")
 
-            if current_sentence.strip():
-                await self._process_sentence(current_sentence)
+                if current_sentence.strip():
+                    await self._process_sentence(current_sentence)
 
-            if full_response_text:
-                logger.info(f"Assistant: {full_response_text}")
-                await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
+                if full_response_text:
+                    logger.info(f"Assistant: {full_response_text}")
+                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
 
-            if not tool_calls:
-                break
+                if not tool_calls:
+                    break
 
-            tool_outputs = []
-            for tc in tool_calls:
-                func_name = tc["function"]["name"]
-                args_str = tc["function"]["arguments"]
-                call_id = tc["id"]
-                logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
-                result = await dispatch_tool_call(func_name, args_str, self.deps)
-                result_str = json.dumps(result)
-                tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
-                logger.info(f"   -> Result: {result_str}")
+                tool_outputs = []
+                for tc in tool_calls:
+                    func_name = tc["function"]["name"]
+                    args_str = tc["function"]["arguments"]
+                    call_id = tc["id"]
+                    logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
+                    result = await dispatch_tool_call(func_name, args_str, self.deps)
+                    result_str = json.dumps(result)
+                    tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
+                    logger.info(f"   -> Result: {result_str}")
+        finally:
+            self._active_pipeline_count -= 1
+            if self._active_pipeline_count == 0:
+                self._suppress_vad_until = time.monotonic() + 3.0
+                logger.debug("System event done, VAD suppressed for 3s cooldown")
 
     async def _run_pipeline(self, audio: np.ndarray):
         """Run STT -> LLM -> TTS pipeline."""
@@ -414,83 +439,92 @@ class LocalSessionHandler(AsyncStreamHandler):
         if not transcript.strip():
             return
 
-        # 1.5 Inject Vision Context
-        vision_context = ""
-        if self.deps.vision_manager and self.deps.vision_manager.latest_description:
-            vision_context = f" [Visual Context: {self.deps.vision_manager.latest_description}]"
+        # Suppress VAD while we generate and play TTS (echo prevention)
+        self._active_pipeline_count += 1
+        try:
+            # 1.5 Inject Vision Context
+            vision_context = ""
+            if self.deps.vision_manager and self.deps.vision_manager.latest_description:
+                vision_context = f" [Visual Context: {self.deps.vision_manager.latest_description}]"
 
-        logger.info(f"User: {transcript}{vision_context}")
-        await self.output_queue.put(AdditionalOutputs({"role": "user", "content": transcript}))
+            logger.info(f"User: {transcript}{vision_context}")
+            await self.output_queue.put(AdditionalOutputs({"role": "user", "content": transcript}))
 
-        # 2. LLM Loop (Handling potential tool calls)
-        current_input = transcript + vision_context
-        max_turns = 3  # Prevent infinite loops
-        turn = 0
+            # 2. LLM Loop (Handling potential tool calls)
+            current_input = transcript + vision_context
+            max_turns = 3  # Prevent infinite loops
+            turn = 0
 
-        tool_outputs = None  # For subsequent turns
+            tool_outputs = None  # For subsequent turns
 
-        while turn < max_turns:
-            turn += 1
-            full_response_text = ""
-            current_sentence = ""
+            while turn < max_turns:
+                turn += 1
+                full_response_text = ""
+                current_sentence = ""
 
-            # If this is the first turn, we pass user input. Subsequent turns are tool outputs.
-            llm_user_input = current_input if turn == 1 else None
+                # If this is the first turn, we pass user input. Subsequent turns are tool outputs.
+                llm_user_input = current_input if turn == 1 else None
 
-            logger.info(f"LLM Turn {turn} (Input: {llm_user_input or 'Tool Outputs'})")
+                logger.info(f"LLM Turn {turn} (Input: {llm_user_input or 'Tool Outputs'})")
 
-            tool_calls = []
+                tool_calls = []
 
-            async for event in self.llm.chat_stream(
-                user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
-            ):
-                if event["type"] == "text":
-                    token = event["content"]
-                    full_response_text += token
-                    current_sentence += token
+                async for event in self.llm.chat_stream(
+                    user_text=llm_user_input, tools=self.tool_specs, tool_outputs=tool_outputs
+                ):
+                    if event["type"] == "text":
+                        token = event["content"]
+                        full_response_text += token
+                        current_sentence += token
 
-                    # Simple sentence splitting for TTS streaming
-                    if token in [".", "!", "?", "\n"]:
-                        await self._process_sentence(current_sentence)
-                        current_sentence = ""
+                        # Simple sentence splitting for TTS streaming
+                        if token in [".", "!", "?", "\n"]:
+                            await self._process_sentence(current_sentence)
+                            current_sentence = ""
 
-                elif event["type"] == "tool_call":
-                    tool_calls.append(event["tool_call"])
+                    elif event["type"] == "tool_call":
+                        tool_calls.append(event["tool_call"])
 
-                elif event["type"] == "error":
-                    logger.error(f"LLM Error: {event['content']}")
+                    elif event["type"] == "error":
+                        logger.error(f"LLM Error: {event['content']}")
 
-            # Process remaining text
-            if current_sentence.strip():
-                await self._process_sentence(current_sentence)
+                # Process remaining text
+                if current_sentence.strip():
+                    await self._process_sentence(current_sentence)
 
-            if full_response_text:
-                logger.info(f"Assistant: {full_response_text}")
-                await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
+                if full_response_text:
+                    logger.info(f"Assistant: {full_response_text}")
+                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
 
-            # If no tool calls, we are done
-            if not tool_calls:
-                break
+                # If no tool calls, we are done
+                if not tool_calls:
+                    break
 
-            # Execute Tools
-            tool_outputs = []
-            for tc in tool_calls:
-                func_name = tc["function"]["name"]
-                args_str = tc["function"]["arguments"]
-                call_id = tc["id"]
+                # Execute Tools
+                tool_outputs = []
+                for tc in tool_calls:
+                    func_name = tc["function"]["name"]
+                    args_str = tc["function"]["arguments"]
+                    call_id = tc["id"]
 
-                logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
+                    logger.info(f"🛠️ Tool Call: {func_name}({args_str})")
 
-                # Execute
-                result = await dispatch_tool_call(func_name, args_str, self.deps)
-                result_str = json.dumps(result)
+                    # Execute
+                    result = await dispatch_tool_call(func_name, args_str, self.deps)
+                    result_str = json.dumps(result)
 
-                tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
+                    tool_outputs.append({"role": "tool", "content": result_str, "tool_call_id": call_id})
 
-                logger.info(f"   -> Result: {result_str}")
+                    logger.info(f"   -> Result: {result_str}")
 
-            # Prepare for next turn
-            # We Loop back with tool_outputs, llm_user_input will be None
+                # Prepare for next turn
+                # We Loop back with tool_outputs, llm_user_input will be None
+        finally:
+            self._active_pipeline_count -= 1
+            if self._active_pipeline_count == 0:
+                # Cooldown: wait for TTS audio to finish playing through speaker + echo to die
+                self._suppress_vad_until = time.monotonic() + 3.0
+                logger.debug("Pipeline done, VAD suppressed for 3s cooldown")
 
     async def _process_sentence(self, text: str):
         """Synthesize and queue audio for a sentence, handling tone and embedded commands."""

@@ -646,11 +646,12 @@ class LocalStream:
         self._pipeline_state = "stopping"
         logger.info("Stopping pipeline...")
 
-        # Stop media pipelines
-        try:
-            self._robot.media.stop_recording()
-        except Exception as e:
-            logger.debug(f"Error stopping recording: {e}")
+        # Stop media pipelines (only stop recording if we started it)
+        if self._mic_device is None:
+            try:
+                self._robot.media.stop_recording()
+            except Exception as e:
+                logger.debug(f"Error stopping recording: {e}")
         try:
             self._robot.media.stop_playing()
         except Exception as e:
@@ -760,8 +761,9 @@ class LocalStream:
                 self._stop_event.clear()
                 self._pipeline_state = "running"
 
-                # Start media
-                self._robot.media.start_recording()
+                # Start media (skip recording when using direct mic input)
+                if self._mic_device is None:
+                    self._robot.media.start_recording()
                 self._robot.media.start_playing()
                 await asyncio.sleep(1)  # give pipelines time to start
 
