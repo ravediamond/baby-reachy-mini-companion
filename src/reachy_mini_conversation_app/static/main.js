@@ -304,6 +304,7 @@ async function init() {
   const testLlmStatus = document.getElementById("test-llm-status");
   const testMicBtn = document.getElementById("test-mic-btn");
   const testMicStatus = document.getElementById("test-mic-status");
+  const micDeviceSelect = document.getElementById("mic-device");
 
   // Features panel
   const featuresPanel = document.getElementById("features-panel");
@@ -382,6 +383,26 @@ async function init() {
       applyFeatureSettings(featureSettings);
       show(featuresPanel, true);
 
+      // Populate mic device selector
+      try {
+        const devResp = await fetchWithTimeout("/audio_devices", {}, 3000);
+        if (devResp.ok) {
+          const devData = await devResp.json();
+          micDeviceSelect.innerHTML = "";
+          for (const d of devData.devices) {
+            const opt = document.createElement("option");
+            opt.value = d.index;
+            opt.textContent = `[${d.index}] ${d.name} (${d.channels}ch, ${d.samplerate}Hz)`;
+            if (d.is_default) opt.textContent += " - Default";
+            micDeviceSelect.appendChild(opt);
+          }
+          // Pre-select the default input device
+          if (devData.default != null) {
+            micDeviceSelect.value = devData.default;
+          }
+        }
+      } catch {}
+
       // Wire mic gain slider label
       micGainSlider.addEventListener("input", () => {
         micGainValue.textContent = micGainSlider.value;
@@ -412,7 +433,7 @@ async function init() {
         testLlmBtn.disabled = false;
       });
 
-      // Test microphone
+      // Test microphone (uses selected device)
       testMicBtn.addEventListener("click", async () => {
         testMicStatus.textContent = "Recording 1.5s...";
         testMicStatus.className = "status";
@@ -421,7 +442,10 @@ async function init() {
           const resp = await fetch("/test_mic", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ MIC_GAIN: micGainSlider.value }),
+            body: JSON.stringify({
+              MIC_GAIN: micGainSlider.value,
+              MIC_DEVICE: micDeviceSelect.value,
+            }),
           });
           const data = await resp.json();
           testMicStatus.textContent = data.message;
@@ -449,6 +473,7 @@ async function init() {
             LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
             LOCAL_STT_MODEL: sttModelSelect.value,
             MIC_GAIN: micGainSlider.value,
+            MIC_DEVICE: micDeviceSelect.value,
             ...getFeatureSettings(),
           });
           localLlmStatus.textContent = "Pipeline starting... loading models.";

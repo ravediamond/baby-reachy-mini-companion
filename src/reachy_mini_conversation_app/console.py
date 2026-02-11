@@ -75,6 +75,7 @@ class LocalStream:
         # Gate for local mode: blocks launch() until user clicks "Start" in the UI
         self._start_event = threading.Event()
         self._pipeline_state = "configuring"  # "configuring" | "running" | "stopping"
+        self._mic_device: Optional[int] = None  # SoundDevice index, None = use SDK media
 
         # Register dashboard routes immediately so the UI is available
         # while the robot and pipeline are still initializing.
@@ -439,6 +440,28 @@ class LocalStream:
                 }
             )
 
+        # GET /audio_devices -> list available input devices
+        @self._settings_app.get("/audio_devices")
+        def _audio_devices() -> JSONResponse:
+            try:
+                import sounddevice as sd
+
+                devices = sd.query_devices()
+                default_input = sd.default.device[0]
+                inputs = []
+                for i, d in enumerate(devices):
+                    if d["max_input_channels"] > 0:
+                        inputs.append({
+                            "index": i,
+                            "name": d["name"],
+                            "channels": d["max_input_channels"],
+                            "samplerate": d["default_samplerate"],
+                            "is_default": i == default_input,
+                        })
+                return JSONResponse({"devices": inputs, "default": default_input})
+            except Exception as e:
+                return JSONResponse({"devices": [], "error": str(e)})
+
         # POST /test_mic -> record a short audio clip and check signal level
         @self._settings_app.post("/test_mic")
         async def _test_mic(request: Request) -> JSONResponse:
@@ -447,26 +470,37 @@ class LocalStream:
             except Exception:
                 raw = {}
             gain = float(raw.get("MIC_GAIN", 1.0))
+            device = raw.get("MIC_DEVICE")
+            if device is not None:
+                try:
+                    device = int(device)
+                except (ValueError, TypeError):
+                    device = None
             try:
                 import sounddevice as sd
 
+                dev_info = sd.query_devices(device if device is not None else sd.default.device[0])
+                sr = int(dev_info["default_samplerate"])
                 duration = 1.5  # seconds
-                sr = 16000
-                recording = sd.rec(int(duration * sr), samplerate=sr, channels=1, dtype="float32")
+                recording = sd.rec(
+                    int(duration * sr), samplerate=sr, channels=1,
+                    dtype="float32", device=device,
+                )
                 sd.wait()
                 audio = recording.flatten() * gain
                 rms = float((audio**2).mean() ** 0.5)
                 peak = float(abs(audio).max())
+                dev_name = dev_info["name"]
                 # Thresholds tuned for speech detection
                 if peak < 0.005:
                     verdict = "no_signal"
-                    msg = "No audio signal detected. Check that your microphone is connected and not muted."
+                    msg = f"No signal from '{dev_name}'. Check that it is connected and not muted."
                 elif rms < 0.01:
                     verdict = "too_quiet"
-                    msg = f"Audio detected but very quiet (RMS: {rms:.4f}). Try increasing the mic gain or moving closer."
+                    msg = f"'{dev_name}' very quiet (RMS: {rms:.4f}). Try increasing gain or moving closer."
                 else:
                     verdict = "ok"
-                    msg = f"Microphone working (RMS: {rms:.4f}, Peak: {peak:.4f})."
+                    msg = f"'{dev_name}' working (RMS: {rms:.4f}, Peak: {peak:.4f})."
                 return JSONResponse(
                     {"ok": True, "verdict": verdict, "message": msg, "rms": round(rms, 5), "peak": round(peak, 5)}
                 )
@@ -566,6 +600,16 @@ class LocalStream:
                         self.handler.llm_model = model
                 except Exception:
                     pass
+                # Mic device selection (None = use robot SDK media)
+                mic_dev = raw.get("MIC_DEVICE")
+                if mic_dev is not None and mic_dev != "":
+                    try:
+                        self._mic_device = int(mic_dev)
+                        logger.info(f"Mic device set to index {self._mic_device}")
+                    except (ValueError, TypeError):
+                        self._mic_device = None
+                else:
+                    self._mic_device = None
             # Unblock launch()
             self._start_event.set()
             return JSONResponse({"ok": True})
@@ -786,8 +830,15 @@ class LocalStream:
 
     async def record_loop(self) -> None:
         """Read mic frames from the recorder and forward them to the handler."""
+        if self._mic_device is not None:
+            await self._record_loop_sounddevice()
+        else:
+            await self._record_loop_sdk()
+
+    async def _record_loop_sdk(self) -> None:
+        """Read mic frames via the robot SDK media backend."""
         input_sample_rate = self._robot.media.get_input_audio_samplerate()
-        logger.info(f"record_loop started (sample_rate={input_sample_rate}, stop_event={self._stop_event.is_set()})")
+        logger.info(f"record_loop (SDK) started (sample_rate={input_sample_rate})")
 
         frame_count = 0
         while not self._stop_event.is_set():
@@ -795,11 +846,54 @@ class LocalStream:
             if audio_frame is not None:
                 frame_count += 1
                 if frame_count == 1 or frame_count % 500 == 0:
-                    logger.info(f"record_loop: {frame_count} frames received")
+                    logger.info(f"record_loop (SDK): {frame_count} frames")
                 await self.handler.receive((input_sample_rate, audio_frame))
-            await asyncio.sleep(0)  # avoid busy loop
+            await asyncio.sleep(0)
 
-        logger.info(f"record_loop exited (stop_event={self._stop_event.is_set()}, frames={frame_count})")
+        logger.info(f"record_loop (SDK) exited (frames={frame_count})")
+
+    async def _record_loop_sounddevice(self) -> None:
+        """Read mic frames directly from a SoundDevice input device."""
+        import queue as thread_queue
+
+        import sounddevice as sd
+
+        dev_info = sd.query_devices(self._mic_device)
+        sr = int(dev_info["default_samplerate"])
+        dev_name = dev_info["name"]
+        audio_q: thread_queue.Queue[bytes] = thread_queue.Queue()
+
+        def _audio_cb(indata: "Any", frames: int, time_info: "Any", status: "Any") -> None:
+            if status:
+                logger.debug(f"SoundDevice status: {status}")
+            audio_q.put(indata.copy())
+
+        stream = sd.InputStream(
+            device=self._mic_device,
+            samplerate=sr,
+            channels=1,
+            dtype="float32",
+            blocksize=1024,
+            callback=_audio_cb,
+        )
+        stream.start()
+        logger.info(f"record_loop (direct) started: '{dev_name}' at {sr}Hz")
+
+        frame_count = 0
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    audio_frame = audio_q.get_nowait()
+                    frame_count += 1
+                    if frame_count == 1 or frame_count % 500 == 0:
+                        logger.info(f"record_loop (direct): {frame_count} frames")
+                    await self.handler.receive((sr, audio_frame))
+                except thread_queue.Empty:
+                    await asyncio.sleep(0.005)
+        finally:
+            stream.stop()
+            stream.close()
+            logger.info(f"record_loop (direct) exited (frames={frame_count})")
 
     async def play_loop(self) -> None:
         """Fetch outputs from the handler: log text and play audio frames."""
