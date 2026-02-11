@@ -80,29 +80,42 @@ A few things that inform the design:
 
 #### With uv (recommended)
 ```bash
-# Install everything (audio, vision, wireless)
-uv sync --extra local
+# Base install — includes the full voice pipeline (STT, TTS, VAD)
+uv sync
 
-# Or install only what you need
-uv sync --extra local_audio             # Voice pipeline only
-uv sync --extra local_audio --extra yolo_vision  # Voice + YOLO tracking
+# Add vision extras as needed
+uv sync --extra yolo_vision        # + YOLO face tracking & danger detection
+uv sync --extra local              # Everything (YOLO, MediaPipe, wireless)
 ```
 
 #### With pip
 ```bash
+pip install -e "."                 # Voice pipeline
 pip install -e ".[local]"          # Everything
-pip install -e ".[local_audio]"    # Voice pipeline only
 ```
+
+#### What's included in the base install
+
+The core voice pipeline — **faster-whisper** (STT), **Kokoro** (TTS), **Silero VAD**, and **PyTorch** — is included in the base dependencies. This means the app works out of the box from the Reachy Mini app store without needing optional extras.
 
 #### Optional dependency groups
 
 | Extra | What it provides |
 |-------|-----------------|
-| `local_audio` | VAD, STT, TTS — the core voice pipeline (torch, silero-vad, faster-whisper, kokoro-onnx) |
-| `yolo_vision` | YOLO-based face tracking (ultralytics, supervision) |
+| `yolo_vision` | YOLO-based face tracking and danger detection (ultralytics, supervision) |
 | `mediapipe_vision` | MediaPipe-based face tracking (lighter alternative to YOLO) |
 | `reachy_mini_wireless` | GStreamer wireless support (PyGObject, gst-signalling) |
 | `local` | All of the above combined |
+
+#### A note on PyTorch
+
+PyTorch (~2 GB) is a base dependency because **Silero VAD** requires it — the `silero-vad` pip package lists `torch` as a hard dependency, and even its ONNX code path uses `torch.cat`, `torch.zeros`, and `torch.from_numpy` internally for state management around the ONNX inference call.
+
+In theory, you could eliminate PyTorch entirely by writing a custom numpy-only ONNX wrapper (the torch operations are trivial array ops) and loading the Silero ONNX model directly with `onnxruntime`. We chose not to because:
+
+- It means not using the `silero-vad` package at all — you'd download the ONNX model yourself and maintain a fork of their inference code
+- PyTorch installs fine on the target hardware (Mac M1, NVIDIA Jetson)
+- The other heavy deps (`faster-whisper`, `kokoro-onnx`) already pull in `onnxruntime`, so the incremental cost is just torch itself
 
 ### 3. Configure
 
