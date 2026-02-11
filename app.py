@@ -37,6 +37,15 @@ custom_css = """
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 
+/* ---- Architecture Diagram ---- */
+.arch-image {
+    max-width: 900px !important; margin: 0 auto 2.5rem !important;
+}
+.arch-image img {
+    border-radius: 1rem !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+
 /* ---- Sections ---- */
 .section-label {
     font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -278,7 +287,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         show_label=False,
         interactive=False,
         container=False,
-        elem_classes=["hero-image"],
+        elem_classes=["arch-image"],
     )
 
     gr.HTML("""
