@@ -180,26 +180,72 @@ On subsequent launches, the saved settings are pre-populated in the form. You ca
 
 ## Running the App
 
+### Audio Architecture
+
+Understanding how audio works helps choose the right setup for your platform.
+
+The Reachy Mini SDK has its own audio layer: the daemon creates a `SoundDeviceAudio` backend that can open the robot's USB mic ("Reachy Mini Audio") for sound effects. Separately, the conversation app creates its **own** `SoundDeviceAudio` instance (via the `ReachyMini` SDK object passed by the runtime) and calls `media.start_recording()` to capture audio for speech recognition.
+
+These are **independent audio pipelines** — the daemon uses audio for output only (wake-up/sleep sounds), while the app uses it for input (microphone recording). There is no audio sharing via Zenoh or shared memory between them.
+
+**This works correctly on Linux** (the target platform), where ALSA's `dmix`/`dsnoop` plugins allow multiple processes to share the same USB audio device for simultaneous input and output.
+
+**On macOS**, the Reachy Mini's USB audio interface does not reliably support concurrent access from multiple processes. When the daemon opens the device for output, the app's input stream on the same device may return silence (all zeros). This is a platform-specific limitation of the USB audio chip — the microphone hardware is fine, but macOS CoreAudio cannot share it across processes the way ALSA can.
+
+#### Two audio modes
+
+The settings dashboard provides a **microphone selector** that offers two approaches:
+
+| Mode | How it works | When to use |
+|------|-------------|-------------|
+| **SDK audio** (default) | Uses `media.get_audio_sample()` from the Reachy Mini SDK | Linux (robot, Jetson) — works out of the box |
+| **Direct mic** (via selector) | Bypasses the SDK and opens the chosen mic directly via SoundDevice | macOS development — select "MacBook Air Microphone" or any working input device |
+
+When you select a specific microphone in the dashboard, the app opens it directly with `sounddevice.InputStream`, bypassing the SDK's audio layer entirely. This avoids the USB device sharing issue on macOS.
+
 ### Starting the Daemon
 
-Before running the conversation app, start the Reachy Mini daemon with `--deactivate-audio`. This prevents the daemon from monopolizing the microphone — the conversation app needs direct access to capture audio for speech recognition.
+#### As a Reachy Mini App (recommended)
+
+When installed as a Reachy Mini App (via the `reachy_mini_apps` entry point), the app is discovered and launched automatically by the Reachy Mini daemon. The daemon manages the lifecycle — no manual startup needed.
+
+In this mode:
+
+1. The app serves a settings UI at its `custom_app_url` (`http://0.0.0.0:7860/`).
+2. The pipeline **waits** for you to configure LLM settings, select a microphone, and click **Start**.
+3. Once running, the settings page shows the active model and provides access to the personality studio.
+
+No `.env` file is needed — all configuration happens through the browser.
+
+> [!NOTE]
+> On macOS, use the **microphone selector** in the settings dashboard to pick your Mac's built-in mic (or another working input device). The default SDK audio path reads from "Reachy Mini Audio" which returns silence on macOS due to the USB device sharing limitation described above.
+
+#### Standalone (manual daemon)
+
+If you prefer to manage the daemon yourself, start it with `--deactivate-audio` so it doesn't open the USB audio device at all. This frees the device for the app to use directly.
 
 ```bash
 # Mac (simulation mode)
 uv run reachy-mini-daemon --sim --deactivate-audio
 
+# Mac (physical robot connected via USB)
+uv run reachy-mini-daemon --deactivate-audio
+
 # Jetson (physical robot)
 uv run reachy-mini-daemon --serialport /dev/ttyACM0 --deactivate-audio
 ```
 
-> [!IMPORTANT]
-> Without `--deactivate-audio`, the daemon's internal audio handling captures all microphone input, and the conversation app receives only silence. This flag is **required** for the conversation app to work.
+> [!NOTE]
+> `--deactivate-audio` disables the daemon's sound effects (wake-up/sleep sounds). It does **not** affect the conversation app's audio — the app handles its own recording and playback independently.
 
-### Standalone (CLI)
+### Running the Conversation App
 
 ```bash
 # Simplest — uses settings from .env
 uv run reachy-mini-conversation-app
+
+# With settings dashboard (opens browser)
+uv run reachy-mini-conversation-app --dashboard
 
 # With YOLO face tracking
 uv run reachy-mini-conversation-app --head-tracker yolo
@@ -207,22 +253,9 @@ uv run reachy-mini-conversation-app --head-tracker yolo
 # With MediaPipe face tracking (lighter)
 uv run reachy-mini-conversation-app --head-tracker mediapipe
 
-# Open the Gradio web UI
-uv run reachy-mini-conversation-app --gradio
-
 # Use OpenAI Realtime API instead of local processing
 uv run reachy-mini-conversation-app --openai-realtime
 ```
-
-### As a Reachy Mini App (headless)
-
-When installed as a Reachy Mini App (via the `reachy_mini_apps` entry point), the app is discovered and launched automatically by the Reachy Mini daemon. In this mode:
-
-1. The app serves a settings UI at its `custom_app_url` (`http://0.0.0.0:7860/`).
-2. The pipeline **waits** for you to configure and click **Start** before initializing.
-3. Once running, the settings page shows the active model and provides access to the personality studio.
-
-No `.env` file is needed — all configuration happens through the browser.
 
 ### CLI Options
 
@@ -363,11 +396,8 @@ MIC_GAIN=5000.0
 > [!IMPORTANT]
 > **Microphone on Jetson**: The ALSA driver reports very low mic levels. You **must** set `MIC_GAIN` to a high value (e.g., `5000.0`). Without this, the VAD will never trigger.
 
-> [!IMPORTANT]
-> **Daemon audio conflict**: The Reachy Mini daemon's internal audio handling can interfere with the microphone on Jetson. Start the daemon with audio deactivated:
-> ```bash
-> uv run reachy-mini-daemon --serialport /dev/ttyACM0 --deactivate-audio
-> ```
+> [!NOTE]
+> On Jetson (Linux), the SDK audio path works correctly — ALSA's `dsnoop` plugin allows the daemon and app to share the USB mic. You do **not** need `--deactivate-audio` in this scenario. If you still have issues, check PulseAudio (see [Troubleshooting](#troubleshooting)).
 
 #### LLM engine benchmarks on Jetson Orin NX (16GB)
 
@@ -393,18 +423,25 @@ docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_cache
 ## Troubleshooting
 
 ### General
-- **Microphone returns silence / no speech detected** — The most common issue. Make sure the daemon is started with `--deactivate-audio`. Without this flag, the daemon captures all microphone input internally and the app receives only zeros. See [Starting the Daemon](#starting-the-daemon).
 - **"Connection refused" from LLM** — Make sure your Ollama (or other LLM server) is running and the URL is correct (check `.env` or the settings UI).
 - **Slow first response** — The app pre-warms the LLM on startup. If using Ollama, the first model load can be slow; subsequent requests are fast.
 - **STT too slow or inaccurate** — Try a different STT model. `tiny.en` is fastest, `medium.en` is most accurate, `small.en` is a good balance.
-- **No audio input after confirming `--deactivate-audio`** — Check `MIC_GAIN` in `.env`. On some systems you may need to increase it (e.g., `2.0` or `3.0`).
 - **MediaPipe/YOLO import errors** — Make sure you installed the right extra: `uv sync --extra mediapipe_vision` or `uv sync --extra yolo_vision`.
-- **Settings not taking effect** — In headless mode, settings are applied when you click Start. If already running, they take effect on the next restart.
+- **Settings not taking effect** — In headless mode, settings are applied when you click Start. If already running, stop and start again.
+- **Robot repeats itself / echo loop** — The microphone is picking up the robot's own TTS output. The app has built-in echo suppression (VAD is muted during and 3 seconds after each response), but if your speaker is very loud or close to the mic, try reducing the volume or increasing the distance between them.
+
+### Microphone / Audio
+- **No speech detected (silence)** — This is platform-dependent. See [Audio Architecture](#audio-architecture) for details:
+  - **On macOS**: Use the microphone selector in the settings dashboard to pick your Mac's built-in mic instead of "Reachy Mini Audio". The USB device returns silence on macOS when the daemon also has it open.
+  - **On Linux/Jetson**: The SDK audio path should work by default. If not, check `MIC_GAIN`.
+  - **Standalone mode**: Start the daemon with `--deactivate-audio` so the app has exclusive access to the USB mic.
+- **No audio input with correct mic selected** — Check `MIC_GAIN` in `.env` or the settings dashboard. On some systems you may need to increase it (e.g., `2.0` or `3.0`).
+- **"Audio input buffer overflowed" spam in logs** — This happens when using a direct mic (via the selector) while the SDK recording is also active. The app handles this automatically — if you see it, it's harmless but indicates the SDK recording stream is being drained by nobody. Restarting should clear it.
+- **Test microphone button shows "no signal"** — The selected device is returning silence. Try a different device in the dropdown, or check system audio permissions.
 
 ### Jetson Orin
 - **Microphone not working** — The most common issue. Set `MIC_GAIN=5000.0` in `.env`. The Jetson ALSA driver reports near-silent mic levels by default, so the VAD never detects speech.
 - **Speaker volume too low** — ALSA output is also quiet on Jetson. You may need to adjust ALSA mixer levels with `alsamixer` or `amixer`.
-- **Mic captured by daemon** — Start the Reachy Mini daemon with `--deactivate-audio` so the app can control audio directly.
 - **Wrong audio device selected** — Jetson often has multiple sound cards. Check which one is "Reachy Mini Audio" with `arecord -l` and ensure PulseAudio is not grabbing it.
 - **PulseAudio interference** — If PulseAudio is running, it can monopolize the audio device. Disable it: `systemctl --user stop pulseaudio.socket pulseaudio.service`.
 
