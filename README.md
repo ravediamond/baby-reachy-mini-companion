@@ -280,6 +280,61 @@ To enable the remote interface:
 
 The entire pipeline runs on-device: audio is captured and processed through VAD, STT, and the LLM with tool calling. The LLM autonomously invokes tools (camera, motion, Signal alerts) based on context. TTS output is streamed back with audio-reactive head movement for natural-looking speech.
 
+## Latency & Performance
+
+Real-time conversation requires **at least 25 tokens per second** from the LLM. Below that, responses feel sluggish and the user experience breaks down — especially when the robot also needs to handle autonomous detection (cry alerts, danger scanning) concurrently with conversation. Every optimization in this project exists to keep the pipeline responsive on consumer hardware.
+
+### Why 3B–4B models
+
+Larger models (7B+) produce better text but are too slow for real-time conversation on consumer hardware. A 7B model on Ollama (Mac M1) generates ~15 tok/s — well below the 25 TPS threshold. On Jetson Orin with vLLM, a 4B quantized model hits ~29 tok/s while a 7B model drops to ~12 tok/s. The 3B–4B range is the sweet spot: fast enough for conversational latency with sufficient reasoning and tool-calling capability.
+
+### LLM warmup and KV cache priming
+
+The first LLM request after startup is always slower — the model loads into memory and the KV cache is empty. To eliminate this cold-start penalty, the app sends a warmup request (`"hi"` with the full tool specification) during initialization, before the user speaks. This pre-fills the KV cache with the system prompt and tool definitions, so the first real user request gets the same speed as subsequent ones.
+
+```python
+# handler.py — Pre-warm LLM with tools to avoid cold start delay
+async for _ in self.llm.chat_stream(user_text="hi", tools=self.tool_specs):
+    pass
+self.llm.history = []  # Clear warmup from conversation history
+```
+
+### Streaming sentence-level TTS
+
+The LLM response is streamed token-by-token. Instead of waiting for the complete response before synthesizing speech, the pipeline splits on sentence boundaries (`.` `!` `?` `\n`) and sends each sentence to TTS immediately. This means the robot starts speaking the first sentence while the LLM is still generating the rest.
+
+TTS synthesis itself (Kokoro ONNX) runs in a thread pool (`asyncio.to_thread`) to avoid blocking the async event loop.
+
+### Bounded conversation history
+
+The LLM context window is kept small: a sliding window of the last 10 messages. Long conversations would otherwise grow the context, increasing latency on every turn (more tokens to process = more time per response). If the context limit is still exceeded, the app prunes 50% of history automatically rather than failing.
+
+### Concurrent architecture
+
+The pipeline runs multiple subsystems in parallel, each in its own async task or dedicated thread:
+
+| Subsystem | Frequency | Thread model | Purpose |
+|-----------|-----------|--------------|---------|
+| **Movement control** | 100 Hz | Dedicated thread | Monotonic-clock phase-aligned robot motion |
+| **Camera polling** | ~30 Hz | Dedicated thread | Frame capture with thread-safe locking |
+| **Head wobbler** | 50ms hops | Dedicated thread | Audio-reactive head movement during speech |
+| **VAD processing** | 32ms chunks | Async task | Low-latency speech detection (512 samples @ 16kHz) |
+| **Audio classification** | 1s windows | Async + thread pool | YAMNet cry/sound detection |
+| **Danger detection** | Every 2s | Async + thread pool | YOLO object scanning, 30s throttle between alerts |
+| **Signal polling** | Every 2s | Async task | Remote message polling |
+| **Record loop** | Continuous | Async task | Microphone capture |
+| **Play loop** | Continuous | Async task | Speaker output |
+
+CPU-bound operations (STT, TTS, YOLO, YAMNet, model loading) all run in thread pools via `asyncio.to_thread` to avoid blocking the event loop.
+
+### STT optimization
+
+Faster-Whisper runs with `int8` quantization by default, reducing memory and increasing inference speed. The default model (`small.en`, 244M parameters) balances accuracy with speed. A 640ms lookback buffer captures speech onsets that the VAD might initially miss.
+
+### Echo suppression
+
+When the robot is speaking (TTS playing), the microphone picks up its own voice. Without suppression, this creates a feedback loop where the robot responds to itself. The pipeline suppresses VAD detection during TTS playback and for 3 seconds after it finishes, preventing false triggers without missing real speech.
+
 ## Deployment Scenarios
 
 The app runs on a Mac (or any desktop). The Jetson Orin is used **only as a vLLM inference server** — the conversation app itself does not run on the Jetson.

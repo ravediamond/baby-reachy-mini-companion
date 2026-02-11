@@ -207,6 +207,8 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, LLM, TTS, VLM, YOLO, YAMNet on-device</div>
             <div class="diff-item"><strong>Safety Monitor</strong> &mdash; YOLO detects hazards, VLM analyzes, Signal alerts you</div>
             <div class="diff-item"><strong>Jetson vLLM</strong> &mdash; Offload LLM inference to a Jetson Orin via NVIDIA AI containers with quantized models</div>
+            <div class="diff-item"><strong>25+ TPS</strong> &mdash; KV cache warmup, streaming TTS, and 3B&ndash;4B models tuned for real-time conversation</div>
+            <div class="diff-item"><strong>Concurrent Pipeline</strong> &mdash; 100Hz motion, 30Hz camera, speech detection, and safety scanning run in parallel</div>
         </div>
 
         <!-- All-in-one companion -->
