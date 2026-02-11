@@ -222,68 +222,48 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="diff-item"><strong>Concurrent Pipeline</strong> &mdash; 100Hz motion, 30Hz camera, speech detection, and safety scanning run in parallel</div>
         </div>
 
-        <!-- All-in-one companion -->
-        <div class="section-label">All-in-one solution</div>
-        <div class="section-title">A complete companion for your child</div>
-
-        <div class="benefit-grid">
-            <div class="card">
-                <div class="card-icon card-icon-pink">&#x1F3AD;</div>
-                <h3>Entertain</h3>
-                <p>Play, chat, and interact with your child &mdash; all screen-free. Voice conversations, dances, and expressive movements keep them engaged naturally.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-blue">&#x1F319;</div>
-                <h3>Soothe &amp; Sleep</h3>
-                <p>Sing lullabies and nursery rhymes to calm or put your baby to sleep. Gentle rocking motions and soft speech create a soothing bedtime routine.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-amber">&#x2728;</div>
-                <h3>Spark Imagination</h3>
-                <p>Tell stories tailored to your child's world &mdash; pick characters, animals, or themes and let the companion weave them into an adventure.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-green">&#x1F393;</div>
-                <h3>Learn &amp; Discover</h3>
-                <p>Recite the alphabet, explore animals, discover the solar system &mdash; interactive lessons adapted to your child's curiosity and pace.</p>
-            </div>
-        </div>
-
         <!-- Features -->
-        <div class="section-label">Capabilities</div>
-        <div class="section-title">What it can do</div>
+        <div class="section-label">Features</div>
+        <div class="section-title">What it does for your family</div>
 
         <div class="feature-grid">
             <div class="card">
                 <div class="card-icon card-icon-pink">&#x1F476;</div>
-                <h3>Baby Monitor</h3>
-                <p>Detects crying via YAMNet audio classification and scans for dangerous objects via YOLO. Soothes the baby, triggers VLM analysis, and sends Signal alerts.</p>
+                <h3>Baby Safety Monitor</h3>
+                <p>Listens for crying and scans for dangerous objects near the baby. Automatically soothes with lullabies and rocking, and sends you a photo alert via Signal so you know what's happening even from another room.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-purple">&#x1F3A4;</div>
-                <h3>Voice Conversation</h3>
-                <p>Natural speech interaction using local STT (Faster-Whisper), LLM (Qwen via Ollama or vLLM), and TTS (Kokoro).</p>
+                <h3>Voice Companion</h3>
+                <p>Your child talks, the robot listens and responds naturally &mdash; no screen needed. Conversations, silly jokes, and interactive play that keep them engaged through voice alone.</p>
             </div>
             <div class="card">
-                <div class="card-icon card-icon-blue">&#x1F441;</div>
-                <h3>Vision</h3>
-                <p>Sees and describes the world through the camera using a local multimodal LLM. Play "I Spy" or ask "What do you see?"</p>
+                <div class="card-icon card-icon-blue">&#x1F319;</div>
+                <h3>Soothe &amp; Bedtime</h3>
+                <p>Sings lullabies and nursery rhymes with gentle rocking motions to calm your baby or ease them to sleep. A soft, consistent bedtime routine without you having to be there every second.</p>
             </div>
             <div class="card">
-                <div class="card-icon card-icon-green">&#x1F4F1;</div>
-                <h3>Remote Alerts</h3>
-                <p>Sends instant notifications and photos to your phone via Signal when the baby needs attention.</p>
+                <div class="card-icon card-icon-amber">&#x2728;</div>
+                <h3>Stories &amp; Imagination</h3>
+                <p>Tells interactive stories with characters your child picks &mdash; animals, superheroes, or their own name woven into an adventure. Sparks creativity without a tablet.</p>
             </div>
             <div class="card">
-                <div class="card-icon card-icon-amber">&#x1F57A;</div>
-                <h3>Expressive Motion</h3>
-                <p>Dances, emotional antenna expressions, face tracking, and speech-reactive head movement.</p>
+                <div class="card-icon card-icon-green">&#x1F441;</div>
+                <h3>Vision &amp; Discovery</h3>
+                <p>Sees the world through its camera and describes what's there. Play "I Spy", ask "What do you see?", or let it teach your child about objects, animals, and colours around them.</p>
             </div>
             <div class="card">
-                <div class="card-icon card-icon-red">&#x1F50A;</div>
-                <h3>Sound Awareness</h3>
-                <p>Reacts to environmental sounds &mdash; laughter, coughing, alarms &mdash; for context-aware autonomous responses.</p>
+                <div class="card-icon card-icon-red">&#x1F57A;</div>
+                <h3>Expressive &amp; Alive</h3>
+                <p>Dances, wiggles its antennas to show emotions, tracks faces, and moves its head while speaking. A companion that feels present and responsive, not a static speaker.</p>
             </div>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="callout" style="margin-bottom: 2.5rem;">
+            <strong>Note:</strong> This is a personal project and technology demonstration &mdash; not a finished product.
+            It is not intended to replace parental supervision or serve as a certified childcare device.
+            Always supervise your child around any robotic device.
         </div>
 
         <!-- Architecture -->

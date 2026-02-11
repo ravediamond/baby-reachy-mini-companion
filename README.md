@@ -50,24 +50,19 @@ A few things that inform the design:
 - **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
 - **NVIDIA Jetson vLLM**: Offload LLM inference to a Jetson Orin running GPU-accelerated vLLM via NVIDIA's official AI containers, with quantized models tuned for Jetson's memory bandwidth
 
-## A Complete Companion
+## Features
 
-An all-in-one solution for your child — no screens required:
+- **Baby Safety Monitor** — Listens for crying (YAMNet) and scans for dangerous objects (YOLO). Automatically soothes the baby with lullabies and rocking, and sends you a photo alert via Signal so you know what's happening from another room.
+- **Voice Companion** — Your child talks, the robot listens and responds naturally — no screen needed. Conversations, jokes, and interactive play through voice alone.
+- **Soothe & Bedtime** — Sings lullabies and nursery rhymes with gentle rocking motions to calm your baby or ease them to sleep.
+- **Stories & Imagination** — Tells interactive stories with characters your child picks — sparks creativity without a tablet.
+- **Vision & Discovery** — Sees the world through its camera using a local VLM. Play "I Spy", ask "What do you see?", or let it teach your child about what's around them.
+- **Remote Alerts** — Talk to Reachy via Signal when you're away. Get instant text and photo notifications when the baby needs attention.
+- **Expressive Motion** — Dances, emotional antenna expressions, face tracking (YOLO), and audio-reactive head movement make it feel present and alive.
+- **Privacy First** — All processing — voice, vision, and chat — happens locally on your device. No cloud, no data leaves your home.
 
-- **Entertain** — Play, chat, and interact through voice conversations, dances, and expressive movements. Screen-free engagement that keeps your child naturally entertained.
-- **Soothe & Sleep** — Sing lullabies and nursery rhymes to calm or put your baby to sleep. Gentle rocking motions and soft speech for a soothing bedtime routine.
-- **Spark Imagination** — Tell stories tailored to your child's world. Pick characters, animals, or themes and let the companion weave them into an adventure.
-- **Learn & Discover** — Recite the alphabet, explore animals, discover the solar system — interactive lessons adapted to your child's curiosity and pace.
-
-## Key Features
-
-- **Omni-Channel Interaction:** Talk to Reachy naturally in the room, or text it via Signal when you're away.
-- **Baby Monitor Mode:** Continuously listens for baby cries using an on-device audio classifier (YAMNet). If a cry is detected, it automatically soothes the baby and sends you a Signal alert.
-- **Smart Sound Detection:** Beyond crying, Reachy can detect and react to other environmental sounds (like coughing, laughing, or shouting), enabling context-aware interactions.
-- **Local Vision (VLM):** Uses your local multimodal LLM (like Qwen 2.5 VL via Ollama) to see and describe the world through the `camera` tool.
-- **Neural Speech:** High-quality TTS via `Kokoro` (ONNX) and fast STT via `faster-whisper`.
-- **Smart Motion:** Integrated head tracking (YOLO), expressive dances, and emotional gestures.
-- **Privacy First:** All processing—voice, vision, and chat—happens locally on your device.
+> [!IMPORTANT]
+> This is a personal project and technology demonstration — not a finished product. It is not intended to replace parental supervision or serve as a certified childcare device. Always supervise your child around any robotic device.
 
 ## Installation
 
