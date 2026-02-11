@@ -86,14 +86,19 @@ async function saveKey(key) {
 }
 
 // ---------- Local LLM Settings API ----------
-async function fetchAppMode() {
-  try {
-    const url = new URL("/app_mode", window.location.origin);
-    url.searchParams.set("_", Date.now().toString());
-    const resp = await fetchWithTimeout(url, {}, 2000);
-    if (resp.ok) return await resp.json();
-  } catch (e) {}
-  return { mode: "openai" }; // fallback for older backends
+async function fetchAppMode(timeoutMs = 30000) {
+  // Retry until the route is available (routes register after backend init)
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      const url = new URL("/app_mode", window.location.origin);
+      url.searchParams.set("_", Date.now().toString());
+      const resp = await fetchWithTimeout(url, {}, 2000);
+      if (resp.ok) return await resp.json();
+    } catch (e) {}
+    if (Date.now() >= deadline) return { mode: "openai" };
+    await sleep(500);
+  }
 }
 
 async function fetchLocalLlmSettings() {

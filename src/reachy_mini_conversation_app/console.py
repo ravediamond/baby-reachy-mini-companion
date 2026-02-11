@@ -688,6 +688,21 @@ class LocalStream:
                                 setattr(config, env_key, val)
                             except Exception:
                                 pass
+                    # Reload feature flags from instance .env
+                    for fkey in self._FEATURE_KEYS:
+                        fval = os.getenv(fkey, "").strip()
+                        if fval:
+                            try:
+                                setattr(config, fkey, fval.lower() == "true")
+                            except Exception:
+                                pass
+                    # Reload mic gain
+                    mic_val = os.getenv("MIC_GAIN", "").strip()
+                    if mic_val:
+                        try:
+                            config.MIC_GAIN = float(mic_val)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
