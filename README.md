@@ -27,7 +27,7 @@ This "Dual-Interface" companion can interact with you both **locally via voice**
 
 I'm a new dad on a mission: building a nursery companion that actually respects our privacy. I wanted a "cool nanny bot" that plays and helps out with the baby — without sending a single byte of data to the cloud. What happens at home stays at home.
 
-Beyond this project, I want to prove that high-end robotics can run on consumer hardware (a Mac or a Jetson Orin) instead of massive servers or cloud subscriptions. If companion robotics only works on expensive cloud platforms, adoption will stay limited to tech demos. Running locally on a $200 Jetson or a Mac anyone already owns is how this technology actually reaches homes.
+Beyond this project, I want to prove that high-end robotics can run on consumer hardware — a Mac for the app and a $200 Jetson Orin for GPU inference — instead of massive servers or cloud subscriptions. If companion robotics only works on expensive cloud platforms, adoption will stay limited to tech demos. Running locally on hardware anyone can afford is how this technology actually reaches homes.
 
 ### On AI Companions and Children
 
@@ -48,7 +48,7 @@ A few things that inform the design:
 - **7+ AI models on-device**: VAD, STT, LLM, TTS, VLM, YOLO, and YAMNet — orchestrated together in a single pipeline
 - **Autonomous safety**: Detects baby cries and soothes automatically. YOLO continuously scans for dangerous objects near the baby and triggers a VLM analysis with a Signal photo alert to the parent — all decided by the LLM, not a script
 - **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
-- **NVIDIA Jetson native**: Runs on Jetson Orin using NVIDIA's official AI containers (`ghcr.io/nvidia-ai-iot/vllm`) with GPU-accelerated vLLM inference, quantized models tuned for Jetson's memory bandwidth, and YOLO on GPU for real-time vision
+- **NVIDIA Jetson vLLM**: Offload LLM inference to a Jetson Orin running GPU-accelerated vLLM via NVIDIA's official AI containers, with quantized models tuned for Jetson's memory bandwidth
 
 ## A Complete Companion
 
@@ -112,7 +112,6 @@ The core voice pipeline — **faster-whisper** (STT), **Kokoro** (TTS), **Silero
 | Extra | What it provides |
 |-------|-----------------|
 | `yolo_vision` | YOLO-based face tracking and danger detection (ultralytics, supervision) |
-| `mediapipe_vision` | MediaPipe-based face tracking (lighter alternative to YOLO) |
 | `reachy_mini_wireless` | GStreamer wireless support (PyGObject, gst-signalling) |
 | `local` | All of the above combined |
 
@@ -283,7 +282,7 @@ The entire pipeline runs on-device: audio is captured and processed through VAD,
 
 ## Deployment Scenarios
 
-The app supports three deployment configurations depending on your hardware.
+The app runs on a Mac (or any desktop). The Jetson Orin is used **only as a vLLM inference server** — the conversation app itself does not run on the Jetson.
 
 ### 1. Everything on Mac (default)
 
@@ -300,25 +299,11 @@ LOCAL_LLM_URL="http://localhost:11434/v1"
 LOCAL_LLM_MODEL="qwen2.5:3b"
 ```
 
-### 2. App on Mac, vLLM on Jetson Orin (hybrid)
+### 2. App on Mac, vLLM on Jetson Orin
 
-Run the app and audio pipeline on the Mac, but offload LLM inference to a Jetson Orin running [vLLM](https://docs.vllm.ai/) for GPU-accelerated inference.
+Run the app and audio pipeline on the Mac, but offload LLM inference to a Jetson Orin running [vLLM](https://docs.vllm.ai/) for GPU-accelerated inference. This gives you faster token generation than CPU-based Ollama while keeping the audio/robot pipeline on the Mac.
 
-**On the Jetson**, enable max performance and start vLLM:
-```bash
-# Enable max performance on Jetson
-sudo nvpmodel -m 0
-sudo jetson_clocks
-
-# Start vLLM via Docker (text-only, quantized for speed)
-docker run --rm -it --runtime nvidia --network host \
-  -v ~/.cache/huggingface:/root/.cache/huggingface \
-  ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin \
-  vllm serve RedHatAI/Qwen3-4B-quantized.w4a16 \
-  --served-model-name qwen --port 30000 --dtype half \
-  --trust-remote-code --gpu-memory-utilization 0.80 \
-  --max-model-len 4096 --max-num-seqs 2
-```
+See [Setting Up vLLM on Jetson Orin](#setting-up-vllm-on-jetson-orin) for the full Jetson setup guide.
 
 **On the Mac**, create an SSH tunnel to forward the vLLM port:
 ```bash
@@ -337,30 +322,39 @@ Run the app normally on Mac:
 uv run reachy-mini-conversation-app
 ```
 
-### 3. Everything on Jetson Orin
+## Setting Up vLLM on Jetson Orin
 
-Run the full app directly on the Jetson Orin, including STT, TTS, LLM, and robot control.
+This section covers running vLLM on a Jetson Orin NX (16GB) as a remote LLM inference server for the conversation app.
 
-#### Jetson performance setup
+### Jetson preparation
+
+#### Power mode
+
+Set the Jetson to maximum performance mode. This is **required** for acceptable inference speed — the default power mode throttles the GPU significantly.
+
 ```bash
-# Enable max performance mode (REQUIRED for good inference speed)
+# Enable MAXN power mode
 sudo nvpmodel -m 0
 sudo jetson_clocks
 ```
 
-#### Why quantized models matter on Jetson
+#### Headless operation
 
-The Jetson Orin NX has **limited memory bandwidth** (~102 GB/s) compared to desktop GPUs. Since LLM inference is memory-bandwidth-bound (loading model weights from VRAM for each token), **quantized models are essential** for acceptable speed:
+The Jetson typically runs headless (no display). Connect via SSH and manage everything from the terminal. If you need to adjust audio levels, note that `alsamixer` requires an interactive terminal — it will block in a non-interactive shell. Use `amixer` for scriptable audio control instead:
 
-- **FP16** (full precision): Large memory footprint, limited by bandwidth. Slower on Jetson.
-- **W4A16** (4-bit weights, 16-bit activations): ~4x less memory, ~4x faster token throughput. The sweet spot for Jetson.
-- **AWQ-4bit**: Similar to W4A16, hardware-aware quantization with minimal quality loss.
+```bash
+# Check audio devices
+arecord -l
 
-A 4B model at W4A16 fits comfortably in the Orin NX's 16GB and runs at ~30 tok/s. The same model at FP16 would be significantly slower and may not fit at all.
+# Adjust mic level (scriptable, unlike alsamixer)
+amixer -c 1 set Mic 80%
+```
 
-#### LLM server — vLLM via Docker (recommended)
+### Docker containers
 
-The NVIDIA Jetson container for vLLM provides a pre-built image optimized for the Orin architecture. The official container ships with **vLLM v0.11**. A newer build with **vLLM v0.14** is also available and provides better performance and model support — check [NVIDIA's Jetson AI containers](https://github.com/dusty-nv/jetson-containers) for the latest.
+NVIDIA provides pre-built Docker images for vLLM optimized for Jetson's architecture. Use these instead of building from source — they include the correct CUDA toolkit and are tested against Jetson's unified memory architecture.
+
+The official container ships with **vLLM v0.11**. A newer community build with **vLLM v0.14.0** is available from [NVIDIA's Jetson AI containers](https://github.com/dusty-nv/jetson-containers) and provides better performance, improved scheduling, and broader model support. We recommend v0.14.0 when available.
 
 **Text-only (fastest):**
 ```bash
@@ -385,21 +379,38 @@ docker run --rm -it --runtime nvidia --network host \
   --max-num-seqs 1
 ```
 
-Set in `.env`:
-```env
-LOCAL_LLM_URL="http://localhost:30000/v1"
-LOCAL_LLM_MODEL="qwen"
-LOCAL_LLM_API_KEY="token-abc123"
-MIC_GAIN=5000.0
+### Why quantized models matter on Jetson
+
+The Jetson Orin NX has **limited memory bandwidth** (~102 GB/s) compared to desktop GPUs. Since LLM inference is memory-bandwidth-bound (loading model weights from VRAM for each token), **quantized models are essential** for acceptable speed:
+
+- **FP16** (full precision): Large memory footprint, limited by bandwidth. Slower on Jetson.
+- **W4A16** (4-bit weights, 16-bit activations): ~4x less memory, ~4x faster token throughput. The sweet spot for Jetson.
+- **AWQ-4bit**: Similar to W4A16, hardware-aware quantization with minimal quality loss.
+
+A 4B model at W4A16 fits comfortably in the Orin NX's 16GB and runs at ~30 tok/s. The same model at FP16 would be significantly slower and may not fit at all.
+
+> [!TIP]
+> **Use quantized models** (W4A16, AWQ-4bit, GGUF Q4) on Jetson. The memory bandwidth bottleneck means FP16 models run much slower with no meaningful quality gain for conversational use cases.
+
+### Monitoring and debugging
+
+Use NVIDIA's tools to monitor GPU utilization, memory bandwidth, and thermal throttling:
+
+```bash
+# jtop — Jetson-specific system monitor (GPU, CPU, RAM, temps, power)
+# Install: sudo pip3 install jetson-stats
+jtop
+
+# tegrastats — raw GPU/memory utilization from the terminal
+sudo tegrastats --interval 1000
+
+# Check vLLM is serving correctly
+curl http://localhost:30000/v1/models
 ```
 
-> [!IMPORTANT]
-> **Microphone on Jetson**: The ALSA driver reports very low mic levels. You **must** set `MIC_GAIN` to a high value (e.g., `5000.0`). Without this, the VAD will never trigger.
+`jtop` is particularly useful for verifying that MAXN power mode is active and that the GPU is actually being utilized during inference. `tegrastats` shows real-time memory bandwidth usage — critical for understanding whether your quantized model is hitting the bandwidth ceiling.
 
-> [!NOTE]
-> On Jetson (Linux), the SDK audio path works correctly — ALSA's `dsnoop` plugin allows the daemon and app to share the USB mic. You do **not** need `--deactivate-audio` in this scenario. If you still have issues, check PulseAudio (see [Troubleshooting](#troubleshooting)).
-
-#### LLM engine benchmarks on Jetson Orin NX (16GB)
+### Benchmarks on Jetson Orin NX (16GB)
 
 | Engine | Model | Quantization | TPS | Notes |
 |--------|-------|-------------|-----|-------|
@@ -409,16 +420,50 @@ MIC_GAIN=5000.0
 | **llama.cpp** | Qwen2.5-3B | GGUF Q4_K_M | ~23 | Built natively for Jetson aarch64. Functional but slower than vLLM for equivalent models due to less GPU optimization. |
 | **Ollama** | qwen2.5:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
 
-> [!TIP]
-> **Use quantized models** (W4A16, AWQ-4bit, GGUF Q4) on Jetson. The memory bandwidth bottleneck means FP16 models run much slower with no meaningful quality gain for conversational use cases.
+### RAM management
 
-#### RAM management
-
-If the Jetson runs out of memory after stopping vLLM:
+The Jetson has 16GB of unified memory shared between CPU and GPU. If the Jetson runs out of memory after stopping vLLM:
 ```bash
 docker stop $(docker ps -q)
 docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches
 ```
+
+## Why Not Run Everything on Jetson?
+
+We initially attempted to run the full conversation app (STT, TTS, VAD, YOLO, MediaPipe, audio pipeline, robot control) alongside vLLM on the Jetson Orin. It works — there is a [working Jetson-native version](cloned_repo_jetson/) in this repo — but the experience taught us it's not the right approach for this project. Here's why:
+
+### Memory pressure
+
+The Jetson Orin NX has **16GB of unified memory** shared between CPU and GPU. vLLM alone needs 8-10GB for a 4B quantized model. Adding the Python runtime, PyTorch, faster-whisper, YOLO, MediaPipe, and the Reachy Mini daemon leaves almost no headroom. The system swaps constantly, killing inference speed and making the whole experience sluggish.
+
+### Python overhead
+
+Each Python process (STT, TTS, YOLO, the app itself) loads its own interpreter, its own copies of NumPy/PyTorch, and its own model weights. On a desktop with 32-64GB this is fine. On a 16GB Jetson where every megabyte counts, it's wasteful. The conversation app alone can use 2-3GB of RAM before the LLM even loads.
+
+### Audio on headless Jetson
+
+ALSA on Jetson reports very low microphone levels by default, requiring extreme gain values (`MIC_GAIN=5000.0`). Adjusting ALSA mixer levels with `alsamixer` requires an interactive terminal — problematic on a headless device. PulseAudio can interfere with device access and needs to be disabled. These are solvable but add friction to an already constrained environment.
+
+### The Reachy Mini daemon
+
+The Reachy Mini daemon needs to run alongside the app for robot control (Zenoh communication). On Linux, ALSA's `dsnoop` allows audio sharing between the daemon and app, but the daemon itself consumes resources. Starting it correctly with the right serial port (`--serialport /dev/ttyACM0`) and managing its lifecycle on a headless Jetson adds operational complexity.
+
+### Our conclusion
+
+The Jetson Orin is excellent at **one thing**: GPU-accelerated LLM inference via vLLM in a Docker container. It does this better and cheaper than any cloud API. But trying to run 7+ AI models, a robot control daemon, audio processing, and an LLM server all on 16GB of unified memory creates a resource-constrained environment where everything runs worse.
+
+The hybrid approach (app on Mac, vLLM on Jetson) plays to each device's strengths: the Mac handles audio, vision, and orchestration with plenty of RAM, while the Jetson focuses exclusively on fast LLM inference.
+
+## Future: Optimized On-Device Deployment
+
+Running everything on a Jetson *could* work well with the right architecture — but it requires moving away from Python-per-model toward a systems-level approach:
+
+- **[dora-rs](https://dora-rs.ai/)** — A Rust-based robotics dataflow framework with zero-copy shared memory. Instead of each Python process holding its own copy of data, dora-rs nodes share tensors through memory-mapped buffers. On a unified memory device like the Jetson, this eliminates redundant copies entirely.
+- **Rust daemon** — The Reachy Mini SDK includes a Rust-based daemon. Using it natively (instead of the Python wrapper) would eliminate one Python process and its memory overhead.
+- **DLA cores** — The Jetson Orin has **2 Deep Learning Accelerator** (DLA) cores that can run inference independently of the GPU. YOLO and MediaPipe models can be compiled to DLA via TensorRT, freeing the GPU entirely for vLLM. This is the key to running vision + LLM simultaneously without contention.
+- **C++ inference** — Running STT (whisper.cpp) and TTS natively instead of through Python wrappers would dramatically reduce memory footprint.
+
+This would be a significant engineering effort but would make a truly self-contained Jetson deployment viable.
 
 ## Troubleshooting
 
@@ -426,7 +471,7 @@ docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_cache
 - **"Connection refused" from LLM** — Make sure your Ollama (or other LLM server) is running and the URL is correct (check `.env` or the settings UI).
 - **Slow first response** — The app pre-warms the LLM on startup. If using Ollama, the first model load can be slow; subsequent requests are fast.
 - **STT too slow or inaccurate** — Try a different STT model. `tiny.en` is fastest, `medium.en` is most accurate, `small.en` is a good balance.
-- **MediaPipe/YOLO import errors** — Make sure you installed the right extra: `uv sync --extra mediapipe_vision` or `uv sync --extra yolo_vision`.
+- **MediaPipe/YOLO import errors** — MediaPipe is included in the base install. For YOLO, install the extra: `uv sync --extra yolo_vision`.
 - **Settings not taking effect** — In headless mode, settings are applied when you click Start. If already running, stop and start again.
 - **Robot repeats itself / echo loop** — The microphone is picking up the robot's own TTS output. The app has built-in echo suppression (VAD is muted during and 3 seconds after each response), but if your speaker is very loud or close to the mic, try reducing the volume or increasing the distance between them.
 
@@ -439,11 +484,12 @@ docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_cache
 - **"Audio input buffer overflowed" spam in logs** — This happens when using a direct mic (via the selector) while the SDK recording is also active. The app handles this automatically — if you see it, it's harmless but indicates the SDK recording stream is being drained by nobody. Restarting should clear it.
 - **Test microphone button shows "no signal"** — The selected device is returning silence. Try a different device in the dropdown, or check system audio permissions.
 
-### Jetson Orin
-- **Microphone not working** — The most common issue. Set `MIC_GAIN=5000.0` in `.env`. The Jetson ALSA driver reports near-silent mic levels by default, so the VAD never detects speech.
-- **Speaker volume too low** — ALSA output is also quiet on Jetson. You may need to adjust ALSA mixer levels with `alsamixer` or `amixer`.
-- **Wrong audio device selected** — Jetson often has multiple sound cards. Check which one is "Reachy Mini Audio" with `arecord -l` and ensure PulseAudio is not grabbing it.
-- **PulseAudio interference** — If PulseAudio is running, it can monopolize the audio device. Disable it: `systemctl --user stop pulseaudio.socket pulseaudio.service`.
+### Jetson Orin (vLLM server)
+- **vLLM container won't start** — Check that NVIDIA runtime is installed (`docker info | grep nvidia`) and that MAXN power mode is set (`sudo nvpmodel -m 0`).
+- **Out of memory** — vLLM needs 8-10GB for a 4B model. Stop other containers and clear caches: `docker system prune -f && sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches`.
+- **Slow inference** — Verify power mode with `jtop`. If "15W" or similar is shown instead of "MAXN", run `sudo nvpmodel -m 0 && sudo jetson_clocks`. Use quantized models (W4A16/AWQ-4bit) — FP16 is too slow on Jetson's bandwidth.
+- **Model not found** — After starting vLLM, verify with `curl http://localhost:30000/v1/models`. The `--served-model-name` flag determines the model name the app should use.
+- **SSH tunnel disconnects** — Use `ssh -fNL 30000:localhost:30000 user@jetson-ip` to run the tunnel in the background, or use `autossh` for automatic reconnection.
 
 ## Capabilities & Tools
 

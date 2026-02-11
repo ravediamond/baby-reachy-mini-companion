@@ -177,7 +177,6 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="deploy-tags">
             <span class="deploy-tag"><span class="deploy-tag-dot dot-green"></span> Mac (Ollama)</span>
             <span class="deploy-tag"><span class="deploy-tag-dot dot-blue"></span> Mac + Jetson vLLM</span>
-            <span class="deploy-tag"><span class="deploy-tag-dot dot-purple"></span> Jetson Orin (fully local)</span>
         </div>
 
         <!-- Mission -->
@@ -194,7 +193,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <div class="diff-grid">
             <div class="diff-item"><strong>Privacy first</strong> &mdash; Something running in your home, around your child, should never send data to a third party</div>
-            <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac or a $200 Jetson &mdash; not a data center. That's how robotics reaches homes</div>
+            <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac with a $200 Jetson for GPU inference &mdash; not a data center. That's how robotics reaches homes</div>
             <div class="diff-item"><strong>Physically safe</strong> &mdash; Reachy Mini has no hands or manipulators &mdash; it can express and communicate, not grab or push. Its antennas are only used for emotional expression</div>
             <div class="diff-item"><strong>Empathy matters</strong> &mdash; A robot that ignores human distress has failed. Detecting emotions and responding with care is the goal</div>
         </div>
@@ -207,7 +206,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="diff-item"><strong>100% Local</strong> &mdash; No cloud APIs, no internet required</div>
             <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, LLM, TTS, VLM, YOLO, YAMNet on-device</div>
             <div class="diff-item"><strong>Safety Monitor</strong> &mdash; YOLO detects hazards, VLM analyzes, Signal alerts you</div>
-            <div class="diff-item"><strong>NVIDIA Jetson</strong> &mdash; GPU-accelerated vLLM via official NVIDIA AI containers</div>
+            <div class="diff-item"><strong>Jetson vLLM</strong> &mdash; Offload LLM inference to a Jetson Orin via NVIDIA AI containers with quantized models</div>
         </div>
 
         <!-- All-in-one companion -->
