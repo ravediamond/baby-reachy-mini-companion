@@ -163,7 +163,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
     """)
 
     gr.Image(
-        value="docs/assets/reachy.gif",
+        value="docs/assets/baby-reachy-mini.jpg",
         show_label=False,
         interactive=False,
         container=False,
