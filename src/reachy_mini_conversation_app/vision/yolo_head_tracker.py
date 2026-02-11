@@ -24,7 +24,7 @@ class HeadTracker:
 
     def __init__(
         self,
-        model_repo: str = "AdamCodd/YOLOv11n-face-detection",
+        model_repo: str = "AdamCodd/YOLOv26n-face-detection",
         model_filename: str = "model.pt",
         confidence_threshold: float = 0.3,
         device: str = "cpu",
