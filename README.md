@@ -467,6 +467,15 @@ curl http://localhost:30000/v1/models
 | **llama.cpp** | Qwen2.5-3B | GGUF Q4_K_M | ~23 | Built natively for Jetson aarch64. Functional but slower than vLLM for equivalent models due to less GPU optimization. |
 | **Ollama** | qwen2.5:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
 
+### vLLM vs llama.cpp: memory–speed tradeoff
+
+The biggest decision on Jetson is which inference engine to use. It comes down to a memory–speed tradeoff:
+
+- **vLLM** (Docker container): Uses **8–10GB** of the 16GB unified memory. Faster inference (~29 tok/s for a 4B model) thanks to PagedAttention, continuous batching, and deep CUDA optimization. But it leaves only 6–8GB for the OS, daemon, and any other processes — tight if you want to run anything else on the Jetson.
+- **llama.cpp / Ollama**: Uses **~5GB** for the same model. About **30% slower** (~20–23 tok/s), but leaves 11GB free. This makes it viable to run lightweight companion processes (audio classification, YOLO) alongside the LLM on the same device.
+
+For a dedicated LLM inference server (our hybrid setup), vLLM is the clear choice — speed matters and nothing else competes for memory. If you want to run more of the stack on-device, llama.cpp's smaller footprint gives you the headroom to do so at the cost of slower generation.
+
 ### RAM management
 
 The Jetson has 16GB of unified memory shared between CPU and GPU. If the Jetson runs out of memory after stopping vLLM:
@@ -509,6 +518,7 @@ Running everything on a Jetson *could* work well with the right architecture —
 - **Rust daemon** — The Reachy Mini SDK includes a Rust-based daemon. Using it natively (instead of the Python wrapper) would eliminate one Python process and its memory overhead.
 - **DLA cores** — The Jetson Orin has **2 Deep Learning Accelerator** (DLA) cores that can run inference independently of the GPU. YOLO models can be compiled to DLA via TensorRT, freeing the GPU entirely for vLLM. This is the key to running vision + LLM simultaneously without contention.
 - **C++ inference** — Running STT (whisper.cpp) and TTS natively instead of through Python wrappers would dramatically reduce memory footprint.
+- **NVIDIA NeMo models** — The pipeline is model-agnostic, and NVIDIA's NeMo-originated models could replace the current audio stack on Jetson: **MarbleNet** (VAD, optimized for noisy environments), **Parakeet TDT** (STT, transducer architecture for lower-latency streaming recognition), and **FastPitch + HiFi-GAN** (TTS, with explicit pitch/speed control). All three are available in ONNX format via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and can be compiled to TensorRT or run on the DLA cores, freeing the GPU entirely for LLM inference.
 
 This would be a significant engineering effort but would make a truly self-contained Jetson deployment viable.
 
