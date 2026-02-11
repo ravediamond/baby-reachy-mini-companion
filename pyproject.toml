@@ -33,6 +33,9 @@ dependencies = [
     #Required at import time by camera_worker and console
     "scipy",
 
+    #Head tracking (MediaPipe)
+    "mediapipe==0.10.14",
+
     #Local AI pipeline (STT/TTS/VAD)
     "torch>=2.4.0",
     "silero-vad",
@@ -46,15 +49,12 @@ yolo_vision = [
   "ultralytics",
   "supervision",
 ]
-mediapipe_vision = [
-  "mediapipe==0.10.14",
-]
 reachy_mini_wireless = [
   "PyGObject>=3.42.2,<=3.46.0",
   "gst-signalling>=1.1.2",
 ]
 local = [
-  "reachy_mini_conversation_app[yolo_vision,mediapipe_vision,reachy_mini_wireless]",
+  "reachy_mini_conversation_app[yolo_vision,reachy_mini_wireless]",
 ]
 
 [dependency-groups]

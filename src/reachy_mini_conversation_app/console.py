@@ -698,7 +698,7 @@ class LocalStream:
                         except Exception:
                             pass
                     # Reload local LLM settings from instance .env
-                    for env_key in ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL"):
+                    for env_key in ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL", "SIGNAL_USER_PHONE"):
                         val = os.getenv(env_key, "").strip()
                         if val:
                             try:
