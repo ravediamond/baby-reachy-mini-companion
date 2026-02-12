@@ -29,9 +29,11 @@ Audio → Silero VAD → Faster-Whisper STT → Ollama LLM (with tool calling) �
 ```
 
 ### Autonomous Detection Loops (run in background)
-- **Audio classifier** (YAMNet): Detects baby cries → injects system event into LLM → LLM decides to soothe + alert parent
-- **Danger detector** (YOLO): Scans camera every 2s for hazardous objects (scissors, knives, forks) → triggers VLM camera analysis → Signal photo alert to parent
+- **Audio classifier** (YAMNet): Detects baby cries → sends Signal photo alert directly (bypasses LLM) + injects system event into LLM → LLM calls soothe_baby
+- **Danger detector** (YOLO): Scans camera every 2s for hazardous objects (scissors, knives, forks) → sends Signal photo alert directly (bypasses LLM) + injects system event → LLM speaks warning
 - **Signal poller**: Receives remote text messages → processed through LLM → responds via Signal
+
+**Critical design rule**: Safety-critical notifications (cry alerts, danger alerts) are sent directly in handler code via `_send_cry_photo_alert()` / `_send_danger_photo_alert()`. They do NOT depend on the LLM calling tools — SLMs (3B–4B) can't reliably chain 3+ sequential tool calls.
 
 ### Movement System
 - 100 Hz control loop with monotonic clock phase alignment
@@ -94,10 +96,19 @@ src/reachy_mini_conversation_app/
 ### System Events (autonomous action pattern)
 Used by both audio classifier and danger detector:
 1. Background task detects something (cry, dangerous object)
-2. Calls `_process_system_event(text)` on the handler
-3. Injects `[System Notification: ...]` as a user message into the LLM
-4. LLM runs a full tool-calling loop (max 3 turns) and autonomously decides what to do
-5. Throttled to prevent spam (10s for cries, 30s for danger)
+2. **Direct alert**: Handler sends Signal photo alert immediately (guaranteed delivery)
+3. **LLM event**: Calls `_process_system_event(text)` on the handler
+4. Injects `[System Notification: ...]` as a user message into the LLM
+5. LLM runs a tool-calling loop (max 5 turns) and decides what to do (soothe, speak warning)
+6. Throttled to prevent spam (10s for cries, 30s for danger)
+
+### SLM Tool-Calling Limitations
+SLMs (3B–4B) reliably call 1–2 tools per turn but **fail at 3+ sequential tool calls**. Each tool call consumes one LLM turn (generate call → execute → return result → next turn). With a `max_turns` limit, 3+ calls leave no room for a spoken response. Even with higher limits, the model often generates text instead of making the next tool call.
+
+**Rule**: Never gate safety-critical actions on LLM tool-calling behavior. Use the LLM for reasoning (what to say, whether to soothe) but send notifications/alerts deterministically in code.
+
+### Ollama Streaming Tool Call Bug
+Ollama sends all tool calls under stream index 0, unlike OpenAI which uses distinct indices. The `llm.py` streaming parser uses a `_stream_to_buf` mapping to detect when a new tool name arrives on an already-populated buffer index and assigns a synthetic index. Without this fix, multiple tool calls from Ollama get concatenated into one garbled call.
 
 ### ToolDependencies
 Central dataclass injected into all tools. Contains: `reachy_mini`, `movement_manager`, `camera_worker`, `vision_manager`, `head_wobbler`, `audio_classifier_status`, `vision_threat_status`, `speak_func`, `motion_duration_s`.
@@ -134,8 +145,8 @@ Profiles live in `src/.../profiles/<name>/`. Each has `instructions.txt` (system
 | Audio Streaming | FastRTC | Bidirectional audio |
 
 ### Tested LLM Models
-- `qwen2.5:3b` — recommended default, stable everywhere
-- `ministral:3b` — best reasoning at 3B, but doesn't work on vLLM v0.14 (Jetson)
+- `ministral-3:3b` — **recommended default**, best reasoning at 3B. Does NOT work on vLLM v0.14 (Jetson). Note: the model name has a hyphen (`ministral-3:3b`), not a colon.
+- `qwen2.5:3b` — stable everywhere, good fallback
 - `qwen2.5-vl:3b` — vision model, stable on Ollama and vLLM
 - `qwen3-vl:4b` — better vision, but dynamic patching requires latest engine versions
 
@@ -147,12 +158,12 @@ Profiles live in `src/.../profiles/<name>/`. Each has `instructions.txt` (system
 
 ## Settings Dashboard
 
-The headless settings UI (`static/index.html`) has three panels:
+The headless settings UI (`static/index.html`) has three panels (Features and Personality are collapsible):
 1. **LLM Settings** — Server URL, model, API key, STT model size. Includes a hint about needing Ollama/vLLM running externally.
-2. **Features** — 6 toggle switches (cry detection, auto soothe, danger detection, story time, Signal alerts, head tracking) with prerequisite hints (e.g., "requires signal-cli", "requires `uv sync --extra yolo_vision`"). Signal toggle reveals a phone number input.
-3. **Personality Studio** — Profile selection, instructions editor, tools checkboxes, voice selection.
+2. **Features** (collapsible) — 6 toggle switches (cry detection, auto soothe, danger detection, story time, Signal alerts, head tracking). Signal toggle reveals a phone number input.
+3. **Personality Studio** (collapsible, starts collapsed) — Profile selection, instructions editor, tools checkboxes, voice selection.
 
-Settings are persisted to the instance `.env` file and sent to the handler when the user clicks "Start".
+The **Start button** is positioned below the Features panel. Settings are persisted to the instance `.env` file and sent to the handler when the user clicks "Start".
 
 ## Presentation Assets
 
@@ -168,7 +179,10 @@ Flow: Hero → Deploy tags → **Mission statement** (personal story) → **Desi
 ## Development
 
 ```bash
-# Install
+# Install (base includes full voice pipeline + YOLO vision)
+uv sync
+
+# With wireless Reachy Mini support
 uv sync --extra local
 
 # Configure
@@ -185,14 +199,16 @@ ruff format .
 ruff check . --fix
 mypy --strict .
 pytest tests/ -v
+# Note: tests/test_openai_realtime.py requires fastrtc — use --ignore if not installed
 ```
 
 ## Git & Deployment
 
 - **Main branch**: `develop` (used for PRs)
-- **Current branch**: `feat/make-app-clearer`
+- **Working branch**: `main` — contest submission and HuggingFace Space are deployed from `main`
 - **HuggingFace mirror**: `git push hf main:main` (to `ravediamond/baby-reachy-mini-companion`)
 - **CI**: GitHub Actions — lint, typecheck, tests, uv lock check, semantic release, HF Space sync
+- **Push workflow**: After committing, push to both `origin main` and `hf main:main`
 
 ## Design Philosophy
 
@@ -201,3 +217,13 @@ pytest tests/ -v
 - **Physical safety by design** — Reachy Mini has no hands/manipulators
 - **Empathy is the key to acceptance** — a robot that ignores human distress has failed its purpose
 - **AI companions for children should be explored openly** — better to build transparent, parent-controlled experiences than wait for closed commercial products
+- **Never gate safety on model behavior** — notifications and alerts are deterministic code, not LLM tool calls
+
+## Known Gotchas
+
+- **Kokoro TTS can't handle onomatopoeia** — "Shhh" gets spelled out as "s s s h". Use real words like "Hush now" instead.
+- **YOLO nano model (yolo11n) needs low confidence threshold** — 0.3 works; 0.5 misses most detections for small objects like knives.
+- **Echo suppression timing** — The cooldown must be relative to estimated playback end, not pipeline completion. Pipeline finishes when TTS audio is *queued*, not when it finishes *playing*. `_playback_end_mono` tracks the estimated speaker finish time.
+- **Ollama tool call indices** — Ollama sends all streaming tool calls under index 0 (unlike OpenAI). The `llm.py` parser handles this with synthetic buffer indices.
+- **signal-cli path** — Not always on PATH. `signal_interface.py` checks `/opt/homebrew/bin/signal-cli` and `/usr/local/bin/signal-cli` as fallbacks.
+- **Feature descriptions in docs** — The robot speaks calming words (not sings lullabies). Stories are a fixed list (Three Little Pigs, Goldilocks), not improvised. Keep docs accurate.
