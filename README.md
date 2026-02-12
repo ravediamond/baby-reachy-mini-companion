@@ -17,6 +17,14 @@ Baby cries → robot soothes → parent gets a Signal photo. It also talks, tell
 
 > **The only fully local Reachy Mini AI stack** — 7 AI models running concurrently, autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX. No cloud. No data leaves your home.
 
+### At a glance
+
+- **7 AI models running concurrently** — VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for conversation + sight, all orchestrated in one async pipeline
+- **The robot reasons, not scripts** — a 3B–4B VLM with tool calling autonomously decides what to do: soothe a crying baby, alert you with a photo, describe what it sees, tell a story
+- **~1.5s speech-in → audio-out** — streaming sentence-level TTS, KV cache priming, and 25+ tok/s inference keep the conversation real-time on consumer hardware
+- **Safety alerts are guaranteed** — cry and danger notifications bypass the LLM and are sent directly in code, because [SLMs can't reliably chain 3+ tool calls](#slm-tool-calling-limits)
+- **Runs on a Mac + $700 Jetson** — no cloud, no data center, no subscription. GPU inference via vLLM on NVIDIA Jetson Orin NX
+
 <img src="docs/assets/reachy.gif" width="600" alt="Baby cry detected — Reachy automatically soothes and alerts parent" />
 
 <img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy-Mini Companion — a nursery robot among baby toys" />
@@ -278,6 +286,28 @@ The entire pipeline runs on-device: audio is captured and processed through VAD,
 ## Latency & Performance
 
 Real-time conversation requires **at least 25 tokens per second** from the LLM. Below that, responses feel sluggish and the user experience breaks down — especially when the robot also needs to handle autonomous detection (cry alerts, danger scanning) concurrently with conversation. Every optimization in this project exists to keep the pipeline responsive on consumer hardware.
+
+### Measured pipeline latency
+
+The pipeline logs timing at each stage. Here's what a typical conversation turn looks like:
+
+```
+⏱️ STT: 380ms (2.1s audio)
+⏱️ LLM first token: 120ms
+⏱️ First audio queued: 850ms (speech-in → audio-out)
+⏱️ Pipeline total: 2100ms (STT 380ms + LLM+TTS 1720ms)
+```
+
+| Stage | Typical latency | What happens |
+|-------|----------------|--------------|
+| **STT** (Faster-Whisper) | 300–500ms | Transcribe user speech (int8 quantized, `small.en`) |
+| **LLM first token** | 80–200ms | Time from prompt submission to first generated token |
+| **First audio out** | 800–1500ms | End-to-end: speech stops → robot starts speaking |
+| **Full pipeline** | 1500–3000ms | Complete turn including all TTS synthesis |
+
+> These numbers are from Ollama on a Mac M1 with `ministral-3:3b`. Jetson vLLM with quantized models produces similar LLM latency (~120ms TTFT) with higher token throughput (~29 tok/s vs ~20 tok/s).
+
+The critical metric is **first audio out** — the time from when you stop speaking to when the robot starts responding. At 800–1500ms, the conversation feels natural. Above 2s, it starts feeling sluggish.
 
 ### Why 3B–4B models
 

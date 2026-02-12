@@ -445,10 +445,21 @@ class LocalSessionHandler(AsyncStreamHandler):
         """Run STT -> LLM -> TTS pipeline."""
         if self.stt is None or self.llm is None or self.tts is None:
             return
+
+        # --- Latency tracking ---
+        t_pipeline_start = time.monotonic()
+        t_first_token = 0.0
+        t_first_audio = 0.0
+        first_token_logged = False
+
         # 1. STT
         transcript = await asyncio.to_thread(self.stt.transcribe, audio)
+        t_stt_done = time.monotonic()
         if not transcript.strip():
             return
+
+        stt_ms = (t_stt_done - t_pipeline_start) * 1000
+        logger.info(f"⏱️ STT: {stt_ms:.0f}ms ({len(audio) / 16000:.1f}s audio)")
 
         # Suppress VAD while we generate and play TTS (echo prevention)
         self._active_pipeline_count += 1
@@ -488,9 +499,23 @@ class LocalSessionHandler(AsyncStreamHandler):
                         full_response_text += token
                         current_sentence += token
 
+                        # Track time-to-first-token (first text turn only)
+                        if not first_token_logged and turn == 1:
+                            t_first_token = time.monotonic()
+                            first_token_logged = True
+                            ttft_ms = (t_first_token - t_stt_done) * 1000
+                            logger.info(f"⏱️ LLM first token: {ttft_ms:.0f}ms")
+
                         # Simple sentence splitting for TTS streaming
                         if token in [".", "!", "?", "\n"]:
-                            await self._process_sentence(current_sentence)
+                            await self._process_sentence(
+                                current_sentence,
+                                _latency_cb=self._make_first_audio_cb(t_pipeline_start, t_first_audio)
+                                if t_first_audio == 0.0
+                                else None,
+                            )
+                            if t_first_audio == 0.0:
+                                t_first_audio = time.monotonic()
                             current_sentence = ""
 
                     elif event["type"] == "tool_call":
@@ -532,6 +557,11 @@ class LocalSessionHandler(AsyncStreamHandler):
 
                 # Prepare for next turn
                 # We Loop back with tool_outputs, llm_user_input will be None
+
+            # --- Log total pipeline latency ---
+            t_pipeline_end = time.monotonic()
+            total_ms = (t_pipeline_end - t_pipeline_start) * 1000
+            logger.info(f"⏱️ Pipeline total: {total_ms:.0f}ms (STT {stt_ms:.0f}ms + LLM+TTS {total_ms - stt_ms:.0f}ms)")
         finally:
             self._active_pipeline_count -= 1
             if self._active_pipeline_count == 0:
@@ -543,7 +573,21 @@ class LocalSessionHandler(AsyncStreamHandler):
                 )
                 logger.debug("Pipeline done, VAD suppressed until playback ends + cooldown")
 
-    async def _process_sentence(self, text: str):
+    @staticmethod
+    def _make_first_audio_cb(t_pipeline_start: float, t_first_audio: float):
+        """Create a callback that logs time-to-first-audio once."""
+        logged = False
+
+        def cb():
+            nonlocal logged
+            if not logged and t_first_audio == 0.0:
+                logged = True
+                elapsed_ms = (time.monotonic() - t_pipeline_start) * 1000
+                logger.info(f"⏱️ First audio queued: {elapsed_ms:.0f}ms (speech-in → audio-out)")
+
+        return cb
+
+    async def _process_sentence(self, text: str, _latency_cb=None):
         """Synthesize and queue audio for a sentence, handling tone and embedded commands."""
         if self.tts is None:
             return
@@ -594,6 +638,10 @@ class LocalSessionHandler(AsyncStreamHandler):
 
         # Send to speaker
         await self.output_queue.put((24000, audio_int16.reshape(1, -1)))
+
+        # Fire latency callback (first audio queued)
+        if _latency_cb is not None:
+            _latency_cb()
 
         # Track estimated playback end for echo suppression
         audio_duration_s = len(audio_int16) / 24000.0
