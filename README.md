@@ -44,7 +44,7 @@ A few things that inform the design:
 > The only Reachy Mini application running a fully local AI stack — LLM, speech-to-text, text-to-speech, vision, and audio classification — all on-device with zero cloud dependency.
 
 - **7+ AI models on-device**: VAD, STT, LLM, TTS, VLM, YOLO, and YAMNet — orchestrated together in a single pipeline
-- **Autonomous safety**: Detects baby cries and soothes automatically. YOLO continuously scans for dangerous objects near the baby and triggers a VLM analysis with a Signal photo alert to the parent — all decided by the LLM, not a script
+- **Autonomous safety**: Detects baby cries and soothes automatically while sending a photo alert to the parent. YOLO continuously scans for dangerous objects near the baby and sends a Signal photo alert. Safety-critical notifications are sent directly — not routed through the LLM (see [SLM tool-calling limits](#slm-tool-calling-limits))
 - **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
 - **NVIDIA Jetson vLLM**: Offload LLM inference to a Jetson Orin running GPU-accelerated vLLM via NVIDIA's official AI containers, with quantized models tuned for Jetson's memory bandwidth
 
@@ -329,6 +329,25 @@ Faster-Whisper runs with `int8` quantization by default, reducing memory and inc
 
 When the robot is speaking (TTS playing), the microphone picks up its own voice. Without suppression, this creates a feedback loop where the robot responds to itself. The pipeline suppresses VAD detection during TTS playback and for 3 seconds after it finishes, preventing false triggers without missing real speech.
 
+### SLM tool-calling limits
+
+Small language models (3B–4B) can reliably call 1–2 tools per turn, but **chaining 3+ sequential tool calls is unreliable**. We discovered this when the robot detected a baby crying: the system prompt instructed the LLM to (1) call `check_baby_crying`, (2) call `soothe_baby`, and (3) call `send_signal_photo` to alert the parent. In practice, the LLM consistently stopped after step 2 — it would soothe the baby but never send the notification.
+
+The problem is structural. Each tool call requires a full LLM turn: the model generates a tool call, the runtime executes it and returns the result, then the model generates the next action. With a `max_turns` limit (necessary to prevent infinite loops), 3 sequential tool calls leave no room for the model to also produce a spoken response. Even when we increased the turn limit, the SLM would often generate a text response on turn 3 instead of making the third tool call.
+
+**Our solution: bypass the LLM for safety-critical actions.** Cry detection and danger detection now send Signal photo alerts directly in handler code — the notification is guaranteed regardless of what the LLM decides to do. The LLM still receives the system event and handles the *interactive* response (soothing the baby, speaking a warning), but the parent notification no longer depends on the model following a multi-step instruction.
+
+```
+# Before (unreliable): LLM had to chain 3 tool calls
+Cry detected → LLM → check_baby_crying → soothe_baby → send_signal_photo (often skipped)
+
+# After (reliable): notification is direct, LLM only handles soothing
+Cry detected → handler sends photo alert directly (guaranteed)
+             → LLM → soothe_baby (1 tool call — reliable)
+```
+
+This is a general principle for SLM-powered robotics: **never gate safety-critical actions on model behavior**. Use the LLM for decisions that benefit from reasoning (what to say, how to respond), but handle notifications and alerts deterministically in code.
+
 ## Deployment Scenarios
 
 The app runs on a Mac (or any desktop). The Jetson Orin is used **only as a vLLM inference server** — the conversation app itself does not run on the Jetson.
@@ -578,18 +597,16 @@ You can change the assistant's personality in `src/reachy_mini_conversation_app/
 ### Audio Event Detection
 The app automatically downloads and runs a **YAMNet** audio classifier. It constantly listens for specific audio events to trigger autonomous actions:
 
-*   **Baby Crying:** "Baby cry, infant cry", "Crying, sobbing", "Whimper" → *Triggers soothing mode.*
+*   **Baby Crying:** "Baby cry, infant cry", "Crying, sobbing", "Whimper" → *Sends a photo alert to the parent and triggers soothing mode.*
 *   **Human Interactions:** "Laughter", "Coughing" → *Can trigger empathetic responses (e.g., "Are you okay?" or giggling back).*
 *   **Alarms:** "Smoke detector", "Fire alarm" → *Can trigger urgent alerts.*
 
 ### Visual Safety Detection
 The app runs a **continuous danger detector** alongside the camera feed. Every 2 seconds it scans for hazardous objects using a general-purpose YOLO model:
 
-*   **Dangerous objects:** Scissors, knives, forks → *YOLO detects the object, then triggers a VLM camera analysis for confirmation, and sends a Signal photo alert to the parent.*
-*   **Two-stage pipeline:** Fast YOLO detection (low compute) acts as a trigger for expensive VLM analysis (high accuracy), keeping GPU usage efficient.
+*   **Dangerous objects:** Scissors, knives, forks → *YOLO detects the object and a photo alert is sent directly to the parent via Signal.*
+*   **LLM warning:** A system event is injected so the LLM can speak a safety warning — but the notification itself is sent automatically, not through the LLM (see [SLM tool-calling limits](#slm-tool-calling-limits)).
 *   **Throttled:** Alerts are rate-limited to once per 30 seconds to prevent notification spam.
-
-If detected, it triggers a system event that forces the LLM to call appropriate tools (like `soothe_baby`) and alert you via Signal.
 
 ## License
 Apache 2.0

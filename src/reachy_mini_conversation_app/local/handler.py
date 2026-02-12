@@ -1,9 +1,11 @@
 from __future__ import annotations
+import os
 import re
 import json
 import time
 import asyncio
 import logging
+import tempfile
 from typing import TYPE_CHECKING, Tuple, Optional
 from collections import deque
 
@@ -285,8 +287,12 @@ class LocalSessionHandler(AsyncStreamHandler):
                                 self.deps.audio_classifier_status["timestamp"] = now
                                 self.deps.audio_classifier_status["score"] = float(score)
 
-                            # Inject event into LLM context
+                            # Inject event into LLM context (triggers soothe_baby)
                             asyncio.create_task(self._process_system_event(f"I hear a {label.lower()} nearby."))
+
+                            # Directly send photo alert — don't rely on LLM for notification
+                            if config.FEATURE_SIGNAL_ALERTS and config.SIGNAL_USER_PHONE:
+                                asyncio.create_task(self._send_cry_photo_alert())
                             break
 
         # 5. Echo suppression: skip VAD while pipeline is generating/playing TTS
@@ -373,7 +379,7 @@ class LocalSessionHandler(AsyncStreamHandler):
             current_input = f"[System Notification: {event_text}]"
 
             # Reuse the logic from _run_pipeline essentially, but simplified
-            max_turns = 3
+            max_turns = 5
             turn = 0
             tool_outputs = None
 
@@ -457,7 +463,7 @@ class LocalSessionHandler(AsyncStreamHandler):
 
             # 2. LLM Loop (Handling potential tool calls)
             current_input = transcript + vision_context
-            max_turns = 3  # Prevent infinite loops
+            max_turns = 5  # Allow multi-step tool chains
             turn = 0
 
             tool_outputs = None  # For subsequent turns
@@ -601,39 +607,157 @@ class LocalSessionHandler(AsyncStreamHandler):
             b64_data = base64.b64encode(audio_int16.tobytes()).decode("utf-8")
             self.deps.head_wobbler.feed(b64_data)
 
+    async def _send_cry_photo_alert(self):
+        """Directly send a photo alert via Signal when baby crying is detected.
+
+        Bypasses the LLM to guarantee notification delivery — SLMs can't
+        reliably chain multiple tool calls.
+        """
+        try:
+            import cv2
+
+            from reachy_mini_conversation_app.tools.send_signal import get_signal_interface
+
+            signal = get_signal_interface()
+            if not signal.available:
+                logger.warning("Signal not available for cry photo alert")
+                return
+
+            if self.deps.camera_worker is None:
+                # No camera — fall back to text-only alert
+                await signal.send_message("Baby is crying!", config.SIGNAL_USER_PHONE)
+                logger.info(f"Cry text alert sent to {config.SIGNAL_USER_PHONE} (no camera)")
+                return
+
+            frame = self.deps.camera_worker.get_latest_frame()
+            if frame is None:
+                await signal.send_message("Baby is crying!", config.SIGNAL_USER_PHONE)
+                logger.info(f"Cry text alert sent to {config.SIGNAL_USER_PHONE} (no frame)")
+                return
+
+            temp_file = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+                    temp_file = f.name
+                    success, buffer = cv2.imencode(".jpg", frame)
+                    if not success:
+                        logger.error("Failed to encode cry alert image")
+                        return
+                    f.write(buffer.tobytes())
+
+                ok = await signal.send_message("Baby is crying!", config.SIGNAL_USER_PHONE, attachment=temp_file)
+                if ok:
+                    logger.info(f"Cry photo alert sent to {config.SIGNAL_USER_PHONE}")
+                else:
+                    logger.error("Failed to send cry photo alert via Signal")
+            finally:
+                if temp_file and os.path.exists(temp_file):
+                    try:
+                        os.unlink(temp_file)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.error(f"Cry photo alert error: {e}")
+
+    async def _send_danger_photo_alert(self, labels: str):
+        """Directly send a photo alert via Signal when danger is detected."""
+        try:
+            import cv2
+
+            from reachy_mini_conversation_app.tools.send_signal import get_signal_interface
+
+            signal = get_signal_interface()
+            if not signal.available:
+                logger.warning("Signal not available for danger photo alert")
+                return
+
+            if self.deps.camera_worker is None:
+                await signal.send_message(f"Danger detected near baby: {labels}", config.SIGNAL_USER_PHONE)
+                logger.info(f"Danger text alert sent to {config.SIGNAL_USER_PHONE}")
+                return
+
+            frame = self.deps.camera_worker.get_latest_frame()
+            if frame is None:
+                await signal.send_message(f"Danger detected near baby: {labels}", config.SIGNAL_USER_PHONE)
+                logger.info(f"Danger text alert sent to {config.SIGNAL_USER_PHONE} (no frame)")
+                return
+
+            temp_file = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+                    temp_file = f.name
+                    success, buffer = cv2.imencode(".jpg", frame)
+                    if not success:
+                        logger.error("Failed to encode danger alert image")
+                        return
+                    f.write(buffer.tobytes())
+
+                ok = await signal.send_message(
+                    f"Danger detected near baby: {labels}",
+                    config.SIGNAL_USER_PHONE,
+                    attachment=temp_file,
+                )
+                if ok:
+                    logger.info(f"Danger photo alert sent to {config.SIGNAL_USER_PHONE}")
+                else:
+                    logger.error("Failed to send danger photo alert via Signal")
+            finally:
+                if temp_file and os.path.exists(temp_file):
+                    try:
+                        os.unlink(temp_file)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.error(f"Danger photo alert error: {e}")
+
     async def _poll_danger_detection(self):
         """Background task: run YOLO on camera frames to detect dangerous objects."""
         if self.danger_detector is None or self.deps.camera_worker is None:
             return
         logger.info("Starting Danger Detection Poller...")
+        poll_count = 0
         while True:
             try:
                 frame = self.deps.camera_worker.get_latest_frame()
-                if frame is not None:
-                    detections = await asyncio.to_thread(self.danger_detector.detect, frame)
+                poll_count += 1
 
-                    if detections:
-                        now = time.time()
-                        # Throttle: one alert per 30 seconds
-                        if now - self.last_danger_time > 30.0:
-                            self.last_danger_time = now
+                if frame is None:
+                    if poll_count % 15 == 0:  # Log every ~30s
+                        logger.debug("Danger poller: no camera frame available")
+                    await asyncio.sleep(2.0)
+                    continue
 
-                            # Update shared status for tools
-                            if self.deps.vision_threat_status is not None:
-                                self.deps.vision_threat_status["latest_threat"] = detections[0]["label"]
-                                self.deps.vision_threat_status["timestamp"] = now
-                                self.deps.vision_threat_status["objects"] = detections
+                detections = await asyncio.to_thread(self.danger_detector.detect, frame)
 
-                            labels = ", ".join(d["label"] for d in detections)
-                            logger.info(f"Danger Detected: {labels}")
+                if poll_count % 15 == 0:  # Log every ~30s to confirm poller is alive
+                    logger.debug(f"Danger poller: {poll_count} frames scanned, frame shape={frame.shape}")
 
-                            # Inject system event — LLM decides what to do (camera analysis, Signal alert, etc.)
-                            asyncio.create_task(
-                                self._process_system_event(
-                                    f"I see a potentially dangerous object near the baby: {labels}. "
-                                    "Please take a photo with the camera tool for a closer look and alert the parent via Signal."
-                                )
+                if detections:
+                    now = time.time()
+                    # Throttle: one alert per 30 seconds
+                    if now - self.last_danger_time > 30.0:
+                        self.last_danger_time = now
+
+                        # Update shared status for tools
+                        if self.deps.vision_threat_status is not None:
+                            self.deps.vision_threat_status["latest_threat"] = detections[0]["label"]
+                            self.deps.vision_threat_status["timestamp"] = now
+                            self.deps.vision_threat_status["objects"] = detections
+
+                        labels = ", ".join(d["label"] for d in detections)
+                        logger.info(f"Danger Detected: {labels}")
+
+                        # Directly send photo alert — don't rely on LLM for notification
+                        if config.FEATURE_SIGNAL_ALERTS and config.SIGNAL_USER_PHONE:
+                            asyncio.create_task(self._send_danger_photo_alert(labels))
+
+                        # Inject system event — LLM can speak a warning
+                        asyncio.create_task(
+                            self._process_system_event(
+                                f"I see a potentially dangerous object near the baby: {labels}. "
+                                "The parent has been alerted. Speak a brief safety warning."
                             )
+                        )
 
                 await asyncio.sleep(2.0)  # Check every 2 seconds
             except asyncio.CancelledError:

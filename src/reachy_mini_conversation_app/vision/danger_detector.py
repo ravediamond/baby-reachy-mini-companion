@@ -39,7 +39,7 @@ class DangerDetector:
     def __init__(
         self,
         model_name: str = "yolo11n.pt",
-        confidence_threshold: float = 0.5,
+        confidence_threshold: float = 0.3,
         device: str = "cpu",
     ) -> None:
         """Initialize the danger detector with a YOLO model."""
@@ -66,11 +66,13 @@ class DangerDetector:
             return []
 
         dangerous: List[Dict[str, object]] = []
+        all_labels: List[str] = []
         for result in results:
             for box in result.boxes:
                 cls_id = int(box.cls[0])
                 label = result.names[cls_id]
                 conf = float(box.conf[0])
+                all_labels.append(f"{label}({conf:.2f})")
 
                 if label in DANGEROUS_OBJECTS and conf >= self.confidence_threshold:
                     dangerous.append(
@@ -80,5 +82,8 @@ class DangerDetector:
                             "bbox": box.xyxy[0].tolist(),
                         }
                     )
+
+        if all_labels:
+            logger.debug(f"YOLO detections: {', '.join(all_labels)}")
 
         return dangerous
