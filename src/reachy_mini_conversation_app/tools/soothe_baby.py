@@ -38,8 +38,8 @@ class SootheBaby(Tool):
 
         # 2. Soothing speech (using [STORY] for slower pace)
         soothing_text = (
-            "[STORY] Shhh... it's okay... [sad] sleep tight little one... "
-            "[STORY] everything is calm... safe and sound... shhh..."
+            "[STORY] Hush now... it's okay... [sad] sleep tight little one... "
+            "[STORY] everything is calm... safe and sound... hush little baby..."
         )
 
         if deps.speak_func:
