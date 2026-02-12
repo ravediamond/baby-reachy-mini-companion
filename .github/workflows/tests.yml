@@ -48,11 +48,6 @@ jobs:
           key: hf-${{ runner.os }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}
           restore-keys: hf-${{ runner.os }}-
 
-      # test-only .env file
-      - name: Create test .env
-        run: |
-          printf "OPENAI_API_KEY=test-dummy\n" > .env
-
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository1.0-dev
 

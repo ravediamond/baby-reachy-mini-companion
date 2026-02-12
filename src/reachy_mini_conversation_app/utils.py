@@ -27,12 +27,6 @@ def parse_args() -> Tuple[argparse.Namespace, list]:
         default=None,
         help="[Optional] Robot name/prefix for Zenoh topics (must match daemon's --robot-name). Only needed for development with multiple robots.",
     )
-    parser.add_argument(
-        "--openai-realtime",
-        default=False,
-        action="store_true",
-        help="Use OpenAI Realtime API instead of local processing.",
-    )
     return parser.parse_known_args()
 
 

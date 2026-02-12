@@ -20,11 +20,7 @@ else:
 class Config:
     """Configuration class for the conversation app."""
 
-    # Required
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # The key is downloaded in console.py if needed
-
     # Optional
-    MODEL_NAME = os.getenv("MODEL_NAME", "gpt-realtime")
     HF_HOME = os.getenv("HF_HOME", "./cache")
     LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "ministral-3:3b")
     LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")  # Ollama default
@@ -32,7 +28,7 @@ class Config:
     LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "small.en")
     HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, falls back to hf auth login if not set
 
-    logger.debug(f"Model: {MODEL_NAME}, HF_HOME: {HF_HOME}, LLM Model: {LOCAL_LLM_MODEL}")
+    logger.debug(f"HF_HOME: {HF_HOME}, LLM Model: {LOCAL_LLM_MODEL}")
 
     REACHY_MINI_CUSTOM_PROFILE = os.getenv("REACHY_MINI_CUSTOM_PROFILE")
     logger.debug(f"Custom Profile: {REACHY_MINI_CUSTOM_PROFILE}")

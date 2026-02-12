@@ -94,18 +94,10 @@ def run(
         if instance_path is None:
             instance_path = str(Path.cwd())
 
-    handler: Any
-    if args.openai_realtime:
-        from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
+    from reachy_mini_conversation_app.local.handler import LocalSessionHandler
 
-        logger.info("Using OpenAI Realtime API")
-        handler = OpenaiRealtimeHandler(deps, instance_path=instance_path)
-    else:
-        # Default: Local LLM Handler (with Signal support)
-        from reachy_mini_conversation_app.local.handler import LocalSessionHandler
-
-        logger.info("Using Local LLM (fully local + Signal)")
-        handler = LocalSessionHandler(deps)
+    logger.info("Using Local LLM (fully local + Signal)")
+    handler: Any = LocalSessionHandler(deps)
 
     # Headless mode: wire settings_app + instance_path to console LocalStream
     # Routes are registered in __init__ so the dashboard is ready immediately.

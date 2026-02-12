@@ -180,9 +180,6 @@ When the app is launched through the **Reachy Mini Apps** system (headless mode)
 
 On subsequent launches, the saved settings are pre-populated in the form. You can review and adjust them before clicking Start again.
 
-> [!NOTE]
-> In OpenAI Realtime mode (`--openai-realtime`), the settings page shows an API key field instead. In local mode (default), it shows the full LLM configuration form.
-
 ## Running the App
 
 ### Audio Architecture
@@ -255,8 +252,6 @@ uv run reachy-mini-conversation-app --dashboard
 # With YOLO face tracking
 uv run reachy-mini-conversation-app --head-tracker yolo
 
-# Use OpenAI Realtime API instead of local processing
-uv run reachy-mini-conversation-app --openai-realtime
 ```
 
 ### CLI Options
@@ -269,8 +264,6 @@ uv run reachy-mini-conversation-app --openai-realtime
 | `--gradio` | Open the Gradio web interface. |
 | `--debug` | Enable debug logging. |
 | `--robot-name NAME` | Zenoh topic prefix (only needed with multiple robots). |
-| `--openai-realtime` | Use OpenAI Realtime API instead of local processing. |
-
 ### Signal Integration (Remote Access)
 To enable the remote interface:
 1.  **Install Signal-CLI:** `brew install signal-cli`

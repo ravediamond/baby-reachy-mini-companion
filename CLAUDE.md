@@ -195,7 +195,6 @@ ruff format .
 ruff check . --fix
 mypy --strict .
 pytest tests/ -v
-# Note: tests/test_openai_realtime.py requires fastrtc — use --ignore if not installed
 ```
 
 ## Git & Deployment

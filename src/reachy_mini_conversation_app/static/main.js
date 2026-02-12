@@ -1,15 +1,3 @@
-async function fetchStatus() {
-  try {
-    const url = new URL("/status", window.location.origin);
-    url.searchParams.set("_", Date.now().toString());
-    const resp = await fetchWithTimeout(url, {}, 2000);
-    if (!resp.ok) throw new Error("status error");
-    return await resp.json();
-  } catch (e) {
-    return { has_key: false, error: true };
-  }
-}
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 2000) {
@@ -19,20 +7,6 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 2000) {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(id);
-  }
-}
-
-async function waitForStatus(timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  while (true) {
-    try {
-      const url = new URL("/status", window.location.origin);
-      url.searchParams.set("_", Date.now().toString());
-      const resp = await fetchWithTimeout(url, {}, 2000);
-      if (resp.ok) return await resp.json();
-    } catch (e) {}
-    if (Date.now() >= deadline) return null;
-    await sleep(500);
   }
 }
 
@@ -57,50 +31,7 @@ async function waitForPersonalityData(timeoutMs = 15000) {
   }
 }
 
-async function validateKey(key) {
-  const body = { openai_api_key: key };
-  const resp = await fetch("/validate_api_key", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error(data.error || "validation_failed");
-  }
-  return data;
-}
-
-async function saveKey(key) {
-  const body = { openai_api_key: key };
-  const resp = await fetch("/openai_api_key", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => ({}));
-    throw new Error(data.error || "save_failed");
-  }
-  return await resp.json();
-}
-
 // ---------- Local LLM Settings API ----------
-async function fetchAppMode(timeoutMs = 30000) {
-  // Retry until the route is available (routes register after backend init)
-  const deadline = Date.now() + timeoutMs;
-  while (true) {
-    try {
-      const url = new URL("/app_mode", window.location.origin);
-      url.searchParams.set("_", Date.now().toString());
-      const resp = await fetchWithTimeout(url, {}, 2000);
-      if (resp.ok) return await resp.json();
-    } catch (e) {}
-    if (Date.now() >= deadline) return { mode: "openai" };
-    await sleep(500);
-  }
-}
-
 async function fetchLocalLlmSettings() {
   try {
     const url = new URL("/local_llm_settings", window.location.origin);
@@ -277,13 +208,7 @@ function show(el, flag) {
 async function init() {
   const loading = document.getElementById("loading");
   show(loading, true);
-  const statusEl = document.getElementById("status");
-  const formPanel = document.getElementById("form-panel");
-  const configuredPanel = document.getElementById("configured");
   const personalityPanel = document.getElementById("personality-panel");
-  const saveBtn = document.getElementById("save-btn");
-  const changeKeyBtn = document.getElementById("change-key-btn");
-  const input = document.getElementById("api-key");
 
   // Local LLM elements
   const localLlmPanel = document.getElementById("local-llm-panel");
@@ -328,9 +253,6 @@ async function init() {
   // Stop button
   const stopLocalBtn = document.getElementById("stop-local-btn");
 
-  statusEl.textContent = "Checking configuration...";
-  show(formPanel, false);
-  show(configuredPanel, false);
   show(personalityPanel, false);
   show(localLlmPanel, false);
   show(localRunningPanel, false);
@@ -344,241 +266,163 @@ async function init() {
     });
   });
 
-  // Detect app mode (local vs openai)
-  const appMode = await fetchAppMode();
-  const isLocal = appMode.mode === "local";
+  // -- State transition helpers --
+  function showRunningState(model, stt) {
+    show(localLlmPanel, false);
+    show(featuresPanel, false);
+    show(startPanel, false);
+    show(localRunningPanel, true);
+    stopLocalBtn.disabled = false;
+    localRunningInfo.textContent = `Model: ${model || "—"} | STT: ${stt || "—"}`;
+  }
 
-  if (isLocal) {
-    // --- Local LLM mode ---
-    statusEl.textContent = "";
+  function showConfiguringState() {
+    show(localRunningPanel, false);
+    show(localLlmPanel, true);
+    show(featuresPanel, true);
+    show(startPanel, true);
+    startLocalBtn.disabled = false;
+    localLlmStatus.textContent = "";
+    localLlmStatus.className = "status";
+  }
 
-    // -- State transition helpers --
-    function showRunningState(model, stt) {
-      show(localLlmPanel, false);
-      show(featuresPanel, false);
-      show(startPanel, false);
-      show(localRunningPanel, true);
-      stopLocalBtn.disabled = false;
-      localRunningInfo.textContent = `Model: ${model || "—"} | STT: ${stt || "—"}`;
-    }
+  // Check if pipeline is already running (e.g., page refresh after start)
+  const appState = await fetchAppState();
+  if (appState.state === "running") {
+    const runSettings = await fetchLocalLlmSettings();
+    showRunningState(runSettings.LOCAL_LLM_MODEL, runSettings.LOCAL_STT_MODEL);
+  } else {
+    // Show configuration form
+    const settings = await fetchLocalLlmSettings();
+    llmUrlInput.value = settings.LOCAL_LLM_URL || "http://localhost:11434/v1";
+    llmModelInput.value = settings.LOCAL_LLM_MODEL || "ministral-3:3b";
+    llmApiKeyInput.value = settings.LOCAL_LLM_API_KEY || "ollama";
+    sttModelSelect.value = settings.LOCAL_STT_MODEL || "small.en";
+    localLlmChip.textContent = "Configure";
+    localLlmChip.className = "chip";
+    show(localLlmPanel, true);
 
-    function showConfiguringState() {
-      show(localRunningPanel, false);
-      show(localLlmPanel, true);
-      show(featuresPanel, true);
-      show(startPanel, true);
-      startLocalBtn.disabled = false;
-      localLlmStatus.textContent = "";
-      localLlmStatus.className = "status";
-    }
+    // Load and show features panel + start button
+    const featureSettings = await fetchFeatureSettings();
+    applyFeatureSettings(featureSettings);
+    show(featuresPanel, true);
+    show(startPanel, true);
 
-    // Check if pipeline is already running (e.g., page refresh after start)
-    const appState = await fetchAppState();
-    if (appState.state === "running") {
-      const runSettings = await fetchLocalLlmSettings();
-      showRunningState(runSettings.LOCAL_LLM_MODEL, runSettings.LOCAL_STT_MODEL);
-    } else {
-      // Show configuration form
-      const settings = await fetchLocalLlmSettings();
-      llmUrlInput.value = settings.LOCAL_LLM_URL || "http://localhost:11434/v1";
-      llmModelInput.value = settings.LOCAL_LLM_MODEL || "ministral-3:3b";
-      llmApiKeyInput.value = settings.LOCAL_LLM_API_KEY || "ollama";
-      sttModelSelect.value = settings.LOCAL_STT_MODEL || "small.en";
-      localLlmChip.textContent = "Configure";
-      localLlmChip.className = "chip";
-      show(localLlmPanel, true);
+    // Populate mic device selector
+    try {
+      const devResp = await fetchWithTimeout("/audio_devices", {}, 3000);
+      if (devResp.ok) {
+        const devData = await devResp.json();
+        micDeviceSelect.innerHTML = "";
+        for (const d of devData.devices) {
+          const opt = document.createElement("option");
+          opt.value = d.index;
+          opt.textContent = `[${d.index}] ${d.name} (${d.channels}ch, ${d.samplerate}Hz)`;
+          if (d.is_default) opt.textContent += " - Default";
+          micDeviceSelect.appendChild(opt);
+        }
+        // Pre-select the default input device
+        if (devData.default != null) {
+          micDeviceSelect.value = devData.default;
+        }
+      }
+    } catch {}
 
-      // Load and show features panel + start button
-      const featureSettings = await fetchFeatureSettings();
-      applyFeatureSettings(featureSettings);
-      show(featuresPanel, true);
-      show(startPanel, true);
+    // Wire mic gain slider label
+    micGainSlider.addEventListener("input", () => {
+      micGainValue.textContent = micGainSlider.value;
+    });
 
-      // Populate mic device selector
+    // Test LLM connection
+    testLlmBtn.addEventListener("click", async () => {
+      testLlmStatus.textContent = "Testing...";
+      testLlmStatus.className = "status";
+      testLlmBtn.disabled = true;
       try {
-        const devResp = await fetchWithTimeout("/audio_devices", {}, 3000);
-        if (devResp.ok) {
-          const devData = await devResp.json();
-          micDeviceSelect.innerHTML = "";
-          for (const d of devData.devices) {
-            const opt = document.createElement("option");
-            opt.value = d.index;
-            opt.textContent = `[${d.index}] ${d.name} (${d.channels}ch, ${d.samplerate}Hz)`;
-            if (d.is_default) opt.textContent += " - Default";
-            micDeviceSelect.appendChild(opt);
-          }
-          // Pre-select the default input device
-          if (devData.default != null) {
-            micDeviceSelect.value = devData.default;
-          }
-        }
-      } catch {}
-
-      // Wire mic gain slider label
-      micGainSlider.addEventListener("input", () => {
-        micGainValue.textContent = micGainSlider.value;
-      });
-
-      // Test LLM connection
-      testLlmBtn.addEventListener("click", async () => {
-        testLlmStatus.textContent = "Testing...";
-        testLlmStatus.className = "status";
-        testLlmBtn.disabled = true;
-        try {
-          const resp = await fetch("/test_llm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              LOCAL_LLM_URL: llmUrlInput.value.trim(),
-              LOCAL_LLM_MODEL: llmModelInput.value.trim(),
-              LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
-            }),
-          });
-          const data = await resp.json();
-          testLlmStatus.textContent = data.message;
-          testLlmStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "model_missing" ? "warn" : "error");
-        } catch (e) {
-          testLlmStatus.textContent = "Test failed: " + e.message;
-          testLlmStatus.className = "status error";
-        }
-        testLlmBtn.disabled = false;
-      });
-
-      // Test microphone (uses selected device)
-      testMicBtn.addEventListener("click", async () => {
-        testMicStatus.textContent = "Recording 1.5s...";
-        testMicStatus.className = "status";
-        testMicBtn.disabled = true;
-        try {
-          const resp = await fetch("/test_mic", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              MIC_GAIN: micGainSlider.value,
-              MIC_DEVICE: micDeviceSelect.value,
-            }),
-          });
-          const data = await resp.json();
-          testMicStatus.textContent = data.message;
-          testMicStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
-        } catch (e) {
-          testMicStatus.textContent = "Test failed: " + e.message;
-          testMicStatus.className = "status error";
-        }
-        testMicBtn.disabled = false;
-      });
-
-      // Wire Signal toggle to show/hide phone field
-      signalToggle.addEventListener("change", () => {
-        show(signalPhoneRow, signalToggle.checked);
-      });
-
-      startLocalBtn.addEventListener("click", async () => {
-        localLlmStatus.textContent = "Starting pipeline...";
-        localLlmStatus.className = "status";
-        startLocalBtn.disabled = true;
-        try {
-          await startApp({
+        const resp = await fetch("/test_llm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             LOCAL_LLM_URL: llmUrlInput.value.trim(),
             LOCAL_LLM_MODEL: llmModelInput.value.trim(),
             LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
-            LOCAL_STT_MODEL: sttModelSelect.value,
+          }),
+        });
+        const data = await resp.json();
+        testLlmStatus.textContent = data.message;
+        testLlmStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "model_missing" ? "warn" : "error");
+      } catch (e) {
+        testLlmStatus.textContent = "Test failed: " + e.message;
+        testLlmStatus.className = "status error";
+      }
+      testLlmBtn.disabled = false;
+    });
+
+    // Test microphone (uses selected device)
+    testMicBtn.addEventListener("click", async () => {
+      testMicStatus.textContent = "Recording 1.5s...";
+      testMicStatus.className = "status";
+      testMicBtn.disabled = true;
+      try {
+        const resp = await fetch("/test_mic", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             MIC_GAIN: micGainSlider.value,
             MIC_DEVICE: micDeviceSelect.value,
-            ...getFeatureSettings(),
-          });
-          showRunningState(llmModelInput.value.trim(), sttModelSelect.value);
-        } catch (e) {
-          localLlmStatus.textContent = "Failed to start. Check your settings and try again.";
-          localLlmStatus.className = "status error";
-          startLocalBtn.disabled = false;
-        }
-      });
-    }
-
-    // Stop button handler
-    stopLocalBtn.addEventListener("click", async () => {
-      stopLocalBtn.disabled = true;
-      try {
-        await stopApp();
-        showConfiguringState();
+          }),
+        });
+        const data = await resp.json();
+        testMicStatus.textContent = data.message;
+        testMicStatus.className = "status " + (data.verdict === "ok" ? "ok" : data.verdict === "too_quiet" ? "warn" : "error");
       } catch (e) {
-        stopLocalBtn.disabled = false;
+        testMicStatus.textContent = "Test failed: " + e.message;
+        testMicStatus.className = "status error";
       }
-    });
-  } else {
-    // --- OpenAI mode ---
-    const st = (await waitForStatus()) || { has_key: false };
-    if (st.has_key) {
-      statusEl.textContent = "";
-      show(configuredPanel, true);
-    }
-
-    // Handler for "Change API key" button
-    changeKeyBtn.addEventListener("click", () => {
-      show(configuredPanel, false);
-      show(formPanel, true);
-      input.value = "";
-      statusEl.textContent = "";
-      statusEl.className = "status";
+      testMicBtn.disabled = false;
     });
 
-    // Remove error styling when user starts typing
-    input.addEventListener("input", () => {
-      input.classList.remove("error");
+    // Wire Signal toggle to show/hide phone field
+    signalToggle.addEventListener("change", () => {
+      show(signalPhoneRow, signalToggle.checked);
     });
 
-    saveBtn.addEventListener("click", async () => {
-      const key = input.value.trim();
-      if (!key) {
-        statusEl.textContent = "Please enter a valid key.";
-        statusEl.className = "status warn";
-        input.classList.add("error");
-        return;
-      }
-      statusEl.textContent = "Validating API key...";
-      statusEl.className = "status";
-      input.classList.remove("error");
+    startLocalBtn.addEventListener("click", async () => {
+      localLlmStatus.textContent = "Starting pipeline...";
+      localLlmStatus.className = "status";
+      startLocalBtn.disabled = true;
       try {
-        // First validate the key
-        const validation = await validateKey(key);
-        if (!validation.valid) {
-          statusEl.textContent = "Invalid API key. Please check your key and try again.";
-          statusEl.className = "status error";
-          input.classList.add("error");
-          return;
-        }
-
-        // If valid, save it
-        statusEl.textContent = "Key valid! Saving...";
-        statusEl.className = "status ok";
-        await saveKey(key);
-        statusEl.textContent = "Saved. Reloading…";
-        statusEl.className = "status ok";
-        window.location.reload();
+        await startApp({
+          LOCAL_LLM_URL: llmUrlInput.value.trim(),
+          LOCAL_LLM_MODEL: llmModelInput.value.trim(),
+          LOCAL_LLM_API_KEY: llmApiKeyInput.value.trim(),
+          LOCAL_STT_MODEL: sttModelSelect.value,
+          MIC_GAIN: micGainSlider.value,
+          MIC_DEVICE: micDeviceSelect.value,
+          ...getFeatureSettings(),
+        });
+        showRunningState(llmModelInput.value.trim(), sttModelSelect.value);
       } catch (e) {
-        input.classList.add("error");
-        if (e.message === "invalid_api_key") {
-          statusEl.textContent = "Invalid API key. Please check your key and try again.";
-        } else {
-          statusEl.textContent = "Failed to validate/save key. Please try again.";
-        }
-        statusEl.className = "status error";
+        localLlmStatus.textContent = "Failed to start. Check your settings and try again.";
+        localLlmStatus.className = "status error";
+        startLocalBtn.disabled = false;
       }
     });
-
-    if (!st.has_key) {
-      statusEl.textContent = "";
-      show(formPanel, true);
-      show(loading, false);
-      return;
-    }
   }
+
+  // Stop button handler
+  stopLocalBtn.addEventListener("click", async () => {
+    stopLocalBtn.disabled = true;
+    try {
+      await stopApp();
+      showConfiguringState();
+    } catch (e) {
+      stopLocalBtn.disabled = false;
+    }
+  });
 
   // Wait until backend routes are ready before rendering personalities UI
   const list = (await waitForPersonalityData()) || { choices: [] };
-  statusEl.textContent = "";
-  show(formPanel, false);
   if (!list.choices.length) {
     statusEl.textContent = "Personality endpoints not ready yet. Retry shortly.";
     statusEl.className = "status warn";

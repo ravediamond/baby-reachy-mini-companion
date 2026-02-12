@@ -2,8 +2,7 @@
 
 In headless mode, there is no Gradio UI. We expose a minimal settings page
 via the Reachy Mini Apps settings server to let non-technical users configure
-the app — either the OpenAI API key (realtime mode) or the local LLM settings
-(local mode: URL, model, API key, STT model).
+the local LLM settings (URL, model, API key, STT model).
 
 The settings UI is served from this package's ``static/`` folder.
 Once set, values are persisted to the app instance's ``.env`` file
@@ -30,7 +29,6 @@ from reachy_mini_conversation_app.headless_personality_ui import mount_personali
 try:
     # FastAPI is provided by the Reachy Mini Apps runtime
     from fastapi import FastAPI, Request, Response
-    from pydantic import BaseModel
     from fastapi.responses import FileResponse, JSONResponse
     from starlette.staticfiles import StaticFiles
 except Exception:  # pragma: no cover - only loaded when settings_app is used
@@ -39,7 +37,6 @@ except Exception:  # pragma: no cover - only loaded when settings_app is used
     FileResponse = object  # type: ignore[misc,assignment]
     JSONResponse = object  # type: ignore[misc,assignment]
     StaticFiles = object  # type: ignore[misc,assignment]
-    BaseModel = object  # type: ignore[misc,assignment]
 
 
 logger = logging.getLogger(__name__)
@@ -56,7 +53,7 @@ class LocalStream:
         settings_app: Optional[FastAPI] = None,
         instance_path: Optional[str] = None,
     ):
-        """Initialize the stream with an OpenAI realtime handler and pipelines.
+        """Initialize the stream with a local session handler and pipelines.
 
         - ``settings_app``: the Reachy Mini Apps FastAPI to attach settings endpoints.
         - ``instance_path``: directory where per-instance ``.env`` should be stored.
@@ -115,60 +112,6 @@ class LocalStream:
         except Exception:
             return []
 
-    def _persist_api_key(self, key: str) -> None:
-        """Persist API key to environment and instance ``.env`` if possible.
-
-        Behavior:
-        - Always sets ``OPENAI_API_KEY`` in process env and in-memory config.
-        - Writes/updates ``<instance_path>/.env``:
-          * If ``.env`` exists, replaces/append OPENAI_API_KEY line.
-          * Else, copies template from ``<instance_path>/.env.example`` when present,
-            otherwise falls back to the packaged template
-            ``reachy_mini_conversation_app/.env.example``.
-          * Ensures the resulting file contains the full template plus the key.
-        - Loads the written ``.env`` into the current process environment.
-        """
-        k = (key or "").strip()
-        if not k:
-            return
-        # Update live process env and config so consumers see it immediately
-        try:
-            os.environ["OPENAI_API_KEY"] = k
-        except Exception:  # best-effort
-            pass
-        try:
-            config.OPENAI_API_KEY = k
-        except Exception:
-            pass
-
-        if not self._instance_path:
-            return
-        try:
-            inst = Path(self._instance_path)
-            env_path = inst / ".env"
-            lines = self._read_env_lines(env_path)
-            replaced = False
-            for i, ln in enumerate(lines):
-                if ln.strip().startswith("OPENAI_API_KEY="):
-                    lines[i] = f"OPENAI_API_KEY={k}"
-                    replaced = True
-                    break
-            if not replaced:
-                lines.append(f"OPENAI_API_KEY={k}")
-            final_text = "\n".join(lines) + "\n"
-            env_path.write_text(final_text, encoding="utf-8")
-            logger.info("Persisted OPENAI_API_KEY to %s", env_path)
-
-            # Load the newly written .env into this process to ensure downstream imports see it
-            try:
-                from dotenv import load_dotenv
-
-                load_dotenv(dotenv_path=str(env_path), override=True)
-            except Exception:
-                pass
-        except Exception as e:
-            logger.warning("Failed to persist OPENAI_API_KEY: %s", e)
-
     def _persist_personality(self, profile: Optional[str]) -> None:
         """Persist the startup personality to the instance .env and config."""
         selection = (profile or "").strip() or None
@@ -224,15 +167,6 @@ class LocalStream:
         except Exception:
             pass
         return None
-
-    def _is_local_handler(self) -> bool:
-        """Check whether the handler is the local LLM handler."""
-        try:
-            from reachy_mini_conversation_app.local.handler import LocalSessionHandler
-
-            return isinstance(self.handler, LocalSessionHandler)
-        except Exception:
-            return False
 
     _FEATURE_KEYS = (
         "FEATURE_CRY_DETECTION",
@@ -336,9 +270,6 @@ class LocalStream:
             except Exception:
                 pass
 
-        class ApiKeyPayload(BaseModel):
-            openai_api_key: str
-
         # GET / -> index.html
         @self._settings_app.get("/")
         def _root() -> FileResponse:
@@ -349,12 +280,6 @@ class LocalStream:
         def _favicon() -> Response:
             return Response(status_code=204)
 
-        # GET /status -> whether key is set
-        @self._settings_app.get("/status")
-        def _status() -> JSONResponse:
-            has_key = bool(config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip())
-            return JSONResponse({"has_key": has_key})
-
         # GET /ready -> whether backend finished loading tools
         @self._settings_app.get("/ready")
         def _ready() -> JSONResponse:
@@ -364,46 +289,6 @@ class LocalStream:
             except Exception:
                 ready = False
             return JSONResponse({"ready": ready})
-
-        # POST /openai_api_key -> set/persist key
-        @self._settings_app.post("/openai_api_key")
-        def _set_key(payload: ApiKeyPayload) -> JSONResponse:
-            key = (payload.openai_api_key or "").strip()
-            if not key:
-                return JSONResponse({"ok": False, "error": "empty_key"}, status_code=400)
-            self._persist_api_key(key)
-            return JSONResponse({"ok": True})
-
-        # POST /validate_api_key -> validate key without persisting it
-        @self._settings_app.post("/validate_api_key")
-        async def _validate_key(payload: ApiKeyPayload) -> JSONResponse:
-            key = (payload.openai_api_key or "").strip()
-            if not key:
-                return JSONResponse({"valid": False, "error": "empty_key"}, status_code=400)
-
-            # Try to validate by checking if we can fetch the models
-            try:
-                import httpx
-
-                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.get("https://api.openai.com/v1/models", headers=headers)
-                    if response.status_code == 200:
-                        return JSONResponse({"valid": True})
-                    elif response.status_code == 401:
-                        return JSONResponse({"valid": False, "error": "invalid_api_key"}, status_code=401)
-                    else:
-                        return JSONResponse(
-                            {"valid": False, "error": "validation_failed"}, status_code=response.status_code
-                        )
-            except Exception as e:
-                logger.warning(f"API key validation failed: {e}")
-                return JSONResponse({"valid": False, "error": "validation_error"}, status_code=500)
-
-        # GET /app_mode -> whether we're running local or openai-realtime
-        @self._settings_app.get("/app_mode")
-        def _app_mode() -> JSONResponse:
-            return JSONResponse({"mode": "local" if self._is_local_handler() else "openai"})
 
         # GET /app_state -> configuring, running, or stopping
         @self._settings_app.get("/app_state")
@@ -669,11 +554,7 @@ class LocalStream:
         logger.info("Pipeline stop requested.")
 
     def launch(self) -> None:
-        """Start the recorder/player and run the async processing loops.
-
-        If the OpenAI key is missing, expose a tiny settings UI via the
-        Reachy Mini settings server to collect it before starting streams.
-        """
+        """Start the recorder/player and run the async processing loops."""
         self._stop_event.clear()
 
         # Try to load an existing instance .env first (covers subsequent runs)
@@ -686,13 +567,6 @@ class LocalStream:
                 env_path = Path(self._instance_path) / ".env"
                 if env_path.exists():
                     load_dotenv(dotenv_path=str(env_path), override=True)
-                    # Update config with newly loaded values
-                    new_key = os.getenv("OPENAI_API_KEY", "").strip()
-                    if new_key:
-                        try:
-                            config.OPENAI_API_KEY = new_key
-                        except Exception:
-                            pass
                     new_profile = os.getenv("REACHY_MINI_CUSTOM_PROFILE")
                     if new_profile is not None:
                         try:
@@ -723,34 +597,11 @@ class LocalStream:
             except Exception:
                 pass
 
-        # If key is still missing, try to download one from HuggingFace
-        # ONLY if we are using OpenAI Realtime. Local handler doesn't need it.
-        from reachy_mini_conversation_app.local.handler import LocalSessionHandler
-
-        is_local = isinstance(self.handler, LocalSessionHandler)
-
-        if not is_local and not (config.OPENAI_API_KEY and str(config.OPENAI_API_KEY).strip()):
-            logger.info("OPENAI_API_KEY not set, attempting to download from HuggingFace...")
-            try:
-                from gradio_client import Client
-
-                client = Client("HuggingFaceM4/gradium_setup", verbose=False)
-                key, status = client.predict(api_name="/claim_b_key")
-                if key and key.strip():
-                    logger.info("Successfully downloaded API key from HuggingFace")
-                    # Persist it immediately
-                    self._persist_api_key(key)
-            except Exception as e:
-                logger.warning(f"Failed to download API key from HuggingFace: {e}")
-
-        # In local mode, wait for user to configure settings and click "Start"
-        if is_local and self._settings_app is not None:
-            logger.info("Local mode: waiting for user to configure settings via UI and click Start...")
+        # Wait for user to configure settings and click "Start"
+        if self._settings_app is not None:
+            logger.info("Waiting for user to configure settings via UI and click Start...")
             self._start_event.wait()  # blocks until POST /start_app is called
             logger.info("Start signal received, launching pipeline...")
-        elif not is_local:
-            # Non-local mode: start immediately
-            self._start_event.set()
 
         async def _main_loop() -> None:
             """Persistent loop that supports stop/restart cycles."""
