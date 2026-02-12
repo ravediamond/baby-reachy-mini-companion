@@ -90,13 +90,15 @@ def test_vision_processor_process_image_api_success() -> None:
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message.content = "A baby playing with toys."
 
-    with patch("reachy_mini_conversation_app.vision.processors.cv2") as mock_cv2, \
-         patch("reachy_mini_conversation_app.vision.processors.config") as mock_config:
+    with (
+        patch("reachy_mini_conversation_app.vision.processors.cv2") as mock_cv2,
+        patch("reachy_mini_conversation_app.vision.processors.config") as mock_config,
+    ):
         mock_cv2.imencode.return_value = (True, np.array([1, 2, 3], dtype=np.uint8))
         mock_cv2.IMWRITE_JPEG_QUALITY = 1
         mock_config.LOCAL_LLM_URL = "http://localhost:11434/v1"
         mock_config.LOCAL_LLM_API_KEY = "test"
-        mock_config.LOCAL_LLM_MODEL = "qwen2.5:3b"
+        mock_config.LOCAL_VLM_MODEL = "qwen3-vl:4b"
 
         with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
@@ -115,13 +117,15 @@ def test_vision_processor_process_image_api_error() -> None:
     with patch("reachy_mini_conversation_app.vision.processors.config"):
         processor.initialize()
 
-    with patch("reachy_mini_conversation_app.vision.processors.cv2") as mock_cv2, \
-         patch("reachy_mini_conversation_app.vision.processors.config") as mock_config:
+    with (
+        patch("reachy_mini_conversation_app.vision.processors.cv2") as mock_cv2,
+        patch("reachy_mini_conversation_app.vision.processors.config") as mock_config,
+    ):
         mock_cv2.imencode.return_value = (True, np.array([1, 2, 3], dtype=np.uint8))
         mock_cv2.IMWRITE_JPEG_QUALITY = 1
         mock_config.LOCAL_LLM_URL = "http://localhost:11434/v1"
         mock_config.LOCAL_LLM_API_KEY = "test"
-        mock_config.LOCAL_LLM_MODEL = "qwen2.5:3b"
+        mock_config.LOCAL_VLM_MODEL = "qwen3-vl:4b"
 
         with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
@@ -139,7 +143,7 @@ def test_vision_processor_get_model_info() -> None:
     processor = VisionProcessor()
     with patch("reachy_mini_conversation_app.vision.processors.config") as mock_config:
         mock_config.LOCAL_LLM_URL = "http://localhost:11434/v1"
-        mock_config.LOCAL_LLM_MODEL = "qwen2.5:3b"
+        mock_config.LOCAL_VLM_MODEL = "qwen3-vl:4b"
         processor.initialize()
 
         info = processor.get_model_info()
@@ -147,7 +151,7 @@ def test_vision_processor_get_model_info() -> None:
         assert info["initialized"] is True
         assert info["mode"] == "api"
         assert info["url"] == "http://localhost:11434/v1"
-        assert info["model"] == "qwen2.5:3b"
+        assert info["model"] == "qwen3-vl:4b"
 
 
 @pytest.fixture
@@ -210,8 +214,10 @@ def test_initialize_vision_manager_success(mock_camera: Mock) -> None:
 
 def test_initialize_vision_manager_failure(mock_camera: Mock) -> None:
     """Test initialize_vision_manager handles failure gracefully."""
-    with patch("reachy_mini_conversation_app.vision.processors.config"), \
-         patch.object(VisionProcessor, "initialize", return_value=False):
+    with (
+        patch("reachy_mini_conversation_app.vision.processors.config"),
+        patch.object(VisionProcessor, "initialize", return_value=False),
+    ):
         result = initialize_vision_manager(mock_camera)
 
         assert result is None

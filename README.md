@@ -80,9 +80,10 @@ The profile system already supports this — each profile has its own system pro
 
 ### 1. Prerequisites
 
-*   **Local LLM Server:** Install [Ollama](https://ollama.com/) (or any OpenAI-compatible server like vLLM) and pull a model:
+*   **Local LLM Server:** Install [Ollama](https://ollama.com/) (or any OpenAI-compatible server like vLLM) and pull the models:
     ```bash
-    ollama pull qwen2.5:3b
+    ollama pull ministral:3b     # Chat LLM
+    ollama pull qwen3-vl:4b      # Vision LLM (for camera tool)
     ```
 *   **System Dependencies (macOS):**
     ```bash
@@ -93,12 +94,11 @@ The profile system already supports this — each profile has its own system pro
 
 #### With uv (recommended)
 ```bash
-# Base install — includes the full voice pipeline (STT, TTS, VAD)
+# Base install — includes the full voice pipeline (STT, TTS, VAD) + YOLO vision
 uv sync
 
-# Add vision extras as needed
-uv sync --extra yolo_vision        # + YOLO face tracking & danger detection
-uv sync --extra local              # Everything (YOLO, wireless)
+# Add wireless support for Reachy Mini
+uv sync --extra local              # Everything (wireless)
 ```
 
 #### With pip
@@ -109,13 +109,12 @@ pip install -e ".[local]"          # Everything
 
 #### What's included in the base install
 
-The core voice pipeline — **faster-whisper** (STT), **Kokoro** (TTS), **Silero VAD**, and **PyTorch** — is included in the base dependencies. This means the app works out of the box from the Reachy Mini app store without needing optional extras.
+The core voice pipeline — **faster-whisper** (STT), **Kokoro** (TTS), **Silero VAD**, **PyTorch** — and vision — **YOLO** (face tracking, danger detection) — are included in the base dependencies. This means the app works out of the box from the Reachy Mini app store without needing optional extras.
 
 #### Optional dependency groups
 
 | Extra | What it provides |
 |-------|-----------------|
-| `yolo_vision` | YOLO-based face tracking and danger detection (ultralytics, supervision) |
 | `reachy_mini_wireless` | GStreamer wireless support (PyGObject, gst-signalling) |
 | `local` | All of the above combined |
 
@@ -146,7 +145,8 @@ The app connects to any **OpenAI-compatible** LLM server. By default it points t
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOCAL_LLM_URL` | `http://localhost:11434/v1` | URL to your OpenAI-compatible LLM server. |
-| `LOCAL_LLM_MODEL` | `qwen2.5:3b` | Model name as known by your LLM server. |
+| `LOCAL_LLM_MODEL` | `ministral:3b` | Chat model name as known by your LLM server. |
+| `LOCAL_VLM_MODEL` | `qwen3-vl:4b` | Vision model for the camera tool (must support image input). |
 | `LOCAL_LLM_API_KEY` | `ollama` | API key (Ollama ignores this; other servers may require a real key). |
 | `LOCAL_STT_MODEL` | `small.en` | Whisper model size (`tiny.en`, `small.en`, `medium.en`, `large-v3`). |
 | `MIC_GAIN` | `1.0` | Digital gain for microphone input (e.g., `2.0` to double volume). |
@@ -159,13 +159,8 @@ The following models have been tested and work well with the app:
 
 | Model | Type | Notes |
 |-------|------|-------|
-| `qwen2.5:3b` | Text LLM | **Recommended default.** Stable on Ollama and vLLM. Great tool-calling support for its size. |
-| `ministral:3b` (Mistral AI) | Text LLM | Excellent reasoning for a 3B model — frontier-level quality in a tiny footprint. Works on Ollama. Does **not** work on vLLM v0.14 (current Jetson container version). |
-| `qwen2.5-vl:3b` | Vision LLM | Enables the camera tool for visual questions. Stable on Ollama and vLLM. |
-| `qwen3-vl:4b` | Vision LLM | Better quality than qwen2.5-vl, but the Qwen3 series uses a dynamic patching system that requires the **latest** inference engine versions — may not work on older Ollama/vLLM builds. |
-
-> [!NOTE]
-> Newer models (Ministral 3B, Qwen3-VL) deliver better results but can have compatibility issues with older inference engines. If you're on Jetson with vLLM v0.14, stick with `qwen2.5:3b` or `qwen2.5-vl:3b`. On a Mac with the latest Ollama, all models work.
+| `ministral:3b` (Mistral AI) | Text LLM | **Recommended default.** Excellent reasoning for a 3B model — frontier-level quality in a tiny footprint. Works on Ollama. Does **not** work on vLLM v0.14 (current Jetson container version). |
+| `qwen3-vl:4b` | Vision LLM | **Recommended vision model.** Used by the camera tool and danger detection VLM analysis. Requires the latest Ollama/vLLM builds (Qwen3 uses dynamic patching). |
 
 #### Option B: Via the Settings UI (Reachy Mini Apps)
 
@@ -345,14 +340,16 @@ The app runs on a Mac (or any desktop). The Jetson Orin is used **only as a vLLM
 The simplest setup. Ollama runs the LLM, and the app handles STT/TTS locally on the Mac.
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull ministral:3b
+ollama pull qwen3-vl:4b
 uv run reachy-mini-conversation-app
 ```
 
 Set in `.env`:
 ```env
 LOCAL_LLM_URL="http://localhost:11434/v1"
-LOCAL_LLM_MODEL="qwen2.5:3b"
+LOCAL_LLM_MODEL="ministral:3b"
+LOCAL_VLM_MODEL="qwen3-vl:4b"
 ```
 
 ### 2. App on Mac, vLLM on Jetson Orin
@@ -474,7 +471,7 @@ curl http://localhost:30000/v1/models
 | **vLLM v0.11** | Qwen3-VL-4B | AWQ-4bit | ~28 (text) / ~8 (vision) | Same container, multimodal |
 | **vLLM v0.14** | Qwen3-4B | W4A16 | Better | Latest Jetson build, improved scheduling |
 | **llama.cpp** | Qwen2.5-3B | GGUF Q4_K_M | ~23 | Built natively for Jetson aarch64. Functional but slower than vLLM for equivalent models due to less GPU optimization. |
-| **Ollama** | qwen2.5:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
+| **Ollama** | ministral:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
 
 ### vLLM vs llama.cpp: memory–speed tradeoff
 
@@ -537,7 +534,7 @@ This would be a significant engineering effort but would make a truly self-conta
 - **"Connection refused" from LLM** — Make sure your Ollama (or other LLM server) is running and the URL is correct (check `.env` or the settings UI).
 - **Slow first response** — The app pre-warms the LLM on startup. If using Ollama, the first model load can be slow; subsequent requests are fast.
 - **STT too slow or inaccurate** — Try a different STT model. `tiny.en` is fastest, `medium.en` is most accurate, `small.en` is a good balance.
-- **YOLO import errors** — Install the extra: `uv sync --extra yolo_vision`.
+- **YOLO import errors** — YOLO is included in the base install. Re-run: `uv sync`.
 - **Settings not taking effect** — In headless mode, settings are applied when you click Start. If already running, stop and start again.
 - **Robot repeats itself / echo loop** — The microphone is picking up the robot's own TTS output. The app has built-in echo suppression (VAD is muted during and 3 seconds after each response), but if your speaker is very loud or close to the mic, try reducing the volume or increasing the distance between them.
 
@@ -590,7 +587,7 @@ The app automatically downloads and runs a **YAMNet** audio classifier. It const
 *   **Alarms:** "Smoke detector", "Fire alarm" → *Can trigger urgent alerts.*
 
 ### Visual Safety Detection
-When YOLO vision is installed (`uv sync --extra yolo_vision`), the app runs a **continuous danger detector** alongside the camera feed. Every 2 seconds it scans for hazardous objects using a general-purpose YOLO model:
+The app runs a **continuous danger detector** alongside the camera feed. Every 2 seconds it scans for hazardous objects using a general-purpose YOLO model:
 
 *   **Dangerous objects:** Scissors, knives, forks → *YOLO detects the object, then triggers a VLM camera analysis for confirmation, and sends a Signal photo alert to the parent.*
 *   **Two-stage pipeline:** Fast YOLO detection (low compute) acts as a trigger for expensive VLM analysis (high accuracy), keeping GPU usage efficient.
