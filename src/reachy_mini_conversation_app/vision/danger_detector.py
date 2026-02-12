@@ -9,6 +9,10 @@ Detection uses multi-frame confirmation: a dangerous object must appear
 in at least ``confirm_frames`` of the last ``window_size`` frames before
 an alert is raised.  This filters out single-frame hallucinations that
 small YOLO models produce in dim lighting (e.g. "dog", "umbrella").
+
+Default model is ``yolo26n`` (YOLO v26 nano) which offers better
+small-object accuracy and 43% faster CPU inference vs yolo11s —
+important for Jetson deployment.
 """
 
 from __future__ import annotations
@@ -44,7 +48,7 @@ class DangerDetector:
 
     def __init__(
         self,
-        model_name: str = "yolo11s.pt",
+        model_name: str = "yolo26n.pt",
         confidence_threshold: float = 0.2,
         confirm_frames: int = 3,
         window_size: int = 5,
@@ -53,7 +57,7 @@ class DangerDetector:
         """Initialize the danger detector with a YOLO model.
 
         Args:
-            model_name: YOLO model to use (yolo11s recommended).
+            model_name: YOLO model to use (yolo26n recommended).
             confidence_threshold: Minimum confidence to consider a detection.
             confirm_frames: Number of frames an object must appear in to
                 be confirmed (within the sliding window).

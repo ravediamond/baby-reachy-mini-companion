@@ -40,9 +40,8 @@ dependencies = [
     "kokoro-onnx",
     "soundfile",
 
-    #Vision (YOLO head tracking + danger detection)
+    #Vision (YOLO danger detection)
     "ultralytics",
-    "supervision",
 ]
 
 [project.optional-dependencies]

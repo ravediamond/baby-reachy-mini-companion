@@ -1038,15 +1038,6 @@ wheels = [
 ]
 
 [[package]]
-name = "defusedxml"
-version = "0.7.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
-]
-
-[[package]]
 name = "deprecated"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3633,15 +3624,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pydeprecate"
-version = "0.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2f/fa/1d6a26185653e3b65f2ddcee7f716a9d41f79a39ffb0e9dd9bf0ce43e587/pydeprecate-0.4.0.tar.gz", hash = "sha256:7c07295ee6faf427686a458ddc3406014124ac0fb6ad8f90e50eb9d21adb86f3", size = 27674, upload-time = "2025-12-03T10:40:10.066Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/e4/d618f8eec6bfbab64e2af8a5359a423470a2cad60ef8ea60e8a60be28517/pydeprecate-0.4.0-py3-none-any.whl", hash = "sha256:5f3a07fddb03829bb934163076853ce6ead460b2ec2ba7e0fdaad3e4fa93c186", size = 21798, upload-time = "2025-12-03T10:40:08.69Z" },
-]
-
-[[package]]
 name = "pydub"
 version = "0.25.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4123,7 +4105,6 @@ dependencies = [
     { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "silero-vad" },
     { name = "soundfile" },
-    { name = "supervision" },
     { name = "torch" },
     { name = "ultralytics" },
 ]
@@ -4171,7 +4152,6 @@ requires-dist = [
     { name = "scipy" },
     { name = "silero-vad" },
     { name = "soundfile" },
-    { name = "supervision" },
     { name = "torch", specifier = ">=2.4.0" },
     { name = "ultralytics" },
 ]
@@ -5201,28 +5181,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/68/79977123bb7be889ad680d79a40f339082c1978b5cfcf62c2d8d196873ac/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933", size = 2653702, upload-time = "2026-01-18T13:34:11.062Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/0d/13d1d239a25cbfb19e740db83143e95c772a1fe10202dda4b76792b114dd/starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74", size = 74272, upload-time = "2026-01-18T13:34:09.188Z" },
-]
-
-[[package]]
-name = "supervision"
-version = "0.27.0.post1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "defusedxml" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "opencv-python" },
-    { name = "pillow" },
-    { name = "pydeprecate" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/57/8b/70b273d31b834429fef66ff83e4c4e9bad73894f58dfea496cb2eae88a32/supervision-0.27.0.post1.tar.gz", hash = "sha256:ceffff41c5a5ce2efc27a81edda8eb47d6f3592a883f9cbe6b61042e480de264", size = 186065, upload-time = "2026-02-06T13:43:55.84Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/29/8c520b1941a332ebb75e3895316afc5fb67d786b7de9a956134eefbd8bed/supervision-0.27.0.post1-py3-none-any.whl", hash = "sha256:2abcbecf5e03b1ae39a8045271a6f59d64b2251fe1cee270f19c369f0881d6d5", size = 217442, upload-time = "2026-02-06T13:43:52.718Z" },
 ]
 
 [[package]]

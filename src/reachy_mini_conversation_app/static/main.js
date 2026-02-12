@@ -161,7 +161,6 @@ function getFeatureSettings() {
     FEATURE_DANGER_DETECTION: document.getElementById("feat-danger-detection").checked ? "true" : "false",
     FEATURE_STORY_TIME: document.getElementById("feat-story-time").checked ? "true" : "false",
     FEATURE_SIGNAL_ALERTS: document.getElementById("feat-signal-alerts").checked ? "true" : "false",
-    FEATURE_HEAD_TRACKING: document.getElementById("feat-head-tracking").checked ? "true" : "false",
     SIGNAL_USER_PHONE: (document.getElementById("signal-phone").value || "").trim(),
   };
 }
@@ -172,7 +171,6 @@ function applyFeatureSettings(settings) {
   document.getElementById("feat-danger-detection").checked = settings.FEATURE_DANGER_DETECTION !== false;
   document.getElementById("feat-story-time").checked = settings.FEATURE_STORY_TIME !== false;
   document.getElementById("feat-signal-alerts").checked = settings.FEATURE_SIGNAL_ALERTS !== false;
-  document.getElementById("feat-head-tracking").checked = settings.FEATURE_HEAD_TRACKING !== false;
   document.getElementById("signal-phone").value = settings.SIGNAL_USER_PHONE || "";
   // Show/hide phone field
   show(document.getElementById("signal-phone-row"), settings.FEATURE_SIGNAL_ALERTS !== false);

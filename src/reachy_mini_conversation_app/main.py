@@ -4,8 +4,8 @@ import sys
 import time
 import asyncio
 import argparse
-import webbrowser
 import threading
+import webbrowser
 from typing import Any, Dict, Optional
 from pathlib import Path
 
@@ -43,12 +43,6 @@ def run(
     logger = setup_logger(args.debug)
     logger.info("Starting Reachy Mini Conversation App")
 
-    if args.no_camera and args.head_tracker is not None:
-        logger.warning(
-            "Head tracking disabled: --no-camera flag is set. "
-            "Remove --no-camera to enable head tracking."
-        )
-
     if robot is None:
         try:
             robot_kwargs = {}
@@ -59,33 +53,24 @@ def run(
             robot = ReachyMini(**robot_kwargs)
 
         except TimeoutError as e:
-            logger.error(
-                "Connection timeout: Failed to connect to Reachy Mini daemon. "
-                f"Details: {e}"
-            )
+            logger.error(f"Connection timeout: Failed to connect to Reachy Mini daemon. Details: {e}")
             log_connection_troubleshooting(logger, args.robot_name)
             sys.exit(1)
 
         except ConnectionError as e:
-            logger.error(
-                "Connection failed: Unable to establish connection to Reachy Mini. "
-                f"Details: {e}"
-            )
+            logger.error(f"Connection failed: Unable to establish connection to Reachy Mini. Details: {e}")
             log_connection_troubleshooting(logger, args.robot_name)
             sys.exit(1)
 
         except Exception as e:
-            logger.error(
-                f"Unexpected error during robot initialization: {type(e).__name__}: {e}"
-            )
+            logger.error(f"Unexpected error during robot initialization: {type(e).__name__}: {e}")
             logger.error("Please check your configuration and try again.")
             sys.exit(1)
 
-    camera_worker, _, vision_manager = handle_vision_stuff(args, robot)
+    camera_worker, vision_manager = handle_vision_stuff(args, robot)
 
     movement_manager = MovementManager(
         current_robot=robot,
-        camera_worker=camera_worker,
     )
 
     head_wobbler = HeadWobbler(set_speech_offsets=movement_manager.set_speech_offsets)
@@ -112,11 +97,13 @@ def run(
     handler: Any
     if args.openai_realtime:
         from reachy_mini_conversation_app.openai_realtime import OpenaiRealtimeHandler
+
         logger.info("Using OpenAI Realtime API")
         handler = OpenaiRealtimeHandler(deps, instance_path=instance_path)
     else:
         # Default: Local LLM Handler (with Signal support)
         from reachy_mini_conversation_app.local.handler import LocalSessionHandler
+
         logger.info("Using Local LLM (fully local + Signal)")
         handler = LocalSessionHandler(deps)
 

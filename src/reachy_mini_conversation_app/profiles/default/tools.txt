@@ -2,7 +2,6 @@ dance
 stop_dance
 camera
 do_nothing
-head_tracking
 move_head
 send_signal
 send_signal_photo

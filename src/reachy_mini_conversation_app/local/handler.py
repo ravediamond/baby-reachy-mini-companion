@@ -185,23 +185,6 @@ class LocalSessionHandler(AsyncStreamHandler):
             elif not config.FEATURE_DANGER_DETECTION:
                 logger.info("Danger detection disabled by feature flag.")
 
-            # Head Tracking — gated by feature flag
-            if config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
-                if self.deps.camera_worker.head_tracker is None:
-                    logger.info("Loading Head Tracker (YOLO)...")
-                    try:
-                        from reachy_mini_conversation_app.vision.yolo_head_tracker import HeadTracker
-
-                        tracker = await asyncio.to_thread(HeadTracker)
-                        self.deps.camera_worker.head_tracker = tracker
-                        self.deps.camera_worker.set_head_tracking_enabled(True)
-                        logger.info("Head tracking (YOLO) enabled.")
-                    except ImportError:
-                        logger.info("YOLO not installed, head tracking disabled. Re-run: uv sync")
-            elif not config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
-                self.deps.camera_worker.set_head_tracking_enabled(False)
-                logger.info("Head tracking disabled by feature flag.")
-
             # Signal — gated by feature flag
             if self.enable_signal and config.FEATURE_SIGNAL_ALERTS:
                 self.signal = SignalInterface()

@@ -12,11 +12,10 @@ Once set, values are persisted to the app instance's ``.env`` file
 
 import os
 import sys
-import time
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from pathlib import Path
 
 from fastrtc import AdditionalOutputs, audio_to_float32
@@ -241,7 +240,6 @@ class LocalStream:
         "FEATURE_DANGER_DETECTION",
         "FEATURE_STORY_TIME",
         "FEATURE_SIGNAL_ALERTS",
-        "FEATURE_HEAD_TRACKING",
     )
 
     def _persist_local_llm_settings(self, settings: dict[str, str]) -> None:
@@ -434,7 +432,6 @@ class LocalStream:
                     "FEATURE_DANGER_DETECTION": config.FEATURE_DANGER_DETECTION,
                     "FEATURE_STORY_TIME": config.FEATURE_STORY_TIME,
                     "FEATURE_SIGNAL_ALERTS": config.FEATURE_SIGNAL_ALERTS,
-                    "FEATURE_HEAD_TRACKING": config.FEATURE_HEAD_TRACKING,
                     "SIGNAL_USER_PHONE": config.SIGNAL_USER_PHONE or "",
                     "MIC_GAIN": config.MIC_GAIN,
                 }
@@ -451,13 +448,15 @@ class LocalStream:
                 inputs = []
                 for i, d in enumerate(devices):
                     if d["max_input_channels"] > 0:
-                        inputs.append({
-                            "index": i,
-                            "name": d["name"],
-                            "channels": d["max_input_channels"],
-                            "samplerate": d["default_samplerate"],
-                            "is_default": i == default_input,
-                        })
+                        inputs.append(
+                            {
+                                "index": i,
+                                "name": d["name"],
+                                "channels": d["max_input_channels"],
+                                "samplerate": d["default_samplerate"],
+                                "is_default": i == default_input,
+                            }
+                        )
                 return JSONResponse({"devices": inputs, "default": default_input})
             except Exception as e:
                 return JSONResponse({"devices": [], "error": str(e)})
@@ -483,8 +482,11 @@ class LocalStream:
                 sr = int(dev_info["default_samplerate"])
                 duration = 1.5  # seconds
                 recording = sd.rec(
-                    int(duration * sr), samplerate=sr, channels=1,
-                    dtype="float32", device=device,
+                    int(duration * sr),
+                    samplerate=sr,
+                    channels=1,
+                    dtype="float32",
+                    device=device,
                 )
                 sd.wait()
                 audio = recording.flatten() * gain
@@ -698,7 +700,13 @@ class LocalStream:
                         except Exception:
                             pass
                     # Reload local LLM settings from instance .env
-                    for env_key in ("LOCAL_LLM_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY", "LOCAL_STT_MODEL", "SIGNAL_USER_PHONE"):
+                    for env_key in (
+                        "LOCAL_LLM_URL",
+                        "LOCAL_LLM_MODEL",
+                        "LOCAL_LLM_API_KEY",
+                        "LOCAL_STT_MODEL",
+                        "SIGNAL_USER_PHONE",
+                    ):
                         val = os.getenv(env_key, "").strip()
                         if val:
                             try:

@@ -38,7 +38,7 @@ Audio → Silero VAD → Faster-Whisper STT → Ollama LLM (with tool calling) �
 ### Movement System
 - 100 Hz control loop with monotonic clock phase alignment
 - Primary moves (dances, emotions) are mutually exclusive
-- Secondary moves (speech sway via HeadWobbler, face tracking) are additive offsets
+- Secondary moves (speech sway via HeadWobbler) are additive offsets
 - HeadWobbler: converts TTS audio stream into head movement for natural speech appearance
 
 ## Repository Structure
@@ -49,7 +49,7 @@ src/reachy_mini_conversation_app/
 ├── console.py               # Headless mode with settings dashboard (FastAPI)
 ├── config.py                # Configuration from .env, includes feature flags
 ├── moves.py                 # 100Hz movement control loop
-├── camera_worker.py         # 30Hz camera polling, face tracking offsets
+├── camera_worker.py         # 30Hz camera polling with frame buffering
 ├── prompts.py               # Dynamic prompt loading from profiles
 ├── local/
 │   ├── handler.py           # Core pipeline: VAD→STT→LLM→TTS + system events
@@ -67,13 +67,11 @@ src/reachy_mini_conversation_app/
 │   ├── send_signal_photo.py # Capture frame + send via Signal
 │   ├── dance.py             # Movement primitives
 │   ├── story_time.py        # Children's story narration
-│   ├── head_tracking.py     # Toggle face tracking
 │   ├── move_head.py         # Direct head control
 │   └── ...
 ├── vision/
 │   ├── processors.py        # VisionProcessor (API-based VLM) + VisionManager
-│   ├── yolo_head_tracker.py # YOLOv11 face detection for head tracking
-│   └── danger_detector.py   # YOLO general object detection for baby safety
+│   └── danger_detector.py   # YOLO object detection for baby safety
 ├── audio/
 │   ├── classifier.py        # YAMNet ONNX audio event classifier
 │   ├── head_wobbler.py      # Audio-reactive head movement during speech
@@ -114,13 +112,12 @@ Ollama sends all tool calls under stream index 0, unlike OpenAI which uses disti
 Central dataclass injected into all tools. Contains: `reachy_mini`, `movement_manager`, `camera_worker`, `vision_manager`, `head_wobbler`, `audio_classifier_status`, `vision_threat_status`, `speak_func`, `motion_duration_s`.
 
 ### Feature Flags
-Six toggleable features in `config.py`, controllable via `.env` or the settings dashboard:
+Five toggleable features in `config.py`, controllable via `.env` or the settings dashboard:
 - `FEATURE_CRY_DETECTION` — YAMNet audio classifier
 - `FEATURE_AUTO_SOOTHE` — soothe_baby + check_baby_crying tools
 - `FEATURE_DANGER_DETECTION` — YOLO visual safety scanner + check_danger tool
 - `FEATURE_STORY_TIME` — story_time tool
 - `FEATURE_SIGNAL_ALERTS` — Signal messaging tools
-- `FEATURE_HEAD_TRACKING` — YOLO face following
 
 Feature flags work by: (1) excluding tools from `tool_specs` via `get_tool_specs(exclusion_list=...)`, and (2) conditionally loading background services in `handler.start_up()`.
 
@@ -136,8 +133,7 @@ Profiles live in `src/.../profiles/<name>/`. Each has `instructions.txt` (system
 | TTS | Kokoro (ONNX) | Neural speech synthesis |
 | VAD | Silero VAD (PyTorch) | Voice activity detection |
 | Vision | Qwen2.5-VL / Qwen3-VL (via Ollama) | Visual question answering |
-| Face Detection | YOLOv11 | Head tracking |
-| Object Detection | YOLO v11 (general COCO model) | Danger detection |
+| Object Detection | YOLO v26 nano (general COCO model) | Danger detection |
 | Audio Classification | YAMNet (ONNX) | Baby cry / environmental sound detection |
 | Messaging | signal-cli | Remote text + photo alerts |
 | Robot SDK | reachy-mini SDK (Zenoh) | Robot control |
@@ -160,7 +156,7 @@ Profiles live in `src/.../profiles/<name>/`. Each has `instructions.txt` (system
 
 The headless settings UI (`static/index.html`) has three panels (Features and Personality are collapsible):
 1. **LLM Settings** — Server URL, model, API key, STT model size. Includes a hint about needing Ollama/vLLM running externally.
-2. **Features** (collapsible) — 6 toggle switches (cry detection, auto soothe, danger detection, story time, Signal alerts, head tracking). Signal toggle reveals a phone number input.
+2. **Features** (collapsible) — 5 toggle switches (cry detection, auto soothe, danger detection, story time, Signal alerts). Signal toggle reveals a phone number input.
 3. **Personality Studio** (collapsible, starts collapsed) — Profile selection, instructions editor, tools checkboxes, voice selection.
 
 The **Start button** is positioned below the Features panel. Settings are persisted to the instance `.env` file and sent to the handler when the user clicks "Start".
@@ -222,7 +218,7 @@ pytest tests/ -v
 ## Known Gotchas
 
 - **Kokoro TTS can't handle onomatopoeia** — "Shhh" gets spelled out as "s s s h". Use real words like "Hush now" instead.
-- **YOLO danger detection uses multi-frame confirmation** — `yolo11s` (small) model with 3-of-5 frame confirmation to filter hallucinations. A dangerous object must appear in 3 of the last 5 frames before triggering an alert. Confidence threshold is 0.2.
+- **YOLO danger detection uses multi-frame confirmation** — `yolo26n` (nano) model with 3-of-5 frame confirmation to filter hallucinations. A dangerous object must appear in 3 of the last 5 frames before triggering an alert. Confidence threshold is 0.2.
 - **Echo suppression timing** — The cooldown must be relative to estimated playback end, not pipeline completion. Pipeline finishes when TTS audio is *queued*, not when it finishes *playing*. `_playback_end_mono` tracks the estimated speaker finish time.
 - **Ollama tool call indices** — Ollama sends all streaming tool calls under index 0 (unlike OpenAI). The `llm.py` parser handles this with synthetic buffer indices.
 - **signal-cli path** — Not always on PATH. `signal_interface.py` checks `/opt/homebrew/bin/signal-cli` and `/usr/local/bin/signal-cli` as fallbacks.

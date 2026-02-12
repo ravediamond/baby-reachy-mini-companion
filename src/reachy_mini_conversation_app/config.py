@@ -49,7 +49,6 @@ class Config:
     FEATURE_DANGER_DETECTION = True
     FEATURE_STORY_TIME = True
     FEATURE_SIGNAL_ALERTS = True
-    FEATURE_HEAD_TRACKING = True
 
 
 config = Config()
