@@ -10,9 +10,9 @@ in at least ``confirm_frames`` of the last ``window_size`` frames before
 an alert is raised.  This filters out single-frame hallucinations that
 small YOLO models produce in dim lighting (e.g. "dog", "umbrella").
 
-Default model is ``yolo26n`` (YOLO v26 nano) which offers better
-small-object accuracy and 43% faster CPU inference vs yolo11s —
-important for Jetson deployment.
+Default model is ``yolo26s`` (YOLO v26 small) which offers better
+detection accuracy for thin objects like knives compared to the nano
+variant, at the cost of ~2x inference time.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class DangerDetector:
 
     def __init__(
         self,
-        model_name: str = "yolo26n.pt",
+        model_name: str = "yolo26s.pt",
         confidence_threshold: float = 0.2,
         confirm_frames: int = 3,
         window_size: int = 5,

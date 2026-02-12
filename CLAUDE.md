@@ -217,7 +217,7 @@ pytest tests/ -v
 ## Known Gotchas
 
 - **Kokoro TTS can't handle onomatopoeia** — "Shhh" gets spelled out as "s s s h". Use real words like "Hush now" instead.
-- **YOLO danger detection uses multi-frame confirmation** — `yolo26n` (nano) model with 3-of-5 frame confirmation to filter hallucinations. A dangerous object must appear in 3 of the last 5 frames before triggering an alert. Confidence threshold is 0.2.
+- **YOLO danger detection uses multi-frame confirmation** — `yolo26s` (small) model with 3-of-5 frame confirmation to filter hallucinations. A dangerous object must appear in 3 of the last 5 frames before triggering an alert. Confidence threshold is 0.2.
 - **Echo suppression timing** — The cooldown must be relative to estimated playback end, not pipeline completion. Pipeline finishes when TTS audio is *queued*, not when it finishes *playing*. `_playback_end_mono` tracks the estimated speaker finish time.
 - **Ollama tool call indices** — Ollama sends all streaming tool calls under index 0 (unlike OpenAI). The `llm.py` parser handles this with synthetic buffer indices.
 - **signal-cli path** — Not always on PATH. `signal_interface.py` checks `/opt/homebrew/bin/signal-cli` and `/usr/local/bin/signal-cli` as fallbacks.
