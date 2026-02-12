@@ -111,10 +111,8 @@ class DangerDetector:
             logger.debug(f"YOLO detections: {', '.join(all_labels)}")
 
         if dangerous:
-            logger.info(
-                f"Dangerous objects spotted: "
-                f"{', '.join(f'{d[\"label\"]}({d[\"confidence\"]})' for d in dangerous)}"
-            )
+            labels = ", ".join(f"{d['label']}({d['confidence']})" for d in dangerous)
+            logger.info(f"Dangerous objects spotted: {labels}")
 
         return dangerous
 
