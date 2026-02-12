@@ -48,8 +48,8 @@ class VisionProcessor:
 
             client = OpenAI(base_url=config.LOCAL_LLM_URL, api_key=config.LOCAL_LLM_API_KEY)
 
-            # Use a dedicated vision model (separate from the chat LLM)
-            model_name = config.LOCAL_VLM_MODEL or "qwen3-vl:4b"
+            # Use the same model as the chat LLM
+            model_name = config.LOCAL_LLM_MODEL or "ministral-3:3b"
 
             logger.debug(f"Encoding image for VLM (model={model_name} at {config.LOCAL_LLM_URL})...")
 
@@ -110,7 +110,7 @@ class VisionProcessor:
             "initialized": self._initialized,
             "mode": "api",
             "url": config.LOCAL_LLM_URL,
-            "model": config.LOCAL_VLM_MODEL,
+            "model": config.LOCAL_LLM_MODEL,
         }
 
 

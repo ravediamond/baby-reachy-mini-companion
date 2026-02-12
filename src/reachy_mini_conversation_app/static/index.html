@@ -59,7 +59,7 @@
           <span id="local-llm-chip" class="chip">Local</span>
         </div>
         <p class="muted">Configure the local LLM server (Ollama, vLLM, or any OpenAI-compatible endpoint).</p>
-        <div class="hint">Requires an external LLM server running separately. Install <a href="https://ollama.com" target="_blank">Ollama</a> and run <code>ollama pull ministral:3b</code>, or use <a href="https://docs.vllm.ai/" target="_blank">vLLM</a> on Jetson. See the <a href="https://github.com/pollen-robotics/reachy-mini-conversation-app#deployment-scenarios" target="_blank">README</a> for setup details.</div>
+        <div class="hint">Requires an external LLM server running separately. Install <a href="https://ollama.com" target="_blank">Ollama</a> and run <code>ollama pull ministral-3:3b</code>, or use <a href="https://docs.vllm.ai/" target="_blank">vLLM</a> on Jetson. See the <a href="https://github.com/pollen-robotics/reachy-mini-conversation-app#deployment-scenarios" target="_blank">README</a> for setup details.</div>
         <div class="section">
           <div class="section-heading">
             <h3>Language Model</h3>
@@ -71,7 +71,7 @@
           </div>
           <div class="row">
             <label for="llm-model">Model name</label>
-            <input id="llm-model" type="text" placeholder="ministral:3b" />
+            <input id="llm-model" type="text" placeholder="ministral-3:3b" />
           </div>
           <div class="row">
             <label for="llm-api-key">API key</label>

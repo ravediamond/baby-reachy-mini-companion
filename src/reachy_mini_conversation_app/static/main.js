@@ -371,7 +371,7 @@ async function init() {
       // Show configuration form
       const settings = await fetchLocalLlmSettings();
       llmUrlInput.value = settings.LOCAL_LLM_URL || "http://localhost:11434/v1";
-      llmModelInput.value = settings.LOCAL_LLM_MODEL || "ministral:3b";
+      llmModelInput.value = settings.LOCAL_LLM_MODEL || "ministral-3:3b";
       llmApiKeyInput.value = settings.LOCAL_LLM_API_KEY || "ollama";
       sttModelSelect.value = settings.LOCAL_STT_MODEL || "small.en";
       localLlmChip.textContent = "Configure";

@@ -80,10 +80,9 @@ The profile system already supports this — each profile has its own system pro
 
 ### 1. Prerequisites
 
-*   **Local LLM Server:** Install [Ollama](https://ollama.com/) (or any OpenAI-compatible server like vLLM) and pull the models:
+*   **Local LLM Server:** Install [Ollama](https://ollama.com/) (or any OpenAI-compatible server like vLLM) and pull a model:
     ```bash
-    ollama pull ministral:3b     # Chat LLM
-    ollama pull qwen3-vl:4b      # Vision LLM (for camera tool)
+    ollama pull ministral-3:3b
     ```
 *   **System Dependencies (macOS):**
     ```bash
@@ -145,8 +144,7 @@ The app connects to any **OpenAI-compatible** LLM server. By default it points t
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOCAL_LLM_URL` | `http://localhost:11434/v1` | URL to your OpenAI-compatible LLM server. |
-| `LOCAL_LLM_MODEL` | `ministral:3b` | Chat model name as known by your LLM server. |
-| `LOCAL_VLM_MODEL` | `qwen3-vl:4b` | Vision model for the camera tool (must support image input). |
+| `LOCAL_LLM_MODEL` | `ministral-3:3b` | Model name as known by your LLM server. Use a VL model (e.g. `qwen3-vl:4b`) for camera support. |
 | `LOCAL_LLM_API_KEY` | `ollama` | API key (Ollama ignores this; other servers may require a real key). |
 | `LOCAL_STT_MODEL` | `small.en` | Whisper model size (`tiny.en`, `small.en`, `medium.en`, `large-v3`). |
 | `MIC_GAIN` | `1.0` | Digital gain for microphone input (e.g., `2.0` to double volume). |
@@ -159,7 +157,7 @@ The following models have been tested and work well with the app:
 
 | Model | Type | Notes |
 |-------|------|-------|
-| `ministral:3b` (Mistral AI) | Text LLM | **Recommended default.** Excellent reasoning for a 3B model — frontier-level quality in a tiny footprint. Works on Ollama. Does **not** work on vLLM v0.14 (current Jetson container version). |
+| `ministral-3:3b` (Mistral AI) | Text LLM | **Recommended default.** Excellent reasoning for a 3B model — frontier-level quality in a tiny footprint. Works on Ollama. Does **not** work on vLLM v0.14 (current Jetson container version). |
 | `qwen3-vl:4b` | Vision LLM | **Recommended vision model.** Used by the camera tool and danger detection VLM analysis. Requires the latest Ollama/vLLM builds (Qwen3 uses dynamic patching). |
 
 #### Option B: Via the Settings UI (Reachy Mini Apps)
@@ -340,16 +338,14 @@ The app runs on a Mac (or any desktop). The Jetson Orin is used **only as a vLLM
 The simplest setup. Ollama runs the LLM, and the app handles STT/TTS locally on the Mac.
 
 ```bash
-ollama pull ministral:3b
-ollama pull qwen3-vl:4b
+ollama pull ministral-3:3b
 uv run reachy-mini-conversation-app
 ```
 
 Set in `.env`:
 ```env
 LOCAL_LLM_URL="http://localhost:11434/v1"
-LOCAL_LLM_MODEL="ministral:3b"
-LOCAL_VLM_MODEL="qwen3-vl:4b"
+LOCAL_LLM_MODEL="ministral-3:3b"
 ```
 
 ### 2. App on Mac, vLLM on Jetson Orin
@@ -471,7 +467,7 @@ curl http://localhost:30000/v1/models
 | **vLLM v0.11** | Qwen3-VL-4B | AWQ-4bit | ~28 (text) / ~8 (vision) | Same container, multimodal |
 | **vLLM v0.14** | Qwen3-4B | W4A16 | Better | Latest Jetson build, improved scheduling |
 | **llama.cpp** | Qwen2.5-3B | GGUF Q4_K_M | ~23 | Built natively for Jetson aarch64. Functional but slower than vLLM for equivalent models due to less GPU optimization. |
-| **Ollama** | ministral:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
+| **Ollama** | ministral-3:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
 
 ### vLLM vs llama.cpp: memory–speed tradeoff
 

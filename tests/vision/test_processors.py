@@ -98,7 +98,7 @@ def test_vision_processor_process_image_api_success() -> None:
         mock_cv2.IMWRITE_JPEG_QUALITY = 1
         mock_config.LOCAL_LLM_URL = "http://localhost:11434/v1"
         mock_config.LOCAL_LLM_API_KEY = "test"
-        mock_config.LOCAL_VLM_MODEL = "qwen3-vl:4b"
+        mock_config.LOCAL_LLM_MODEL = "ministral-3:3b"
 
         with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
@@ -125,7 +125,7 @@ def test_vision_processor_process_image_api_error() -> None:
         mock_cv2.IMWRITE_JPEG_QUALITY = 1
         mock_config.LOCAL_LLM_URL = "http://localhost:11434/v1"
         mock_config.LOCAL_LLM_API_KEY = "test"
-        mock_config.LOCAL_VLM_MODEL = "qwen3-vl:4b"
+        mock_config.LOCAL_LLM_MODEL = "ministral-3:3b"
 
         with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
@@ -143,7 +143,7 @@ def test_vision_processor_get_model_info() -> None:
     processor = VisionProcessor()
     with patch("reachy_mini_conversation_app.vision.processors.config") as mock_config:
         mock_config.LOCAL_LLM_URL = "http://localhost:11434/v1"
-        mock_config.LOCAL_VLM_MODEL = "qwen3-vl:4b"
+        mock_config.LOCAL_LLM_MODEL = "ministral-3:3b"
         processor.initialize()
 
         info = processor.get_model_info()
@@ -151,7 +151,7 @@ def test_vision_processor_get_model_info() -> None:
         assert info["initialized"] is True
         assert info["mode"] == "api"
         assert info["url"] == "http://localhost:11434/v1"
-        assert info["model"] == "qwen3-vl:4b"
+        assert info["model"] == "ministral-3:3b"
 
 
 @pytest.fixture
