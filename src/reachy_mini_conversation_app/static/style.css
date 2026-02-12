@@ -411,6 +411,26 @@ button.ghost:hover { border-color: rgba(94, 240, 193, 0.4); }
   font-weight: 500;
 }
 
+/* Collapsible panels */
+.collapsible .panel-toggle { cursor: pointer; user-select: none; }
+.collapsible .panel-toggle:hover { opacity: 0.85; }
+.chevron {
+  display: inline-block;
+  margin-left: 4px;
+  transition: transform 0.2s ease;
+}
+.chevron::after { content: "\25BC"; font-size: 10px; }
+.collapsible.collapsed .chevron { transform: rotate(-90deg); }
+.collapsible .panel-body {
+  overflow: hidden;
+  max-height: 2000px;
+  transition: max-height 0.3s ease;
+}
+.collapsible.collapsed .panel-body {
+  max-height: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 760px) {
   .hero h1 { font-size: 26px; }
   .row { grid-template-columns: 1fr; }

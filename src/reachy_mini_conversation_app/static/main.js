@@ -308,6 +308,7 @@ async function init() {
 
   // Features panel
   const featuresPanel = document.getElementById("features-panel");
+  const startPanel = document.getElementById("start-panel");
   const signalToggle = document.getElementById("feat-signal-alerts");
   const signalPhoneRow = document.getElementById("signal-phone-row");
 
@@ -336,6 +337,14 @@ async function init() {
   show(localLlmPanel, false);
   show(localRunningPanel, false);
   show(featuresPanel, false);
+  show(startPanel, false);
+
+  // Collapsible panels: click heading to toggle
+  document.querySelectorAll(".panel-toggle").forEach((heading) => {
+    heading.addEventListener("click", () => {
+      heading.closest(".collapsible").classList.toggle("collapsed");
+    });
+  });
 
   // Detect app mode (local vs openai)
   const appMode = await fetchAppMode();
@@ -349,7 +358,9 @@ async function init() {
     function showRunningState(model, stt) {
       show(localLlmPanel, false);
       show(featuresPanel, false);
+      show(startPanel, false);
       show(localRunningPanel, true);
+      stopLocalBtn.disabled = false;
       localRunningInfo.textContent = `Model: ${model || "—"} | STT: ${stt || "—"}`;
     }
 
@@ -357,6 +368,7 @@ async function init() {
       show(localRunningPanel, false);
       show(localLlmPanel, true);
       show(featuresPanel, true);
+      show(startPanel, true);
       startLocalBtn.disabled = false;
       localLlmStatus.textContent = "";
       localLlmStatus.className = "status";
@@ -378,10 +390,11 @@ async function init() {
       localLlmChip.className = "chip";
       show(localLlmPanel, true);
 
-      // Load and show features panel
+      // Load and show features panel + start button
       const featureSettings = await fetchFeatureSettings();
       applyFeatureSettings(featureSettings);
       show(featuresPanel, true);
+      show(startPanel, true);
 
       // Populate mic device selector
       try {
@@ -476,8 +489,6 @@ async function init() {
             MIC_DEVICE: micDeviceSelect.value,
             ...getFeatureSettings(),
           });
-          localLlmStatus.textContent = "Pipeline starting... loading models.";
-          localLlmStatus.className = "status ok";
           showRunningState(llmModelInput.value.trim(), sttModelSelect.value);
         } catch (e) {
           localLlmStatus.textContent = "Failed to start. Check your settings and try again.";

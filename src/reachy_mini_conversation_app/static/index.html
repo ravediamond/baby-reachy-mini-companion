@@ -117,21 +117,18 @@
             <p id="test-mic-status" class="status"></p>
           </div>
         </div>
-        <div class="actions">
-          <button id="start-local-btn">Start</button>
-          <p id="local-llm-status" class="status"></p>
-        </div>
       </div>
 
       <!-- Features panel -->
-      <div id="features-panel" class="panel hidden">
-        <div class="panel-heading">
+      <div id="features-panel" class="panel collapsible hidden">
+        <div class="panel-heading panel-toggle">
           <div>
             <p class="eyebrow">Baby Companion</p>
             <h2>Features</h2>
           </div>
-          <span class="chip">Configure</span>
+          <span class="chip">Configure <span class="chevron"></span></span>
         </div>
+        <div class="panel-body">
         <p class="muted">Enable or disable companion features before starting the pipeline. Some features require external tools &mdash; see hints below.</p>
         <div class="section">
           <div class="section-heading">
@@ -195,6 +192,15 @@
             </div>
           </div>
         </div>
+        </div>
+      </div>
+
+      <!-- Start button (below features) -->
+      <div id="start-panel" class="panel hidden">
+        <div class="actions" style="justify-content:center;">
+          <button id="start-local-btn">Start pipeline</button>
+        </div>
+        <p id="local-llm-status" class="status" style="text-align:center;margin-top:8px;"></p>
       </div>
 
       <!-- Local LLM running state -->
@@ -213,14 +219,15 @@
         </div>
       </div>
 
-      <div id="personality-panel" class="panel hidden">
-        <div class="panel-heading">
+      <div id="personality-panel" class="panel collapsible collapsed hidden">
+        <div class="panel-heading panel-toggle">
           <div>
             <p class="eyebrow">Profiles</p>
             <h2>Personality studio</h2>
           </div>
-          <span class="chip">Live</span>
+          <span class="chip">Live <span class="chevron"></span></span>
         </div>
+        <div class="panel-body">
         <p class="muted">Create lean instruction sets and apply a voice for your Reachy Mini.</p>
         <div class="section">
           <div class="section-heading">
@@ -265,6 +272,7 @@
           </div>
         </div>
         <p id="personality-status" class="status"></p>
+        </div>
       </div>
     </div>
 
