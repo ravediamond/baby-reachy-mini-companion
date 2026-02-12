@@ -25,8 +25,6 @@ Baby cries → robot soothes → parent gets a Signal photo. It also talks, tell
 - **Safety alerts are guaranteed** — cry and danger notifications bypass the LLM and are sent directly in code, because [SLMs can't reliably chain 3+ tool calls](#slm-tool-calling-limits)
 - **Runs on a Mac + $700 Jetson** — no cloud, no data center, no subscription. GPU inference via vLLM on NVIDIA Jetson Orin NX
 
-<img src="docs/assets/reachy.gif" width="600" alt="Baby cry detected — Reachy automatically soothes and alerts parent" />
-
 <img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy-Mini Companion — a nursery robot among baby toys" />
 
 ## Why I Built This
@@ -97,6 +95,11 @@ The profile system already supports this — each profile has its own system pro
     ```bash
     brew install portaudio gobject-introspection cairo pkg-config
     ```
+*   **Signal-CLI (optional):** Required only if you enable Signal alerts. Install and register before use:
+    ```bash
+    brew install signal-cli
+    ```
+    See [Signal Integration](#signal-integration-remote-access) for registration steps.
 
 ### 2. Install
 

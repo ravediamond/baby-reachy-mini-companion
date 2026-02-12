@@ -157,7 +157,6 @@ custom_css = """
 """
 
 with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
-
     gr.HTML("""
     <div class="page">
 
@@ -225,8 +224,8 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="diff-grid">
             <div class="diff-item"><strong>100% Local</strong> &mdash; No cloud APIs, no internet required</div>
             <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for both conversation and sight</div>
-            <div class="diff-item"><strong>Autonomous Intelligence</strong> &mdash; The robot reasons about what to do: hears crying and decides to soothe, spots danger and alerts you, answers questions by looking around. Not scripted &mdash; it thinks</div>
-            <div class="diff-item"><strong>One VLM Does It All</strong> &mdash; A single 3B&ndash;4B vision-language model handles text conversation, visual understanding, and tool-calling decisions &mdash; no separate models needed</div>
+            <div class="diff-item"><strong>Autonomous Intelligence</strong> &mdash; A single 3B&ndash;4B vision-language model with tool calling reasons about what to do: hears crying &rarr; soothes the baby and alerts you; spots a knife &rarr; sends a photo; gets asked a question &rarr; looks around and answers. Not scripted &mdash; it thinks</div>
+            <div class="diff-item"><strong>Guaranteed Safety</strong> &mdash; Safety-critical notifications (cry alerts, danger photos) are sent directly in code &mdash; guaranteed delivery, never dependent on the LLM. The robot reasons about <em>what to say</em>, but alerts are deterministic</div>
             <div class="diff-item"><strong>Jetson vLLM</strong> &mdash; Offload inference to a Jetson Orin via NVIDIA AI containers with quantized models at 25+ tokens/s</div>
             <div class="diff-item"><strong>Concurrent Pipeline</strong> &mdash; 100Hz motion, 30Hz camera, speech detection, and safety scanning run in parallel on consumer hardware</div>
         </div>
@@ -239,7 +238,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="card">
                 <div class="card-icon card-icon-pink">&#x1F476;</div>
                 <h3>Baby Safety Monitor</h3>
-                <p>Listens for crying and scans for dangerous objects near the baby. Automatically soothes with gentle rocking and calming words, and sends you a photo alert via Signal from another room.</p>
+                <p>YAMNet listens for crying, YOLO scans for dangerous objects. Photo alerts are sent directly in code &mdash; guaranteed, not dependent on the LLM. The robot then soothes the baby autonomously with gentle rocking and calming words.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-purple">&#x1F3A4;</div>
