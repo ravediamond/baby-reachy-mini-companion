@@ -41,20 +41,21 @@ A few things that inform the design:
 
 > **100% Local. No cloud. No exceptions.**
 >
-> The only Reachy Mini application running a fully local AI stack — LLM, speech-to-text, text-to-speech, vision, and audio classification — all on-device with zero cloud dependency.
+> The only Reachy Mini application running a fully local AI stack — a single vision-language model for conversation and sight, speech-to-text, text-to-speech, and audio classification — all on-device with zero cloud dependency.
 
-- **7+ AI models on-device**: VAD, STT, LLM, TTS, VLM, YOLO, and YAMNet — orchestrated together in a single pipeline
-- **Autonomous safety**: Detects baby cries and soothes automatically while sending a photo alert to the parent. YOLO continuously scans for dangerous objects near the baby and sends a Signal photo alert. Safety-critical notifications are sent directly — not routed through the LLM (see [SLM tool-calling limits](#slm-tool-calling-limits))
+- **7+ AI models on-device**: VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for both conversation and sight — orchestrated together in one pipeline
+- **Autonomous intelligence**: The robot doesn't follow scripts — it reasons. A 3B–4B vision-language model uses tool calling to decide what to do: hear crying → soothe the baby and alert the parent; spot a knife → send a photo alert; get asked a question → look around and answer. One VLM handles text, vision, and decision-making
+- **Autonomous safety**: Cry detection and danger scanning run continuously in the background. Safety-critical notifications (photo alerts via Signal) are sent directly in code — guaranteed delivery, not dependent on the LLM (see [SLM tool-calling limits](#slm-tool-calling-limits))
 - **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
-- **NVIDIA Jetson vLLM**: Offload LLM inference to a Jetson Orin running GPU-accelerated vLLM via NVIDIA's official AI containers, with quantized models tuned for Jetson's memory bandwidth
+- **NVIDIA Jetson vLLM**: Offload VLM inference to a Jetson Orin running GPU-accelerated vLLM via NVIDIA's official AI containers, with quantized models tuned for Jetson's memory bandwidth
 
 ## Features
 
 - **Baby Safety Monitor** — Listens for crying (YAMNet) and scans for dangerous objects (YOLO). Automatically soothes the baby with gentle rocking and calming words, and sends you a photo alert via Signal so you know what's happening from another room.
-- **Voice Companion** — Your child talks, the robot listens and responds naturally — no screen needed. Conversations and interactive play through voice alone.
+- **Interactive Learning** — Teaches your child through natural conversation — counting, colors, animals, and language practice. The robot listens, responds, and adapts. Screen-free learning through voice alone.
 - **Soothe & Comfort** — Speaks gentle, calming words with slow rocking motions to comfort a crying baby. Triggered automatically by cry detection or on demand.
 - **Story Time** — Reads classic children's stories (Three Little Pigs, Goldilocks) with expressive narration and emotional prosody.
-- **Vision & Discovery** — Sees the world through its camera using a local VLM. Ask "What do you see?" or let it describe what's around.
+- **Contextual Awareness** — Combines what it hears and sees to understand the situation. Detects crying through audio, spots dangerous objects through its camera, and can describe the world around it when asked.
 - **Remote Alerts** — Talk to Reachy via Signal when you're away. Get instant text and photo notifications when the baby needs attention.
 - **Expressive Motion** — Dances, emotional antenna expressions, face tracking (YOLO), and audio-reactive head movement make it feel present and alive.
 - **Privacy First** — All processing — voice, vision, and chat — happens locally on your device. No cloud, no data leaves your home.
@@ -272,7 +273,7 @@ To enable the remote interface:
 
 <img src="docs/assets/architecture.svg" width="800" alt="Fully local AI pipeline — 7 models, zero cloud" />
 
-The entire pipeline runs on-device: audio is captured and processed through VAD, STT, and the LLM with tool calling. The LLM autonomously invokes tools (camera, motion, Signal alerts) based on context. TTS output is streamed back with audio-reactive head movement for natural-looking speech.
+The entire pipeline runs on-device: audio is captured and processed through VAD, STT, and a vision-language model with tool calling. The VLM autonomously reasons about what to do — invoking tools (camera, motion, Signal alerts) based on context from both conversation and camera input. TTS output is streamed back with audio-reactive head movement for natural-looking speech.
 
 ## Latency & Performance
 
@@ -575,7 +576,7 @@ The assistant is equipped with a suite of tools it can autonomously use:
 
 | Tool | Action |
 |------|--------|
-| `camera` | Takes a picture and analyzes it using the local VLM (e.g., "What do you see?"). |
+| `camera` | Takes a picture and analyzes it using the vision-language model (e.g., "What do you see?"). |
 | `soothe_baby` | **Baby Monitor:** Performs gentle rocking motions and speaks calming words. Triggered automatically by cry detection or manually. |
 | `story_time` | Reads classic children's stories (Three Little Pigs, Goldilocks) with expressive narration. |
 | `speak` | Explicitly speaks text (useful for precise multi-step tasks). |

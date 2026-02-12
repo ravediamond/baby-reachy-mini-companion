@@ -224,11 +224,11 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <div class="diff-grid">
             <div class="diff-item"><strong>100% Local</strong> &mdash; No cloud APIs, no internet required</div>
-            <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, LLM, TTS, VLM, YOLO, YAMNet on-device</div>
-            <div class="diff-item"><strong>Safety Monitor</strong> &mdash; YOLO detects hazards, VLM analyzes, Signal alerts you</div>
-            <div class="diff-item"><strong>Jetson vLLM</strong> &mdash; Offload LLM inference to a Jetson Orin via NVIDIA AI containers with quantized models</div>
-            <div class="diff-item"><strong>25+ TPS</strong> &mdash; KV cache warmup, streaming TTS, and 3B&ndash;4B models tuned for real-time conversation</div>
-            <div class="diff-item"><strong>Concurrent Pipeline</strong> &mdash; 100Hz motion, 30Hz camera, speech detection, and safety scanning run in parallel</div>
+            <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for both conversation and sight</div>
+            <div class="diff-item"><strong>Autonomous Intelligence</strong> &mdash; The robot reasons about what to do: hears crying and decides to soothe, spots danger and alerts you, answers questions by looking around. Not scripted &mdash; it thinks</div>
+            <div class="diff-item"><strong>One VLM Does It All</strong> &mdash; A single 3B&ndash;4B vision-language model handles text conversation, visual understanding, and tool-calling decisions &mdash; no separate models needed</div>
+            <div class="diff-item"><strong>Jetson vLLM</strong> &mdash; Offload inference to a Jetson Orin via NVIDIA AI containers with quantized models at 25+ tokens/s</div>
+            <div class="diff-item"><strong>Concurrent Pipeline</strong> &mdash; 100Hz motion, 30Hz camera, speech detection, and safety scanning run in parallel on consumer hardware</div>
         </div>
 
         <!-- Features -->
@@ -243,8 +243,8 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             </div>
             <div class="card">
                 <div class="card-icon card-icon-purple">&#x1F3A4;</div>
-                <h3>Voice Companion</h3>
-                <p>Your child talks, the robot listens and responds naturally &mdash; no screen needed. Conversations and interactive play through voice alone.</p>
+                <h3>Interactive Learning</h3>
+                <p>Teaches your child through natural conversation &mdash; counting, colors, animals, and language practice. The robot listens, responds, and adapts. Screen-free learning through voice alone.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-blue">&#x1F319;</div>
@@ -258,8 +258,8 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             </div>
             <div class="card">
                 <div class="card-icon card-icon-green">&#x1F441;</div>
-                <h3>Vision &amp; Discovery</h3>
-                <p>Sees the world through its camera using a local vision model. Ask "What do you see?" and the robot describes what's around.</p>
+                <h3>Contextual Awareness</h3>
+                <p>Combines what it hears and sees to understand the situation. Detects crying through audio, spots dangerous objects through its camera, and can describe the world around it when asked.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-red">&#x1F57A;</div>
