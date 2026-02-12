@@ -72,6 +72,10 @@ class LocalLLM:
 
             full_content = ""
             tool_calls_buffer: Dict[int, Any] = {}
+            # Ollama sends all tool calls under index 0. Track which
+            # buffer index each stream index currently maps to so we
+            # can split them when a new tool name appears.
+            _stream_to_buf: Dict[int, int] = {}
 
             async for chunk in stream:
                 delta = chunk.choices[0].delta
@@ -84,22 +88,36 @@ class LocalLLM:
                 # 2. Handle Tool Calls
                 if delta.tool_calls:
                     for tc in delta.tool_calls:
-                        idx = tc.index
-                        if idx not in tool_calls_buffer:
-                            tool_calls_buffer[idx] = {
-                                "id": tc.id,
+                        stream_idx = tc.index
+                        buf_idx = _stream_to_buf.get(stream_idx, stream_idx)
+
+                        # Detect new tool call reusing the same stream index
+                        # (Ollama bug: multiple tool calls all arrive as index 0)
+                        if (
+                            buf_idx in tool_calls_buffer
+                            and tc.function
+                            and tc.function.name
+                            and tool_calls_buffer[buf_idx]["function"]["name"]
+                        ):
+                            buf_idx = (max(tool_calls_buffer.keys()) + 1) if tool_calls_buffer else 0
+                            _stream_to_buf[stream_idx] = buf_idx
+
+                        if buf_idx not in tool_calls_buffer:
+                            tool_calls_buffer[buf_idx] = {
+                                "id": tc.id or f"call_{buf_idx}",
                                 "type": "function",
                                 "function": {"name": "", "arguments": ""},
                             }
+                            _stream_to_buf[stream_idx] = buf_idx
 
                         if tc.id:
-                            tool_calls_buffer[idx]["id"] = tc.id
+                            tool_calls_buffer[buf_idx]["id"] = tc.id
 
                         if tc.function:
                             if tc.function.name:
-                                tool_calls_buffer[idx]["function"]["name"] += tc.function.name
+                                tool_calls_buffer[buf_idx]["function"]["name"] += tc.function.name
                             if tc.function.arguments:
-                                tool_calls_buffer[idx]["function"]["arguments"] += tc.function.arguments
+                                tool_calls_buffer[buf_idx]["function"]["arguments"] += tc.function.arguments
 
             # End of stream processing
 
