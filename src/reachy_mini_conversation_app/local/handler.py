@@ -775,7 +775,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                     await asyncio.sleep(2.0)
                     continue
 
-                detections = await asyncio.to_thread(self.danger_detector.detect, frame)
+                detections = await asyncio.to_thread(self.danger_detector.detect_confirmed, frame)
 
                 if poll_count % 15 == 0:  # Log every ~30s to confirm poller is alive
                     logger.debug(f"Danger poller: {poll_count} frames scanned, frame shape={frame.shape}")
