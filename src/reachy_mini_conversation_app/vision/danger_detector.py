@@ -18,7 +18,7 @@ try:
     from ultralytics import YOLO
 except ImportError as e:
     raise ImportError(
-        "To use the danger detector, please install the extra dependencies: pip install '.[yolo_vision]'",
+        "Danger detector requires 'ultralytics'. Re-run: uv sync",
     ) from e
 
 

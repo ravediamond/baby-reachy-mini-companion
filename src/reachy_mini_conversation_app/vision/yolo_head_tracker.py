@@ -11,7 +11,7 @@ try:
     from ultralytics import YOLO
 except ImportError as e:
     raise ImportError(
-        "To use YOLO head tracker, please install the extra dependencies: pip install '.[yolo_vision]'",
+        "YOLO head tracker requires 'ultralytics' and 'supervision'. Re-run: uv sync",
     ) from e
 from huggingface_hub import hf_hub_download
 

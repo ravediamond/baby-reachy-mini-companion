@@ -82,6 +82,7 @@ class LocalSessionHandler(AsyncStreamHandler):
         # Echo suppression: prevent VAD from triggering on robot's own TTS output
         self._active_pipeline_count = 0
         self._suppress_vad_until = 0.0
+        self._playback_end_mono = 0.0  # estimated monotonic time when speaker finishes
 
         # Signal integration
         self.signal: Optional[SignalInterface] = None
@@ -194,7 +195,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                         self.deps.camera_worker.set_head_tracking_enabled(True)
                         logger.info("Head tracking (YOLO) enabled.")
                     except ImportError:
-                        logger.info("YOLO not installed, head tracking disabled. Install with: uv sync --extra yolo_vision")
+                        logger.info("YOLO not installed, head tracking disabled. Re-run: uv sync")
             elif not config.FEATURE_HEAD_TRACKING and self.deps.camera_worker is not None:
                 self.deps.camera_worker.set_head_tracking_enabled(False)
                 logger.info("Head tracking disabled by feature flag.")
@@ -407,7 +408,9 @@ class LocalSessionHandler(AsyncStreamHandler):
 
                 if full_response_text:
                     logger.info(f"Assistant: {full_response_text}")
-                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
+                    await self.output_queue.put(
+                        AdditionalOutputs({"role": "assistant", "content": full_response_text})
+                    )
 
                 if not tool_calls:
                     break
@@ -425,8 +428,12 @@ class LocalSessionHandler(AsyncStreamHandler):
         finally:
             self._active_pipeline_count -= 1
             if self._active_pipeline_count == 0:
-                self._suppress_vad_until = time.monotonic() + 3.0
-                logger.debug("System event done, VAD suppressed for 3s cooldown")
+                cooldown_s = 1.5
+                self._suppress_vad_until = max(
+                    self._playback_end_mono + cooldown_s,
+                    time.monotonic() + cooldown_s,
+                )
+                logger.debug("System event done, VAD suppressed until playback ends + cooldown")
 
     async def _run_pipeline(self, audio: np.ndarray):
         """Run STT -> LLM -> TTS pipeline."""
@@ -492,7 +499,9 @@ class LocalSessionHandler(AsyncStreamHandler):
 
                 if full_response_text:
                     logger.info(f"Assistant: {full_response_text}")
-                    await self.output_queue.put(AdditionalOutputs({"role": "assistant", "content": full_response_text}))
+                    await self.output_queue.put(
+                        AdditionalOutputs({"role": "assistant", "content": full_response_text})
+                    )
 
                 # If no tool calls, we are done
                 if not tool_calls:
@@ -521,8 +530,12 @@ class LocalSessionHandler(AsyncStreamHandler):
             self._active_pipeline_count -= 1
             if self._active_pipeline_count == 0:
                 # Cooldown: wait for TTS audio to finish playing through speaker + echo to die
-                self._suppress_vad_until = time.monotonic() + 3.0
-                logger.debug("Pipeline done, VAD suppressed for 3s cooldown")
+                cooldown_s = 1.5
+                self._suppress_vad_until = max(
+                    self._playback_end_mono + cooldown_s,
+                    time.monotonic() + cooldown_s,
+                )
+                logger.debug("Pipeline done, VAD suppressed until playback ends + cooldown")
 
     async def _process_sentence(self, text: str):
         """Synthesize and queue audio for a sentence, handling tone and embedded commands."""
@@ -575,6 +588,11 @@ class LocalSessionHandler(AsyncStreamHandler):
 
         # Send to speaker
         await self.output_queue.put((24000, audio_int16.reshape(1, -1)))
+
+        # Track estimated playback end for echo suppression
+        audio_duration_s = len(audio_int16) / 24000.0
+        now_mono = time.monotonic()
+        self._playback_end_mono = max(self._playback_end_mono, now_mono) + audio_duration_s
 
         # Feed head wobbler
         if self.deps.head_wobbler:

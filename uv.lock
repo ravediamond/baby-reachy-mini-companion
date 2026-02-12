@@ -4123,23 +4123,19 @@ dependencies = [
     { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "silero-vad" },
     { name = "soundfile" },
+    { name = "supervision" },
     { name = "torch" },
+    { name = "ultralytics" },
 ]
 
 [package.optional-dependencies]
 local = [
     { name = "gst-signalling" },
     { name = "pygobject" },
-    { name = "supervision" },
-    { name = "ultralytics" },
 ]
 reachy-mini-wireless = [
     { name = "gst-signalling" },
     { name = "pygobject" },
-]
-yolo-vision = [
-    { name = "supervision" },
-    { name = "ultralytics" },
 ]
 
 [package.dev-dependencies]
@@ -4169,17 +4165,17 @@ requires-dist = [
     { name = "pygobject", marker = "extra == 'reachy-mini-wireless'", specifier = ">=3.42.2,<=3.46.0" },
     { name = "python-dotenv" },
     { name = "reachy-mini", specifier = ">=1.2.11" },
-    { name = "reachy-mini-conversation-app", extras = ["yolo-vision", "reachy-mini-wireless"], marker = "extra == 'local'" },
+    { name = "reachy-mini-conversation-app", extras = ["reachy-mini-wireless"], marker = "extra == 'local'" },
     { name = "reachy-mini-dances-library" },
     { name = "reachy-mini-toolbox" },
     { name = "scipy" },
     { name = "silero-vad" },
     { name = "soundfile" },
-    { name = "supervision", marker = "extra == 'yolo-vision'" },
+    { name = "supervision" },
     { name = "torch", specifier = ">=2.4.0" },
-    { name = "ultralytics", marker = "extra == 'yolo-vision'" },
+    { name = "ultralytics" },
 ]
-provides-extras = ["yolo-vision", "reachy-mini-wireless", "local"]
+provides-extras = ["reachy-mini-wireless", "local"]
 
 [package.metadata.requires-dev]
 dev = [

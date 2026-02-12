@@ -39,19 +39,19 @@ dependencies = [
     "faster-whisper",
     "kokoro-onnx",
     "soundfile",
+
+    #Vision (YOLO head tracking + danger detection)
+    "ultralytics",
+    "supervision",
 ]
 
 [project.optional-dependencies]
-yolo_vision = [
-  "ultralytics",
-  "supervision",
-]
 reachy_mini_wireless = [
   "PyGObject>=3.42.2,<=3.46.0",
   "gst-signalling>=1.1.2",
 ]
 local = [
-  "reachy_mini_conversation_app[yolo_vision,reachy_mini_wireless]",
+  "reachy_mini_conversation_app[reachy_mini_wireless]",
 ]
 
 [dependency-groups]
