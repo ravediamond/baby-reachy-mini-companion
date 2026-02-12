@@ -502,6 +502,10 @@ curl http://localhost:30000/v1/models
 
 `jtop` is particularly useful for verifying that MAXN power mode is active and that the GPU is actually being utilized during inference. `tegrastats` shows real-time memory bandwidth usage — critical for understanding whether your quantized model is hitting the bandwidth ceiling.
 
+Here's what `jtop` looks like with vLLM serving a 4B quantized model — vLLM's engine core uses 8.5GB of GPU memory (unified), leaving ~3.2GB free out of 15.3GB:
+
+<img src="docs/assets/jtop-vllm.png" width="800" alt="jtop showing vLLM running on Jetson Orin NX — 8.5GB GPU memory, MAXN_SUPER power mode" />
+
 ### Benchmarks on Jetson Orin NX (16GB)
 
 | Engine | Model | Quantization | TPS | Notes |
@@ -516,7 +520,7 @@ curl http://localhost:30000/v1/models
 
 The biggest decision on Jetson is which inference engine to use. It comes down to a memory–speed tradeoff:
 
-- **vLLM** (Docker container): Uses **8–10GB** of the 16GB unified memory. Faster inference (~29 tok/s for a 4B model) thanks to PagedAttention, continuous batching, and deep CUDA optimization. But it leaves only 6–8GB for the OS, daemon, and any other processes — tight if you want to run anything else on the Jetson.
+- **vLLM** (Docker container): Uses **8.5GB GPU memory** (measured via `jtop`) of the 15.3GB unified memory, with total system usage at 12.1GB — leaving only ~3.2GB for the OS and other processes. Faster inference (~29 tok/s for a 4B model) thanks to PagedAttention, continuous batching, and deep CUDA optimization — but tight if you want to run anything else on the Jetson.
 - **llama.cpp / Ollama**: Uses **~5GB** for the same model. About **30% slower** (~20–23 tok/s), but leaves 11GB free. This makes it viable to run lightweight companion processes (audio classification, YOLO) alongside the LLM on the same device.
 
 For a dedicated LLM inference server (our hybrid setup), vLLM is the clear choice — speed matters and nothing else competes for memory. If you want to run more of the stack on-device, llama.cpp's smaller footprint gives you the headroom to do so at the cost of slower generation.
@@ -535,7 +539,7 @@ We initially attempted to run the full conversation app (STT, TTS, VAD, YOLO, au
 
 ### Memory pressure
 
-The Jetson Orin NX has **16GB of unified memory** shared between CPU and GPU. vLLM alone needs 8-10GB for a 4B quantized model. Adding the Python runtime, PyTorch, faster-whisper, YOLO, and the Reachy Mini daemon leaves almost no headroom. The system swaps constantly, killing inference speed and making the whole experience sluggish.
+The Jetson Orin NX has **15.3GB of usable unified memory** shared between CPU and GPU. vLLM alone allocates 8.5GB of GPU memory for a 4B quantized model, pushing total system usage to 12.1GB — leaving only ~3.2GB free. Adding the Python runtime, PyTorch, faster-whisper, YOLO, and the Reachy Mini daemon leaves almost no headroom. The system swaps constantly, killing inference speed and making the whole experience sluggish.
 
 ### Python overhead
 
