@@ -13,7 +13,7 @@ tags:
 
 # Baby Reachy-Mini Companion
 
-Baby cries → robot soothes → parent gets a Signal photo. It also talks, tells stories, sings lullabies, tracks faces, detects dangers, and sees the world — all local, zero cloud.
+Baby cries → robot soothes → parent gets a Signal photo. It also talks, tells stories, tracks faces, detects dangers, and sees the world — all local, zero cloud.
 
 > **The only fully local Reachy Mini AI stack** — 7 AI models running concurrently, autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX. No cloud. No data leaves your home.
 
@@ -50,11 +50,11 @@ A few things that inform the design:
 
 ## Features
 
-- **Baby Safety Monitor** — Listens for crying (YAMNet) and scans for dangerous objects (YOLO). Automatically soothes the baby with lullabies and rocking, and sends you a photo alert via Signal so you know what's happening from another room.
-- **Voice Companion** — Your child talks, the robot listens and responds naturally — no screen needed. Conversations, jokes, and interactive play through voice alone.
-- **Soothe & Bedtime** — Sings lullabies and nursery rhymes with gentle rocking motions to calm your baby or ease them to sleep.
-- **Stories & Imagination** — Tells interactive stories with characters your child picks — sparks creativity without a tablet.
-- **Vision & Discovery** — Sees the world through its camera using a local VLM. Play "I Spy", ask "What do you see?", or let it teach your child about what's around them.
+- **Baby Safety Monitor** — Listens for crying (YAMNet) and scans for dangerous objects (YOLO). Automatically soothes the baby with gentle rocking and calming words, and sends you a photo alert via Signal so you know what's happening from another room.
+- **Voice Companion** — Your child talks, the robot listens and responds naturally — no screen needed. Conversations and interactive play through voice alone.
+- **Soothe & Comfort** — Speaks gentle, calming words with slow rocking motions to comfort a crying baby. Triggered automatically by cry detection or on demand.
+- **Story Time** — Reads classic children's stories (Three Little Pigs, Goldilocks) with expressive narration and emotional prosody.
+- **Vision & Discovery** — Sees the world through its camera using a local VLM. Ask "What do you see?" or let it describe what's around.
 - **Remote Alerts** — Talk to Reachy via Signal when you're away. Get instant text and photo notifications when the baby needs attention.
 - **Expressive Motion** — Dances, emotional antenna expressions, face tracking (YOLO), and audio-reactive head movement make it feel present and alive.
 - **Privacy First** — All processing — voice, vision, and chat — happens locally on your device. No cloud, no data leaves your home.
@@ -557,8 +557,8 @@ The assistant is equipped with a suite of tools it can autonomously use:
 | Tool | Action |
 |------|--------|
 | `camera` | Takes a picture and analyzes it using the local VLM (e.g., "What do you see?"). |
-| `soothe_baby` | **Baby Monitor:** Performs gentle rocking motions and plays a soothing lullaby script. Triggered automatically by cry detection or manually. |
-| `story_time` | Recites famous children's stories (Three Little Pigs, Goldilocks) with expressive narration. |
+| `soothe_baby` | **Baby Monitor:** Performs gentle rocking motions and speaks calming words. Triggered automatically by cry detection or manually. |
+| `story_time` | Reads classic children's stories (Three Little Pigs, Goldilocks) with expressive narration. |
 | `speak` | Explicitly speaks text (useful for precise multi-step tasks). |
 | `dance` | Performs a dance move (e.g., `pendulum_swing`, `side_to_side_sway`). |
 | `play_emotion` | Expresses emotions via antennas (happy, sad, surprised, etc.). |

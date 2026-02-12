@@ -239,27 +239,27 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="card">
                 <div class="card-icon card-icon-pink">&#x1F476;</div>
                 <h3>Baby Safety Monitor</h3>
-                <p>Listens for crying and scans for dangerous objects near the baby. Automatically soothes with lullabies and rocking, and sends you a photo alert via Signal so you know what's happening even from another room.</p>
+                <p>Listens for crying and scans for dangerous objects near the baby. Automatically soothes with gentle rocking and calming words, and sends you a photo alert via Signal from another room.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-purple">&#x1F3A4;</div>
                 <h3>Voice Companion</h3>
-                <p>Your child talks, the robot listens and responds naturally &mdash; no screen needed. Conversations, silly jokes, and interactive play that keep them engaged through voice alone.</p>
+                <p>Your child talks, the robot listens and responds naturally &mdash; no screen needed. Conversations and interactive play through voice alone.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-blue">&#x1F319;</div>
-                <h3>Soothe &amp; Bedtime</h3>
-                <p>Sings lullabies and nursery rhymes with gentle rocking motions to calm your baby or ease them to sleep. A soft, consistent bedtime routine without you having to be there every second.</p>
+                <h3>Soothe &amp; Comfort</h3>
+                <p>Speaks gentle, calming words with slow rocking motions to comfort a crying baby. Triggered automatically when crying is detected, or on demand.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-amber">&#x2728;</div>
-                <h3>Stories &amp; Imagination</h3>
-                <p>Tells interactive stories with characters your child picks &mdash; animals, superheroes, or their own name woven into an adventure. Sparks creativity without a tablet.</p>
+                <h3>Story Time</h3>
+                <p>Reads classic children's stories (Three Little Pigs, Goldilocks) with expressive narration and emotional prosody. A screen-free storytime experience.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-green">&#x1F441;</div>
                 <h3>Vision &amp; Discovery</h3>
-                <p>Sees the world through its camera and describes what's there. Play "I Spy", ask "What do you see?", or let it teach your child about objects, animals, and colours around them.</p>
+                <p>Sees the world through its camera using a local vision model. Ask "What do you see?" and the robot describes what's around.</p>
             </div>
             <div class="card">
                 <div class="card-icon card-icon-red">&#x1F57A;</div>
@@ -297,11 +297,11 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="install-panel">
             <h2>Getting Started</h2>
             <ol class="install-steps">
-                <li>Install the <strong>Reachy Mini SDK</strong> on your machine.</li>
-                <li>Clone the repository and install with <code>uv sync --extra local</code>.</li>
-                <li>Start your LLM server (Ollama, vLLM, or any OpenAI-compatible endpoint).</li>
-                <li>Configure <code>.env</code> &mdash; or use the built-in Settings UI in headless mode.</li>
-                <li>Run <code>uv run reachy-mini-conversation-app</code> and start talking.</li>
+                <li>Download <strong>Baby Reachy-Mini Companion</strong> from the Reachy Mini app store.</li>
+                <li>Install <a href="https://ollama.com" target="_blank">Ollama</a> and pull a model: <code>ollama pull ministral-3:3b</code></li>
+                <li>Launch the app &mdash; a settings dashboard opens in your browser.</li>
+                <li>Fill in the LLM server URL, model name, select your microphone, and toggle the features you want.</li>
+                <li>Click <strong>Start</strong> and your baby's companion is ready!</li>
             </ol>
             <div class="callout">
                 This Space hosts the application code and documentation.
