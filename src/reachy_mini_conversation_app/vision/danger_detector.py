@@ -60,7 +60,7 @@ class DangerDetector:
 
         """
         try:
-            results = self.model(frame, verbose=False)
+            results = self.model(frame, verbose=False, conf=0.1)
         except Exception as e:
             logger.error(f"Danger detection inference error: {e}")
             return []

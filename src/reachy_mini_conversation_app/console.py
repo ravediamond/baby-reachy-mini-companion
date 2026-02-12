@@ -750,17 +750,21 @@ class LocalStream:
             self._asyncio_loop = loop  # type: ignore[assignment]
 
             while True:
+                # Clear any leftover stop signal from previous pipeline cycle.
+                # close() sets both _stop_event AND _start_event to unblock,
+                # so a fresh _stop_event during the wait means full shutdown.
+                self._stop_event.clear()
+
                 # Wait for start signal (already set on first run, re-set after stop)
                 while not self._start_event.is_set():
                     if self._stop_event.is_set():
                         break
                     await asyncio.sleep(0.1)
 
-                # If stop was requested while waiting, exit the loop
+                # If stop was requested while waiting, exit the loop (full shutdown)
                 if self._stop_event.is_set():
                     break
 
-                self._stop_event.clear()
                 self._pipeline_state = "running"
 
                 # Start media (skip recording when using direct mic input)
