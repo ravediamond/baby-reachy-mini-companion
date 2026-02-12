@@ -98,7 +98,10 @@ class HeadTracker:
 
         """
         center_x = (bbox[0] + bbox[2]) / 2.0
-        center_y = (bbox[1] + bbox[3]) / 2.0
+        # Aim at 60% down from top of bbox (eye-level) instead of geometric
+        # center — face/head detection boxes include forehead and hair, so the
+        # midpoint sits above the eyes and the robot ends up looking too high.
+        center_y = bbox[1] + (bbox[3] - bbox[1]) * 0.6
 
         # Normalize to [0, 1] then to [-1, 1]
         norm_x = (center_x / w) * 2.0 - 1.0

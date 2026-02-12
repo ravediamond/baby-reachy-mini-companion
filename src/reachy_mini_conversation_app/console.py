@@ -752,7 +752,13 @@ class LocalStream:
             while True:
                 # Wait for start signal (already set on first run, re-set after stop)
                 while not self._start_event.is_set():
+                    if self._stop_event.is_set():
+                        break
                     await asyncio.sleep(0.1)
+
+                # If stop was requested while waiting, exit the loop
+                if self._stop_event.is_set():
+                    break
 
                 self._stop_event.clear()
                 self._pipeline_state = "running"
@@ -810,6 +816,8 @@ class LocalStream:
         # Signal async loops to stop
         self._pipeline_state = "shutting_down"
         self._stop_event.set()
+        # Unblock the wait-for-start loop so _main_loop can exit cleanly
+        self._start_event.set()
 
         # Cancel all running tasks via the event loop thread
         loop = self._asyncio_loop

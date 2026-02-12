@@ -39,7 +39,7 @@ class DangerDetector:
     def __init__(
         self,
         model_name: str = "yolo11n.pt",
-        confidence_threshold: float = 0.3,
+        confidence_threshold: float = 0.2,
         device: str = "cpu",
     ) -> None:
         """Initialize the danger detector with a YOLO model."""
@@ -84,6 +84,6 @@ class DangerDetector:
                     )
 
         if all_labels:
-            logger.debug(f"YOLO detections: {', '.join(all_labels)}")
+            logger.info(f"YOLO detections: {', '.join(all_labels)}")
 
         return dangerous
