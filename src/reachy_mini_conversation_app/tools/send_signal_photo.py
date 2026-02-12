@@ -19,16 +19,16 @@ class SendSignalPhotoTool(Tool):
     """Take a photo and send it via Signal."""
 
     name = "send_signal_photo"
-    description = "Take a photo and send it to the user's phone via Signal."
+    description = "Take a photo and send it with a message to the parent's phone via Signal. Use the caption to describe why (e.g. 'Baby is crying!')."
     parameters_schema = {
         "type": "object",
         "properties": {
             "caption": {
                 "type": "string",
-                "description": "Optional caption for the photo.",
+                "description": "Message to send along with the photo (e.g. 'Baby is crying!').",
             },
         },
-        "required": [],
+        "required": ["caption"],
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
@@ -56,7 +56,7 @@ class SendSignalPhotoTool(Tool):
         try:
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
                 temp_file = f.name
-                success, buffer = cv2.imencode('.jpg', frame)
+                success, buffer = cv2.imencode(".jpg", frame)
                 if not success:
                     return {"success": False, "error": "Failed to encode image"}
                 f.write(buffer.tobytes())
