@@ -306,7 +306,8 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <span class="quote-mark">&ldquo;</span>
             <p>When my son was born, I just wanted the best for him.
             A companion to watch over him, comfort him, teach him,
-            and grow up by his side. So I built it myself.</p>
+            and grow up by his side &mdash; where his data never leaves our home.
+            So I built it myself.</p>
             <p class="signature">&mdash; Ravin, new dad &amp; builder</p>
         </div>
 
