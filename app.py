@@ -243,23 +243,28 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             </a>
         </div>
 
-        <!-- Feature & tech tags -->
+        <!-- Feature tags (what it does) -->
         <div class="tag-row">
-            <span class="feat-tag">&#x1F9E0; 7 AI Models</span>
             <span class="feat-tag">&#x1F3A4; Voice Conversation</span>
             <span class="feat-tag">&#x1F476; Cry Detection</span>
-            <span class="feat-tag">&#x1F52D; YOLO Vision</span>
-            <span class="feat-tag">&#x1F6E1; Danger Alerts</span>
-            <span class="feat-tag">&#x1F529; 16+ Tools</span>
+            <span class="feat-tag">&#x1F6E1; Danger Detection</span>
+            <span class="feat-tag">&#x1F4DA; Teaching</span>
+            <span class="feat-tag">&#x1F319; Story Time</span>
+            <span class="feat-tag">&#x1F4F1; Signal Alerts</span>
+            <span class="feat-tag">&#x1F441; Visual Understanding</span>
         </div>
+        <!-- Tech tags (what it uses) -->
         <div class="tag-row" style="margin-bottom: 2.5rem;">
             <span class="tech-tag">Ollama</span>
+            <span class="tech-tag">vLLM</span>
             <span class="tech-tag">Faster-Whisper</span>
             <span class="tech-tag">Kokoro TTS</span>
             <span class="tech-tag">Silero VAD</span>
             <span class="tech-tag">YAMNet</span>
             <span class="tech-tag">YOLO</span>
             <span class="tech-tag">Jetson Orin</span>
+            <span class="tech-tag">Gradio</span>
+            <span class="tech-tag">FastRTC</span>
         </div>
 
         <!-- Demo GIFs -->
