@@ -50,26 +50,19 @@ class LocalLLM:
         messages = [{"role": "system", "content": self.system_prompt}]
         messages.extend(self.history)
 
+        # Disable thinking mode for Qwen3 models (adds massive TTFT latency).
+        # The /no_think tag must be in the user message (not system prompt) —
+        # Qwen3's chat template checks the last user turn for it.
+        is_qwen3 = "qwen3" in (self.model or "").lower()
+
         if user_text:
-            messages.append({"role": "user", "content": user_text})
-            # Temporarily add to history (will be confirmed after success)
-            # Actually, better to manage history at the end of the turn
+            content = f"/no_think\n{user_text}" if is_qwen3 else user_text
+            messages.append({"role": "user", "content": content})
 
         if tool_outputs:
-            # Append tool outputs to messages (and history ideally)
-            # Assuming tool_outputs are valid tool messages
             messages.extend(tool_outputs)
 
         try:
-            # Disable thinking mode for Qwen3 models (adds latency, not needed for tool calling)
-            system_content = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
-            model_lower = (self.model or "").lower()
-            if "qwen3" in model_lower and "/no_think" not in system_content:
-                if messages and messages[0]["role"] == "system":
-                    messages[0] = {**messages[0], "content": "/no_think\n" + messages[0]["content"]}
-                else:
-                    messages.insert(0, {"role": "system", "content": "/no_think"})
-
             create_kwargs: Dict[str, Any] = {
                 "model": self.model or "",
                 "messages": messages,
