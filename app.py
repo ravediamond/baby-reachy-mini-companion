@@ -122,6 +122,21 @@ custom_css = """
 .dot-blue   { background: #3b82f6; }
 .dot-purple { background: #6366f1; }
 
+/* ---- Feature Tags ---- */
+.tag-row { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-bottom: 0.75rem; }
+.tag-row:last-child { margin-bottom: 2.5rem; }
+.feat-tag {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.45rem 0.95rem; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
+    background: rgba(99,102,241,0.10); color: var(--body-text-color);
+}
+.tech-tag {
+    display: inline-flex; align-items: center;
+    padding: 0.35rem 0.85rem; border-radius: 0.4rem; font-size: 0.78rem; font-weight: 500;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    background: transparent; border: 1px solid rgba(99,102,241,0.3); color: #6366f1;
+}
+
 /* ---- Mission ---- */
 .mission {
     text-align: center; margin-bottom: 2.5rem; padding: 1.75rem 2rem;
@@ -221,6 +236,25 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <a href="https://github.com/ravediamond/baby-reachy-mini-companion" target="_blank" style="text-decoration:none;">
                 <span class="deploy-tag"><span class="deploy-tag-dot dot-purple"></span> GitHub &rarr; Full Documentation</span>
             </a>
+        </div>
+
+        <!-- Feature & tech tags -->
+        <div class="tag-row">
+            <span class="feat-tag">&#x1F9E0; 7 AI Models</span>
+            <span class="feat-tag">&#x1F3A4; Voice Conversation</span>
+            <span class="feat-tag">&#x1F476; Cry Detection</span>
+            <span class="feat-tag">&#x1F52D; YOLO Vision</span>
+            <span class="feat-tag">&#x1F6E1; Danger Alerts</span>
+            <span class="feat-tag">&#x1F529; 16+ Tools</span>
+        </div>
+        <div class="tag-row" style="margin-bottom: 2.5rem;">
+            <span class="tech-tag">Ollama</span>
+            <span class="tech-tag">Faster-Whisper</span>
+            <span class="tech-tag">Kokoro TTS</span>
+            <span class="tech-tag">Silero VAD</span>
+            <span class="tech-tag">YAMNet</span>
+            <span class="tech-tag">YOLO</span>
+            <span class="tech-tag">Jetson Orin</span>
         </div>
 
         <!-- Demo GIFs -->
