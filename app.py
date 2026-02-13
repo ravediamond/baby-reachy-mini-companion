@@ -307,7 +307,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <p>When my son was born, I just wanted the best for him &mdash;
             a companion to protect him, teach him, and grow up by his side.
             Fully private, fully local. So I built it myself.</p>
-            <p class="signature">&mdash; Ravin, new dad &amp; builder</p>
+            <p class="signature">&mdash; A dad, for his son</p>
         </div>
 
         <!-- What makes this different -->
