@@ -147,7 +147,8 @@ custom_css = """
 }
 .demo-item:hover { border-color: #6366f1; box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
 .demo-item img {
-    width: 100%; max-height: 280px; object-fit: cover; display: block; border-bottom: 1px solid var(--border-color-primary);
+    width: 100%; max-height: 300px; object-fit: contain; display: block; border-bottom: 1px solid var(--border-color-primary);
+    background: #000;
 }
 .demo-caption {
     padding: 0.875rem 1rem;
