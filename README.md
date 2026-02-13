@@ -25,6 +25,18 @@ A Reachy Mini that **thinks, decides, and acts on its own**. Baby cries → it s
 
 <img src="docs/assets/reachy-local.jpg" width="600" alt="Baby Reachy-Mini Companion — Reachy Mini on NVIDIA Jetson Orin NX, Mac running jtop, in a nursery setting" />
 
+### 7 models, one pipeline
+
+| Model | Purpose | Runs on |
+|-------|---------|---------|
+| **Silero VAD** | Voice activity detection | Mac (PyTorch) |
+| **Faster-Whisper** | Speech-to-text | Mac (ONNX) |
+| **Kokoro** | Text-to-speech | Mac (ONNX) |
+| **YAMNet** | Baby cry / audio event detection | Mac (ONNX) |
+| **YOLO v26n** | Danger detection + face tracking | Mac (PyTorch) |
+| **Ministral 3B / Qwen 3B** | Reasoning + tool calling (LLM) | Ollama (Mac) or vLLM (Jetson) |
+| **Qwen3-VL 4B** | Visual question answering (VLM) | Ollama (Mac) or vLLM (Jetson) |
+
 ### At a glance
 
 - **The robot is autonomous** — it doesn't follow scripts or wait for button presses. A 3B–4B vision-language model with tool calling hears, sees, reasons, and decides what to do: soothe a crying baby, warn about a dangerous object, answer a question, tell a story
@@ -60,19 +72,12 @@ Classic children's stories with expressive narration, head movement, and emotion
 
 ## Why I Built This
 
-I'm a new dad, and this project started with a simple question: **what happens when AI and robotics enter my son's life?**
+> *I just wanted the best for my son — a companion to protect him, teach him, and grow up by his side. Fully private, fully local. So I built it myself.* — A dad, for his son
 
-It's coming whether we like it or not. AI companions for children will be a reality — the question is whether they'll be built by companies optimizing for engagement and data collection, or by parents who actually care about what's best for their kids. I'd rather explore it myself, openly, with full control over what the robot sees, hears, and does — than wait for a closed commercial product that may not have my son's best interests at heart.
-
-But building it wasn't enough. I also wanted to prove that **companion robotics doesn't need to be expensive**. If it only works on cloud platforms with monthly subscriptions and enterprise hardware, it will never reach normal families. A Mac you already own and a $700 Jetson Orin NX — that's it. No cloud bills, no per-token pricing, no vendor lock-in. That's how this technology actually reaches homes.
-
-### On AI Companions and Children
-
-I fully agree this is a delicate subject. But I believe we should explore it *because* it's delicate — and because it's inevitable.
-
-- **Privacy is non-negotiable.** Something running in your home, around your child, should never send data to a third party. That's why every model runs locally — what happens at home stays at home.
-- **Physical safety is addressed by design.** Reachy Mini is a social robot with no hands and no manipulators — it can express, move its head, and communicate, but it cannot grab, push, or physically interact with the baby.
-- **Empathy is the key to acceptance.** A robot that ignores human distress has failed its purpose. Detecting distress, adjusting tone, soothing rather than ignoring — when a companion robot truly acknowledges what you're feeling, that's when people accept it in their lives.
+- **Privacy is non-negotiable.** Something around your child should never send data to a third party. Every model runs locally — what happens at home stays at home.
+- **Companion robotics should be affordable.** A Mac you already own + a $700 Jetson Orin NX. No cloud subscriptions, no per-token billing. That's how this technology reaches families.
+- **Physical safety by design.** Reachy Mini has no hands, no manipulators — it can express and communicate, but it cannot grab or push.
+- **Empathy matters.** A robot that ignores distress has failed its purpose. Detecting crying, adjusting tone, soothing — that's when people accept it.
 
 ## Beyond the Nursery
 
