@@ -275,10 +275,10 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="section-title">What makes this different</div>
 
         <div class="diff-grid">
-            <div class="diff-item"><strong>Autonomous, not remote-controlled</strong><span>A VLM with tool calling reasons about what to do: hears crying &rarr; soothes; spots a knife &rarr; warns and alerts. No scripts, no dashboard, no human in the loop.</span></div>
-            <div class="diff-item"><strong>Local, not cloud</strong><span>7 AI models on your hardware. No API keys for OpenAI or ElevenLabs. No internet required. Audio and video never leave your home.</span></div>
-            <div class="diff-item"><strong>Affordable, not enterprise</strong><span>Mac + $700 Jetson Orin NX. No subscriptions, no per-token billing. One-time hardware cost. That's how robotics reaches homes.</span></div>
-            <div class="diff-item"><strong>Safe by design</strong><span>Cry and danger alerts sent directly in code &mdash; guaranteed delivery, never gated on the LLM. No hands, no manipulators. Empathy first.</span></div>
+            <div class="diff-item"><strong>Truly autonomous</strong><span>A VLM with tool calling reasons about what to do: hears crying &rarr; soothes; spots a knife &rarr; warns and alerts. The robot decides and acts on its own.</span></div>
+            <div class="diff-item"><strong>Fully local</strong><span>7 AI models on your hardware. No internet required. Audio and video never leave your home.</span></div>
+            <div class="diff-item"><strong>Consumer hardware</strong><span>Mac + $700 Jetson Orin NX. One-time hardware cost, no subscriptions. That's how robotics reaches families.</span></div>
+            <div class="diff-item"><strong>Safe by design</strong><span>Cry and danger alerts sent directly in code &mdash; guaranteed delivery, never gated on the LLM. Empathy first.</span></div>
         </div>
 
         <!-- Architecture -->
