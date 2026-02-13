@@ -12,10 +12,15 @@ logger = logging.getLogger(__name__)
 URL_MODEL = "https://huggingface.co/jafet21/yamnetonnx/resolve/main/yamnet.onnx"
 URL_MAP = "https://huggingface.co/jafet21/yamnetonnx/resolve/main/yamnet_class_map.csv"
 
+
 class AudioClassifier:
     """YAMNet-based audio event classifier."""
 
-    def __init__(self, model_path: str = "cache/models--yamnet/yamnet.onnx", map_path: str = "cache/models--yamnet/yamnet_class_map.csv"):
+    def __init__(
+        self,
+        model_path: str = "cache/models--yamnet/yamnet.onnx",
+        map_path: str = "cache/models--yamnet/yamnet_class_map.csv",
+    ):
         """Initialize the YAMNet audio classifier."""
         self.model_path = model_path
         self.map_path = map_path
@@ -61,9 +66,9 @@ class AudioClassifier:
                 logger.error(f"Class map not found: {self.map_path}")
                 return
 
-            with open(self.map_path, 'r') as f:
+            with open(self.map_path, "r") as f:
                 reader = csv.reader(f)
-                next(reader) # Skip header
+                next(reader)  # Skip header
                 self.class_names = [row[2] for row in reader]
 
             # Load ONNX Model
@@ -97,7 +102,7 @@ class AudioClassifier:
             if len(audio) < target_len:
                 # Pad with zeros
                 pad_width = target_len - len(audio)
-                audio = np.pad(audio, (0, pad_width), mode='constant')
+                audio = np.pad(audio, (0, pad_width), mode="constant")
             elif len(audio) > target_len:
                 # Take the first chunk for now (or loop for better accuracy)
                 audio = audio[:target_len]
@@ -110,7 +115,7 @@ class AudioClassifier:
             outputs = self.session.run(None, inputs)
 
             # Prediction scores (logits or probabilities? usually probabilities)
-            scores = outputs[0][0] # First batch
+            scores = outputs[0][0]  # First batch
 
             # Get top K
             top_indices = np.argsort(scores)[::-1][:top_k]

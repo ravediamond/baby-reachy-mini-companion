@@ -10,9 +10,9 @@ Usage:
     uv run python scripts/test_qwen3_no_think.py --url http://jetson:8000/v1
 """
 
+import time
 import asyncio
 import argparse
-import time
 
 from openai import AsyncOpenAI
 
@@ -94,10 +94,10 @@ async def run_test(client: AsyncOpenAI, model: str, label: str, system: str, use
                     print(f">>> THINKING MODE IS ON — {len(thinking)} chars wasted")
                 else:
                     print(f"TEXT: {full_text[:300]}")
-                    print(f">>> Open <think> tag — model is thinking")
+                    print(">>> Open <think> tag — model is thinking")
             else:
                 print(f"RESPONSE: {full_text[:300]}")
-                print(f">>> No thinking tags — GOOD")
+                print(">>> No thinking tags — GOOD")
 
         if tool_calls:
             for idx, tc in sorted(tool_calls.items()):
@@ -114,6 +114,7 @@ async def run_test(client: AsyncOpenAI, model: str, label: str, system: str, use
 
 
 async def main():
+    """Run thinking-mode tests against different prompt strategies."""
     parser = argparse.ArgumentParser(description="Test qwen3-vl thinking mode")
     parser.add_argument("--url", default="http://localhost:11434/v1", help="OpenAI-compatible API URL")
     parser.add_argument("--model", default="qwen3-vl:4b", help="Model name")
@@ -125,7 +126,7 @@ async def main():
 
     print(f"Server: {args.url}")
     print(f"Model: {model}")
-    print(f"\nWarm-up call first (ignore timing)...")
+    print("\nWarm-up call first (ignore timing)...")
 
     # Warm up
     try:
@@ -134,7 +135,9 @@ async def main():
             messages=[{"role": "user", "content": "hi"}],
             stream=False,
         )
-        print(f"Warm-up done: {resp.choices[0].message.content[:50] if resp.choices[0].message.content else '(empty)'}...")
+        print(
+            f"Warm-up done: {resp.choices[0].message.content[:50] if resp.choices[0].message.content else '(empty)'}..."
+        )
     except Exception as e:
         print(f"Warm-up failed: {e}")
         return
@@ -143,7 +146,8 @@ async def main():
 
     # Test 1: Default (thinking ON)
     results["default"] = await run_test(
-        client, model,
+        client,
+        model,
         "DEFAULT — thinking likely ON",
         "You are a friendly robot. Keep responses to one sentence.",
         "Hello, how are you?",
@@ -151,7 +155,8 @@ async def main():
 
     # Test 2: /no_think in system prompt
     results["system"] = await run_test(
-        client, model,
+        client,
+        model,
         "/no_think in SYSTEM PROMPT",
         "/no_think\nYou are a friendly robot. Keep responses to one sentence.",
         "Hello, how are you?",
@@ -159,7 +164,8 @@ async def main():
 
     # Test 3: /no_think in user message
     results["user"] = await run_test(
-        client, model,
+        client,
+        model,
         "/no_think in USER MESSAGE — should work per Qwen3 template",
         "You are a friendly robot. Keep responses to one sentence.",
         "/no_think\nHello, how are you?",
@@ -167,7 +173,8 @@ async def main():
 
     # Test 4: /no_think in user message + tool calling
     results["user+tools"] = await run_test(
-        client, model,
+        client,
+        model,
         "/no_think in USER MESSAGE + TOOL CALL",
         "You are a friendly robot. Always use the speak tool to talk.",
         "/no_think\nSay hello to the baby",
@@ -180,7 +187,7 @@ async def main():
     for label, ttft in results.items():
         status = f"{ttft:.0f}ms" if ttft else "N/A"
         print(f"  {label:20s}: {status}")
-    print(f"\nIf /no_think works, the user-message tests should have much lower TTFT.")
+    print("\nIf /no_think works, the user-message tests should have much lower TTFT.")
 
 
 if __name__ == "__main__":

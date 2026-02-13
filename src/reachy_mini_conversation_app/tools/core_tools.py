@@ -10,8 +10,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from reachy_mini import ReachyMini
-# Import config to ensure .env is loaded before reading REACHY_MINI_CUSTOM_PROFILE
-from reachy_mini_conversation_app.config import config  # noqa: F401
+from reachy_mini_conversation_app.config import config  # noqa: F401 — ensures .env is loaded
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,6 @@ if not logger.handlers:
 ALL_TOOLS: Dict[str, "Tool"] = {}
 ALL_TOOL_SPECS: List[Dict[str, Any]] = []
 _TOOLS_INITIALIZED = False
-
 
 
 def get_concrete_subclasses(base: type[Tool]) -> List[type[Tool]]:

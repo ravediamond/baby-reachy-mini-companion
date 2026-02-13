@@ -43,7 +43,9 @@ class Camera(Tool):
         # Use vision manager for processing if available
         if deps.vision_manager is not None:
             vision_result = await asyncio.to_thread(
-                deps.vision_manager.processor.process_image, frame, image_query,
+                deps.vision_manager.processor.process_image,
+                frame,
+                image_query,
             )
             if isinstance(vision_result, dict) and "error" in vision_result:
                 return vision_result
@@ -53,4 +55,6 @@ class Camera(Tool):
                 else {"error": "vision returned non-string"}
             )
 
-        return {"error": "Vision processor not available. Enable a local vision model or Ollama vision to use the camera tool."}
+        return {
+            "error": "Vision processor not available. Enable a local vision model or Ollama vision to use the camera tool."
+        }

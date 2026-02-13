@@ -40,10 +40,7 @@ async def benchmark():
     print("\n[PRE-WARM] Warming up LLM with tools...")
     start = time.time()
     await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": "hi"}],
-        tools=tools,
-        stream=False
+        model=model, messages=[{"role": "user", "content": "hi"}], tools=tools, stream=False
     )
     print(f"  Warm-up completed in {time.time() - start:.2f}s")
     print("-" * 50)
@@ -62,12 +59,16 @@ async def benchmark():
             model=model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant. Keep responses brief."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            stream=False
+            stream=False,
         )
         elapsed = time.time() - start
-        content = response.choices[0].message.content[:50] + "..." if len(response.choices[0].message.content) > 50 else response.choices[0].message.content
+        content = (
+            response.choices[0].message.content[:50] + "..."
+            if len(response.choices[0].message.content) > 50
+            else response.choices[0].message.content
+        )
         print(f"  '{prompt}' -> {elapsed:.2f}s | {content}")
 
     # Test WITH tools
@@ -78,10 +79,10 @@ async def benchmark():
             model=model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant. Keep responses brief."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
             tools=tools,
-            stream=False
+            stream=False,
         )
         elapsed = time.time() - start
         msg = response.choices[0].message
@@ -100,10 +101,10 @@ async def benchmark():
             model=model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant. Keep responses brief."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
             tools=tools,
-            stream=True
+            stream=True,
         )
         tokens = []
         async for chunk in stream:
@@ -131,11 +132,14 @@ async def benchmark():
         response = await client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a robot. When user asks to send a message, call send_signal tool. When user asks for a photo, call send_signal_photo tool. Call tools directly."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a robot. When user asks to send a message, call send_signal tool. When user asks for a photo, call send_signal_photo tool. Call tools directly.",
+                },
+                {"role": "user", "content": prompt},
             ],
             tools=tools,
-            stream=False
+            stream=False,
         )
         elapsed = time.time() - start
         msg = response.choices[0].message
@@ -143,7 +147,9 @@ async def benchmark():
             tc = msg.tool_calls[0]
             content = f"[TOOL: {tc.function.name}({tc.function.arguments})]"
         else:
-            content = f"[TEXT: {msg.content[:40]}...]" if msg.content and len(msg.content) > 40 else f"[TEXT: {msg.content}]"
+            content = (
+                f"[TEXT: {msg.content[:40]}...]" if msg.content and len(msg.content) > 40 else f"[TEXT: {msg.content}]"
+            )
         print(f"  '{prompt}' -> {elapsed:.2f}s | {content}")
 
     print("\n[TEST 5] Tool-calling prompts (streaming):")
@@ -153,11 +159,14 @@ async def benchmark():
         stream = await client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a robot. When user asks to send a message, call send_signal tool. When user asks for a photo, call send_signal_photo tool. Call tools directly."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a robot. When user asks to send a message, call send_signal tool. When user asks for a photo, call send_signal_photo tool. Call tools directly.",
+                },
+                {"role": "user", "content": prompt},
             ],
             tools=tools,
-            stream=True
+            stream=True,
         )
 
         tokens = []

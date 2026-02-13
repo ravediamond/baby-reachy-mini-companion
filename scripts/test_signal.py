@@ -69,7 +69,7 @@ async def main():
             for m in messages:
                 print(f"    >> {m['sender']}: {m['content']}")
         else:
-            print(f"    (poll {i+1}: no messages)")
+            print(f"    (poll {i + 1}: no messages)")
         await asyncio.sleep(2)
 
     print("\nDone!")

@@ -13,47 +13,87 @@ tags:
 
 # Baby Reachy-Mini Companion
 
-Baby cries → robot soothes → parent gets a Signal photo. It also talks, tells stories, tracks faces, detects dangers, and sees the world — all local, zero cloud.
+[![Tests](https://github.com/ravediamond/baby-reachy-mini-companion/actions/workflows/tests.yml/badge.svg)](https://github.com/ravediamond/baby-reachy-mini-companion/actions/workflows/tests.yml)
+[![Ruff](https://github.com/ravediamond/baby-reachy-mini-companion/actions/workflows/lint.yml/badge.svg)](https://github.com/ravediamond/baby-reachy-mini-companion/actions/workflows/lint.yml)
+[![Type check](https://github.com/ravediamond/baby-reachy-mini-companion/actions/workflows/typecheck.yml/badge.svg)](https://github.com/ravediamond/baby-reachy-mini-companion/actions/workflows/typecheck.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97-HuggingFace%20Space-yellow.svg)](https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion)
 
-> **The only fully local Reachy Mini AI stack** — 7 AI models running concurrently, autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX. No cloud. No data leaves your home.
+A Reachy Mini that **thinks, decides, and acts on its own**. Baby cries → it soothes → parent gets a Signal photo. It talks, teaches, tells stories, tracks faces, detects dangers, and sees the world — with no cloud, no scripts, and no remote control.
+
+> **Autonomous. Local. Affordable.** 7 AI models orchestrated on-device — the robot reasons through a vision-language model with tool calling, not pre-written scripts. Runs entirely on consumer hardware (Mac + $700 NVIDIA Jetson Orin NX). No cloud APIs, no subscriptions, no data leaves your home.
+
+<img src="docs/assets/reachy-local.jpg" width="600" alt="Baby Reachy-Mini Companion — Reachy Mini on NVIDIA Jetson Orin NX, Mac running jtop, in a nursery setting" />
 
 ### At a glance
 
-- **7 AI models running concurrently** — VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for conversation + sight, all orchestrated in one async pipeline
-- **The robot reasons, not scripts** — a 3B–4B VLM with tool calling autonomously decides what to do: soothe a crying baby, alert you with a photo, describe what it sees, tell a story
-- **~3s speech-in → audio-out** — streaming sentence-level TTS, KV cache priming, and GPU inference on Jetson Orin keep the conversation real-time on consumer hardware
-- **Safety alerts are guaranteed** — cry and danger notifications bypass the LLM and are sent directly in code, because [SLMs can't reliably chain 3+ tool calls](#slm-tool-calling-limits)
-- **Runs on a Mac + $700 Jetson** — no cloud, no data center, no subscription. GPU inference via vLLM on NVIDIA Jetson Orin NX
+- **The robot is autonomous** — it doesn't follow scripts or wait for button presses. A 3B–4B vision-language model with tool calling hears, sees, reasons, and decides what to do: soothe a crying baby, warn about a dangerous object, answer a question, tell a story
+- **100% local, 100% private** — 7 AI models (VAD, STT, TTS, YOLO, YAMNet, VLM) run entirely on your hardware. No cloud APIs, no internet required, no data ever leaves your home
+- **Consumer hardware, not a data center** — runs on a Mac + a $700 NVIDIA Jetson Orin NX. GPU inference via vLLM keeps the conversation real-time (~3s speech-in → audio-out) at a fraction of cloud API costs
+- **Safety alerts are guaranteed** — cry and danger notifications bypass the LLM and are sent directly in code, because [SLMs can't reliably chain 3+ tool calls](#slm-tool-calling-limits). The robot reasons about what to *say*, but alerts are deterministic
 
-<img src="docs/assets/baby-reachy-mini.jpg" width="600" alt="Baby Reachy-Mini Companion — a nursery robot among baby toys" />
+## See It in Action
+
+### Baby cry detection → soothe → parent alert
+
+YAMNet detects crying, the robot soothes with rocking and calming words, and a photo alert is sent to the parent via Signal — all autonomously, no cloud.
+
+<img src="docs/assets/demo-cry-soothe.gif" width="700" alt="Demo: baby cry detected, robot soothes, Signal photo alert sent to parent" />
+
+### Danger detection → instant alert
+
+YOLO spots a dangerous object (scissors, knife), the robot speaks a warning, and a photo is sent directly to the parent — guaranteed delivery, not dependent on the LLM.
+
+<img src="docs/assets/demo-danger.gif" width="700" alt="Demo: dangerous object detected by YOLO, Signal photo alert sent" />
+
+### Interactive teaching
+
+Ask the robot anything — it explains concepts at a child's level. Here: "What is NVIDIA?" explained for a kid.
+
+<img src="docs/assets/demo-teaching.gif" width="700" alt="Demo: robot teaches a child about NVIDIA in simple terms" />
+
+### Story time
+
+Classic children's stories with expressive narration, head movement, and emotional prosody. Screen-free entertainment.
+
+<img src="docs/assets/demo-story.gif" width="700" alt="Demo: robot tells a children's story with expressive motion" />
 
 ## Why I Built This
 
-I'm a new dad on a mission: building a nursery companion that actually respects our privacy. I wanted a "cool nanny bot" that plays and helps out with the baby — without sending a single byte of data to the cloud. What happens at home stays at home.
+I'm a new dad, and this project started with a simple question: **what happens when AI and robotics enter my son's life?**
 
-Beyond this project, I want to prove that high-end robotics can run on consumer hardware — a Mac for the app and a $700 Jetson Orin NX 16GB for GPU inference — instead of massive servers or cloud subscriptions. If companion robotics only works on expensive cloud platforms, adoption will stay limited to tech demos. Running locally on hardware anyone can afford is how this technology actually reaches homes.
+It's coming whether we like it or not. AI companions for children will be a reality — the question is whether they'll be built by companies optimizing for engagement and data collection, or by parents who actually care about what's best for their kids. I'd rather explore it myself, openly, with full control over what the robot sees, hears, and does — than wait for a closed commercial product that may not have my son's best interests at heart.
+
+But building it wasn't enough. I also wanted to prove that **companion robotics doesn't need to be expensive**. If it only works on cloud platforms with monthly subscriptions and enterprise hardware, it will never reach normal families. A Mac you already own and a $700 Jetson Orin NX — that's it. No cloud bills, no per-token pricing, no vendor lock-in. That's how this technology actually reaches homes.
 
 ### On AI Companions and Children
 
-People have asked me about the effects of AI companions and robots on children — and honestly, I fully agree that it's a delicate subject. But I believe we should explore it *because* it is something that will come one way or another. It's better to build an open, transparent experience where parents have full control than to wait for a closed commercial product that may not have their best interests at heart.
+I fully agree this is a delicate subject. But I believe we should explore it *because* it's delicate — and because it's inevitable.
 
-A few things that inform the design:
+- **Privacy is non-negotiable.** Something running in your home, around your child, should never send data to a third party. That's why every model runs locally — what happens at home stays at home.
+- **Physical safety is addressed by design.** Reachy Mini is a social robot with no hands and no manipulators — it can express, move its head, and communicate, but it cannot grab, push, or physically interact with the baby.
+- **Empathy is the key to acceptance.** A robot that ignores human distress has failed its purpose. Detecting distress, adjusting tone, soothing rather than ignoring — when a companion robot truly acknowledges what you're feeling, that's when people accept it in their lives.
 
-- **Privacy is non-negotiable.** Something running in your home, around your child, should never send data to a third party. That's why this is 100% local.
-- **Physical safety is addressed by design.** Reachy Mini is a social robot with no hands and no manipulators — it can express, move its head, and communicate, but it cannot grab, push, or physically interact with the baby. Its antennas are used solely for emotional expression. The risk is minimal by the nature of the hardware.
-- **Empathy is the key to acceptance.** A robot that executes tasks while a human is suffering has failed its purpose. One of my core goals is to explore giving the robot genuine empathetic behavior — detecting distress, adjusting tone, soothing rather than ignoring. When a companion robot truly acknowledges what you're feeling, that's when it becomes something people will accept in their lives.
+## Beyond the Nursery
+
+The architecture is use-case agnostic. The core loop — **detect → reason (LLM) → act (tools) → alert** — doesn't know it's watching a baby. It just knows how to listen, see, think, and respond. Swap the system prompt, detection targets, and tools, and the same pipeline adapts to other scenarios:
+
+- **Autism support** — Social robots have shown real promise in autism therapy. Reachy Mini's expressive antennas, predictable behavior, and patient conversational style make it a natural fit. Swap the prompt to focus on social cue practice, emotional recognition, or structured interaction routines — the same detect → reason → respond loop, tuned for therapeutic contexts
+- **Elderly companion** — Listen for falls or calls for help, provide conversational company, notify family members
+- **Pet monitoring** — Detect barking or distress sounds, watch for escape attempts, alert the owner with a photo
+- **Home security** — Detect unusual activity or unfamiliar faces, trigger a VLM scene analysis, send alerts
+
+The profile system already supports this — each profile has its own system prompt, tool set, and personality. Creating a new use case is a configuration change, not an engineering effort.
 
 ## What Makes This Different
 
-> **100% Local. No cloud. No exceptions.**
->
-> The only Reachy Mini application running a fully local AI stack — a single vision-language model for conversation and sight, speech-to-text, text-to-speech, and audio classification — all on-device with zero cloud dependency.
+> Most Reachy Mini apps are **dashboards** — you press a button, the robot reacts. Or they're **single-trick demos** — one model doing one thing. This project makes Reachy Mini **autonomous**: it listens, sees, reasons, and acts on its own.
 
-- **7+ AI models on-device**: VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for both conversation and sight — orchestrated together in one pipeline
-- **Autonomous intelligence**: The robot doesn't follow scripts — it reasons. A 3B–4B vision-language model uses tool calling to decide what to do: hear crying → soothe the baby and alert the parent; spot a knife → send a photo alert; get asked a question → look around and answer. One VLM handles text, vision, and decision-making
-- **Autonomous safety**: Cry detection and danger scanning run continuously in the background. Safety-critical notifications (photo alerts via Signal) are sent directly in code — guaranteed delivery, not dependent on the LLM (see [SLM tool-calling limits](#slm-tool-calling-limits))
-- **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, and Reachy Mini Apps headless mode
-- **NVIDIA Jetson vLLM**: Offload VLM inference to a Jetson Orin running GPU-accelerated vLLM via NVIDIA's official AI containers, with quantized models tuned for Jetson's memory bandwidth
+- **Autonomous, not remote-controlled**: The robot isn't a puppet waiting for commands from a web UI. A vision-language model with tool calling continuously reasons about what to do — hear crying → decide to soothe and alert; spot a knife → warn and send a photo; get asked a question → look around and answer. No human in the loop
+- **Local, not cloud**: 7 AI models (VAD, STT, TTS, YOLO, YAMNet, VLM) run entirely on-device. No API keys for OpenAI, Anthropic, or ElevenLabs. No internet required. Your baby's audio and video never leave your home
+- **Affordable, not enterprise**: A Mac you already own + a $700 NVIDIA Jetson Orin NX. No cloud subscriptions, no per-token billing. GPU inference via vLLM on Jetson gives you ~4 tok/s with quantized models — enough for real-time conversation at a one-time hardware cost
+- **Safe by design**: Cry and danger alerts are sent directly in code — guaranteed delivery, never dependent on the LLM deciding to call the right tool (see [SLM tool-calling limits](#slm-tool-calling-limits)). Reachy Mini has no hands or manipulators — it can express and communicate, not grab or push
+- **Full Reachy Mini integration**: Camera, head motion (100Hz control loop), antenna emotions, dances, face tracking, audio-reactive head wobble during speech, and Reachy Mini Apps headless mode
 
 ## Features
 
@@ -68,17 +108,6 @@ A few things that inform the design:
 
 > [!IMPORTANT]
 > This is a personal project and technology demonstration — not a finished product. It is not intended to replace parental supervision or serve as a certified childcare device. Always supervise your child around any robotic device.
-
-### Beyond the nursery
-
-The architecture is use-case agnostic. The core loop — **detect → reason (LLM) → act (tools) → alert** — doesn't know it's watching a baby. It just knows how to listen, see, think, and respond. Swap the system prompt, detection targets, and tools, and the same pipeline adapts to other scenarios:
-
-- **Pet monitoring** — Detect barking or distress sounds, watch for escape attempts, alert the owner with a photo
-- **Home security** — Detect unusual activity or unfamiliar faces, trigger a VLM scene analysis, send alerts
-- **Elderly companion** — Listen for falls or calls for help, provide conversational company, notify family members
-- **Classroom assistant** — Interactive storytelling, educational Q&A, expressive engagement for children with different needs
-
-The profile system already supports this — each profile has its own system prompt, tool set, and personality. Creating a new use case is a configuration change, not an engineering effort.
 
 ## Installation
 

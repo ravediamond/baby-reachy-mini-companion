@@ -90,7 +90,7 @@ reachy_mini_conversation_app = [
 
 [tool.ruff]
 line-length = 119
-exclude = [".venv", "dist", "build", "**/__pycache__", "*.egg-info", ".mypy_cache", ".pytest_cache"]
+exclude = [".venv", "dist", "build", "**/__pycache__", "*.egg-info", ".mypy_cache", ".pytest_cache", "cloned_repo*"]
 
 [tool.ruff.lint]
 select = [

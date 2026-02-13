@@ -6,6 +6,7 @@ from faster_whisper import WhisperModel
 
 logger = logging.getLogger(__name__)
 
+
 class LocalSTT:
     """Wrapper for Faster-Whisper."""
 
@@ -20,11 +21,7 @@ class LocalSTT:
     def _init_model(self):
         try:
             logger.info(f"Loading Faster-Whisper model: {self.model_size}")
-            self.model = WhisperModel(
-                self.model_size,
-                device=self.device,
-                compute_type=self.compute_type
-            )
+            self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
             logger.info("Faster-Whisper loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load Faster-Whisper: {e}")

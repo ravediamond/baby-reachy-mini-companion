@@ -569,7 +569,7 @@ class LocalStream:
             logger.info("Start signal received, launching pipeline...")
 
         async def _main_loop() -> None:
-            """Persistent loop that supports stop/restart cycles."""
+            """Run persistent loop that supports stop/restart cycles."""
             loop = asyncio.get_running_loop()
             self._asyncio_loop = loop  # type: ignore[assignment]
 

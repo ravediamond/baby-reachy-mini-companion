@@ -39,9 +39,10 @@ custom_css = """
 
 /* ---- Architecture Diagram ---- */
 .arch-image {
-    max-width: 900px !important; margin: 0 auto 2.5rem !important;
+    max-width: 100% !important; margin: 0 auto 2.5rem !important;
 }
 .arch-image img {
+    width: 100% !important;
     border-radius: 1rem !important;
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
@@ -136,15 +137,33 @@ custom_css = """
     font-style: italic;
 }
 
+/* ---- Demo GIFs ---- */
+.demo-section { margin-bottom: 2.5rem; }
+.demo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+@media (max-width: 700px) { .demo-grid { grid-template-columns: 1fr; } }
+.demo-item {
+    background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
+    border-radius: 0.875rem; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.demo-item:hover { border-color: #6366f1; box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
+.demo-item img {
+    width: 100%; display: block; border-bottom: 1px solid var(--border-color-primary);
+}
+.demo-caption {
+    padding: 0.875rem 1rem;
+}
+.demo-caption h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.25rem; color: var(--body-text-color); }
+.demo-caption p { font-size: 0.8rem; line-height: 1.45; color: var(--body-text-color-subdued); margin: 0; }
+
 /* ---- Differentiators ---- */
-.diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 2.5rem; }
+.diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2.5rem; }
 @media (max-width: 700px) { .diff-grid { grid-template-columns: 1fr; } }
 .diff-item {
-    display: flex; align-items: baseline; gap: 0.5rem; padding: 0.75rem 1rem;
+    display: flex; flex-direction: column; gap: 0.35rem; padding: 1.1rem 1.25rem;
     background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
-    border-radius: 0.625rem; font-size: 0.9rem; color: var(--body-text-color-subdued);
+    border-radius: 0.75rem; font-size: 0.9rem; line-height: 1.55; color: var(--body-text-color-subdued);
 }
-.diff-item strong { color: var(--body-text-color); }
+.diff-item strong { color: var(--body-text-color); font-size: 0.95rem; display: block; }
 
 /* ---- Footer ---- */
 .footer {
@@ -164,14 +183,14 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="hero">
             <div class="hero-badge">Reachy Mini App</div>
             <h1>Baby Reachy-Mini Companion</h1>
-            <p>A fully local AI companion for babies and kids. Voice interaction, baby monitoring,
-            vision, and expressive motion &mdash; all running privately on your own hardware.</p>
+            <p>A Reachy Mini that <strong>thinks, decides, and acts on its own</strong>. Voice interaction, baby safety monitoring,
+            vision, and expressive motion &mdash; autonomous, fully local, running on consumer hardware you already own.</p>
         </div>
     </div>
     """)
 
     gr.Image(
-        value="docs/assets/baby-reachy-mini.jpg",
+        value="docs/assets/reachy-local.jpg",
         show_label=False,
         interactive=False,
         container=False,
@@ -186,9 +205,9 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
                     background: linear-gradient(135deg, rgba(99,102,241,0.10) 0%, rgba(236,72,153,0.10) 100%);
                     border: 1px solid rgba(99,102,241,0.25); border-radius: 0.75rem;">
             <p style="font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--body-text-color);">
-                The only fully local Reachy Mini AI stack &mdash; 7 AI models running concurrently,
-                autonomous baby safety monitoring, tested on NVIDIA Jetson Orin NX.
-                No cloud. No data leaves your home.
+                Autonomous. Local. Affordable. &mdash; 7 AI models orchestrated on-device.
+                The robot reasons through a vision-language model with tool calling, not pre-written scripts.
+                Runs on consumer hardware. No cloud APIs, no subscriptions, no data leaves your home.
             </p>
         </div>
 
@@ -196,14 +215,57 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="deploy-tags">
             <span class="deploy-tag"><span class="deploy-tag-dot dot-green"></span> Mac (Ollama)</span>
             <span class="deploy-tag"><span class="deploy-tag-dot dot-blue"></span> Mac + Jetson vLLM</span>
+            <a href="https://github.com/ravediamond/baby-reachy-mini-companion" target="_blank" style="text-decoration:none;">
+                <span class="deploy-tag"><span class="deploy-tag-dot dot-purple"></span> GitHub &rarr; Full Documentation</span>
+            </a>
+        </div>
+
+        <!-- Demo GIFs -->
+        <div class="demo-section">
+            <div class="section-label">See it in action</div>
+            <div class="section-title">What it actually does</div>
+            <div class="demo-grid">
+                <div class="demo-item">
+                    <img src="docs/assets/demo-cry-soothe.gif" alt="Baby cry detection and soothing demo" />
+                    <div class="demo-caption">
+                        <h3>Baby Cry Detection &rarr; Soothe &rarr; Alert</h3>
+                        <p>YAMNet detects crying, robot soothes with rocking and calming words, photo alert sent to parent via Signal.</p>
+                    </div>
+                </div>
+                <div class="demo-item">
+
+                    <img src="docs/assets/demo-danger.gif" alt="Danger detection demo" />
+                    <div class="demo-caption">
+                        <h3>Danger Detection &rarr; Instant Alert</h3>
+                        <p>YOLO spots scissors or knives, robot speaks a warning, photo sent directly to parent.</p>
+                    </div>
+                </div>
+                <div class="demo-item">
+
+                    <img src="docs/assets/demo-teaching.gif" alt="Interactive teaching demo" />
+                    <div class="demo-caption">
+                        <h3>Interactive Teaching</h3>
+                        <p>Ask anything &mdash; the robot explains concepts at a child's level through natural conversation.</p>
+                    </div>
+                </div>
+                <div class="demo-item">
+
+                    <img src="docs/assets/demo-story.gif" alt="Story time demo" />
+                    <div class="demo-caption">
+                        <h3>Story Time</h3>
+                        <p>Classic children's stories with expressive narration, head movement, and emotional prosody.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Mission -->
         <div class="mission">
-            <p>I'm building a nursery companion that actually respects our family's privacy.
-            No cloud, no data leaks &mdash; what happens at home stays at home.
-            Proving that high-end robotics can run on consumer hardware instead of massive servers.</p>
-            <p class="signature">&mdash; A dad building cool tech for his son</p>
+            <p>AI companions for children are coming whether we like it or not. I'd rather build one myself &mdash;
+            open, local, and fully under my control &mdash; than wait for a closed product that may not have
+            my son's best interests at heart. And I want to prove it can run on hardware any family can afford,
+            not cloud subscriptions and data centers.</p>
+            <p class="signature">&mdash; A new dad exploring AI and robotics for his son</p>
         </div>
 
         <!-- Principles -->
@@ -211,10 +273,10 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="section-title">Design principles</div>
 
         <div class="diff-grid">
-            <div class="diff-item"><strong>Privacy first</strong> &mdash; Something running in your home, around your child, should never send data to a third party</div>
-            <div class="diff-item"><strong>Consumer hardware</strong> &mdash; Runs on a Mac with a $700 Jetson Orin NX for GPU inference &mdash; not a data center. That's how robotics reaches homes</div>
-            <div class="diff-item"><strong>Physically safe</strong> &mdash; Reachy Mini has no hands or manipulators &mdash; it can express and communicate, not grab or push. Its antennas are only used for emotional expression</div>
-            <div class="diff-item"><strong>Empathy matters</strong> &mdash; A robot that ignores human distress has failed. Detecting emotions and responding with care is the goal</div>
+            <div class="diff-item"><strong>Autonomous, not scripted</strong><span>The robot reasons through a VLM and decides what to do. No pre-written reactions, no button presses from a dashboard.</span></div>
+            <div class="diff-item"><strong>Private by default</strong><span>Every model runs locally. Something around your child should never send data to a third party. What happens at home stays at home.</span></div>
+            <div class="diff-item"><strong>Consumer hardware</strong><span>Mac + $700 Jetson Orin NX. No cloud subscriptions, no per-token billing. That's how robotics reaches homes.</span></div>
+            <div class="diff-item"><strong>Empathy matters</strong><span>A robot that ignores distress has failed. Detecting crying, adjusting tone, soothing &mdash; that's when people accept it.</span></div>
         </div>
 
         <!-- What makes this different -->
@@ -222,12 +284,12 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="section-title">What makes this different</div>
 
         <div class="diff-grid">
-            <div class="diff-item"><strong>100% Local</strong> &mdash; No cloud APIs, no internet required</div>
-            <div class="diff-item"><strong>7+ AI Models</strong> &mdash; VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for both conversation and sight</div>
-            <div class="diff-item"><strong>Autonomous Intelligence</strong> &mdash; A single 3B&ndash;4B vision-language model with tool calling reasons about what to do: hears crying &rarr; soothes the baby and alerts you; spots a knife &rarr; sends a photo; gets asked a question &rarr; looks around and answers. Not scripted &mdash; it thinks</div>
-            <div class="diff-item"><strong>Guaranteed Safety</strong> &mdash; Safety-critical notifications (cry alerts, danger photos) are sent directly in code &mdash; guaranteed delivery, never dependent on the LLM. The robot reasons about <em>what to say</em>, but alerts are deterministic</div>
-            <div class="diff-item"><strong>Jetson vLLM</strong> &mdash; Offload inference to a Jetson Orin via NVIDIA AI containers with quantized models at 25+ tokens/s</div>
-            <div class="diff-item"><strong>Concurrent Pipeline</strong> &mdash; 100Hz motion, 30Hz camera, speech detection, and safety scanning run in parallel on consumer hardware</div>
+            <div class="diff-item"><strong>Autonomous, not remote-controlled</strong><span>A VLM with tool calling reasons about what to do: hears crying &rarr; soothes; spots a knife &rarr; warns and alerts. No human in the loop.</span></div>
+            <div class="diff-item"><strong>Local, not cloud</strong><span>7 AI models on your hardware. No API keys for OpenAI or ElevenLabs. No internet required. Audio and video never leave your home.</span></div>
+            <div class="diff-item"><strong>Affordable, not enterprise</strong><span>A Mac you own + a $700 Jetson Orin NX. No subscriptions, no per-token billing. One-time hardware cost.</span></div>
+            <div class="diff-item"><strong>Safe by design</strong><span>Cry and danger alerts sent directly in code &mdash; guaranteed delivery, never gated on the LLM. No hands, no manipulators.</span></div>
+            <div class="diff-item"><strong>GPU-accelerated on Jetson</strong><span>vLLM on NVIDIA Jetson Orin NX with quantized models. ~4 tok/s real-time inference on consumer edge hardware.</span></div>
+            <div class="diff-item"><strong>Concurrent pipeline</strong><span>100Hz motion, 30Hz camera, speech detection, and safety scanning &mdash; 7 models orchestrated in one async pipeline.</span></div>
         </div>
 
         <!-- Features -->
@@ -265,6 +327,23 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
                 <h3>Expressive &amp; Alive</h3>
                 <p>Dances, wiggles its antennas to show emotions, tracks faces, and moves its head while speaking. A companion that feels present and responsive, not a static speaker.</p>
             </div>
+        </div>
+
+        <!-- Beyond the nursery -->
+        <div class="section-label">Bigger picture</div>
+        <div class="section-title">Beyond the nursery</div>
+
+        <div style="margin-bottom: 1.25rem; font-size: 0.95rem; line-height: 1.6; color: var(--body-text-color-subdued);">
+            The core loop &mdash; <strong>detect &rarr; reason (LLM) &rarr; act (tools) &rarr; alert</strong> &mdash; doesn't know it's watching a baby.
+            Swap the system prompt, detection targets, and tools, and the same pipeline adapts to other scenarios.
+            Creating a new use case is a configuration change, not an engineering effort.
+        </div>
+
+        <div class="diff-grid" style="margin-bottom: 2.5rem;">
+            <div class="diff-item"><strong>Autism support</strong><span>Expressive antennas, predictable behavior, and patient conversation &mdash; tuned for social cue practice and emotional recognition.</span></div>
+            <div class="diff-item"><strong>Elderly companion</strong><span>Listen for falls or calls for help, provide conversational company, notify family members.</span></div>
+            <div class="diff-item"><strong>Pet monitoring</strong><span>Detect barking or distress, watch for escape attempts, alert the owner with a photo.</span></div>
+            <div class="diff-item"><strong>Home security</strong><span>Detect unusual activity, trigger a VLM scene analysis, send alerts.</span></div>
         </div>
 
         <!-- Disclaimer -->

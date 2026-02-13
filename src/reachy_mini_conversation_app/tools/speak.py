@@ -11,16 +11,13 @@ class Speak(Tool):
     parameters_schema = {
         "type": "object",
         "properties": {
-            "text": {
-                "type": "string",
-                "description": "The text to speak."
-            },
+            "text": {"type": "string", "description": "The text to speak."},
             "emotion": {
                 "type": "string",
-                "description": "Optional emotion to express while speaking (e.g., 'happy', 'sad')."
-            }
+                "description": "Optional emotion to express while speaking (e.g., 'happy', 'sad').",
+            },
         },
-        "required": ["text"]
+        "required": ["text"],
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:

@@ -8,6 +8,7 @@ from kokoro_onnx import Kokoro
 
 logger = logging.getLogger(__name__)
 
+
 class LocalTTS:
     """Wrapper for Kokoro-ONNX TTS."""
 
@@ -50,7 +51,6 @@ class LocalTTS:
 
     def _download_and_convert_voices(self) -> None:
         """Download voices-v1.0.bin (already npz format) and save as voices.npz."""
-        import os
         from urllib.request import urlretrieve
 
         url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
@@ -73,11 +73,7 @@ class LocalTTS:
         try:
             # Run in thread pool to avoid blocking async loop
             samples, sample_rate = await asyncio.to_thread(
-                self.kokoro.create,
-                text,
-                voice=voice,
-                speed=speed,
-                lang="en-us"
+                self.kokoro.create, text, voice=voice, speed=speed, lang="en-us"
             )
             return sample_rate, samples
         except Exception as e:

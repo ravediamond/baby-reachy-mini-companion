@@ -16,8 +16,8 @@ detection of thin objects like scissors and knives in indoor lighting.
 
 from __future__ import annotations
 import logging
+from typing import Set, Dict, List
 from collections import deque
-from typing import Dict, List, Set
 
 import numpy as np
 from numpy.typing import NDArray
@@ -143,8 +143,6 @@ class DangerDetector:
             if count >= self.confirm_frames:
                 confirmed.append(det)
                 seen_labels.add(label)
-                logger.info(
-                    f"Danger CONFIRMED: {label} seen in {count}/{len(self._detection_history)} recent frames"
-                )
+                logger.info(f"Danger CONFIRMED: {label} seen in {count}/{len(self._detection_history)} recent frames")
 
         return confirmed

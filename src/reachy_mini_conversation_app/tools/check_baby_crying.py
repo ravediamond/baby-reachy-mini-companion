@@ -26,15 +26,12 @@ class CheckBabyCrying(Tool):
         now = time.time()
         time_diff = now - last_time
 
-        if last_event and time_diff < 30: # Within last 30 seconds
+        if last_event and time_diff < 30:  # Within last 30 seconds
             return {
                 "status": "crying_detected",
                 "message": f"Yes, I detected {last_event} {int(time_diff)} seconds ago.",
                 "event": last_event,
-                "seconds_ago": int(time_diff)
+                "seconds_ago": int(time_diff),
             }
         else:
-            return {
-                "status": "quiet",
-                "message": "I haven't heard any crying recently."
-            }
+            return {"status": "quiet", "message": "I haven't heard any crying recently."}
