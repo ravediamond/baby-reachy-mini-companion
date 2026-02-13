@@ -137,19 +137,24 @@ custom_css = """
     background: transparent; border: 1px solid rgba(99,102,241,0.3); color: #6366f1;
 }
 
-/* ---- Mission ---- */
+/* ---- Mission / Testimonial ---- */
 .mission {
-    text-align: center; margin-bottom: 2.5rem; padding: 1.75rem 2rem;
+    position: relative; margin-bottom: 2.5rem; padding: 2rem 2.5rem 1.75rem;
     background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(236,72,153,0.06) 100%);
-    border: 1px solid rgba(99,102,241,0.15); border-radius: 0.875rem;
+    border: 1px solid rgba(99,102,241,0.15); border-left: 4px solid #6366f1; border-radius: 0.875rem;
+}
+.mission .quote-mark {
+    position: absolute; top: 0.5rem; left: 1.25rem;
+    font-size: 4rem; line-height: 1; color: rgba(99,102,241,0.15); font-family: Georgia, serif;
+    pointer-events: none;
 }
 .mission p {
-    font-size: 1.05rem; line-height: 1.7; color: var(--body-text-color);
-    max-width: 720px; margin: 0 auto;
+    font-size: 1.1rem; line-height: 1.75; color: var(--body-text-color);
+    font-style: italic; max-width: 720px; margin: 0 auto; text-align: center;
 }
 .mission .signature {
     font-size: 0.9rem; color: var(--body-text-color-subdued); margin-top: 0.75rem;
-    font-style: italic;
+    font-style: normal; font-weight: 600; text-align: right;
 }
 
 /* ---- Demo GIFs ---- */
@@ -298,10 +303,11 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <!-- Mission -->
         <div class="mission">
-            <p>I built this for my son. I wanted to explore how AI and robotics could genuinely help him &mdash;
-            keep him safe, teach him, comfort him. It had to be local, because what happens around my baby
-            stays private. And it had to run on hardware any family can afford, not cloud subscriptions.</p>
-            <p class="signature">&mdash; A new dad exploring AI and robotics for his son</p>
+            <span class="quote-mark">&ldquo;</span>
+            <p>My son deserves a companion that watches over him, comforts him when he cries,
+            and never sends a single byte of his voice to a stranger's server.
+            So I built it myself &mdash; on hardware any family can afford.</p>
+            <p class="signature">&mdash; Ravin, new dad &amp; builder</p>
         </div>
 
         <!-- What makes this different -->
