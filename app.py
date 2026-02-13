@@ -199,7 +199,7 @@ custom_css = """
 
 /* ---- Top Bar ---- */
 .top-bar {
-    display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+    display: flex; align-items: center; gap: 0.6rem;
     padding: 0.7rem 1.5rem;
     background: var(--background-fill-secondary); border-bottom: 1px solid var(--border-color-primary);
 }
