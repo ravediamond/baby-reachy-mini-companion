@@ -304,10 +304,9 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <!-- Mission -->
         <div class="mission">
             <span class="quote-mark">&ldquo;</span>
-            <p>When my son was born, I just wanted the best for him.
-            A companion to watch over him, comfort him, teach him,
-            and grow up by his side. Fully local, so nothing ever leaves our home.
-            So I built it myself.</p>
+            <p>When my son was born, I just wanted the best for him &mdash;
+            a companion to protect him, teach him, and grow up by his side.
+            Private, local, built by a dad.</p>
             <p class="signature">&mdash; Ravin, new dad &amp; builder</p>
         </div>
 
