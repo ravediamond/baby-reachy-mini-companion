@@ -197,22 +197,10 @@ custom_css = """
 .footer a { color: #6366f1; text-decoration: none; }
 .footer a:hover { text-decoration: underline; }
 
-/* ---- Top Bar ---- */
-.top-bar {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding: 0.7rem 1.5rem;
-    background: var(--background-fill-secondary); border-bottom: 1px solid var(--border-color-primary);
-}
-.top-bar-logo { font-size: 1.5rem; line-height: 1; }
-.top-bar-name { font-size: 0.95rem; font-weight: 600; color: var(--body-text-color); }
 """
 
 with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
     gr.HTML("""
-    <div class="top-bar">
-        <span class="top-bar-logo">🤖🍼</span>
-        <span class="top-bar-name">Baby Reachy-Mini Companion</span>
-    </div>
     <div class="page">
 
         <!-- Hero -->
