@@ -264,11 +264,10 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
 
         <!-- Mission -->
         <div class="mission">
-            <p>AI companions for children are coming whether we like it or not. I'd rather build one myself &mdash;
-            open, local, and fully under my control &mdash; than wait for a closed product that may not have
-            my son's best interests at heart. And I want to prove it can run on hardware any family can afford,
-            not cloud subscriptions and data centers.</p>
-            <p class="signature">&mdash; A dad, a robot, a baby</p>
+            <p>I built this for my son. I wanted to explore how AI and robotics could genuinely help him &mdash;
+            keep him safe, teach him, comfort him. It had to be local, because what happens around my baby
+            stays private. And it had to run on hardware any family can afford, not cloud subscriptions.</p>
+            <p class="signature">&mdash; A new dad exploring AI and robotics for his son</p>
         </div>
 
         <!-- What makes this different -->
