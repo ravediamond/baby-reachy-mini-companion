@@ -269,94 +269,20 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <p class="signature">&mdash; A new dad exploring AI and robotics for his son</p>
         </div>
 
-        <!-- Principles -->
-        <div class="section-label">My belief</div>
-        <div class="section-title">Design principles</div>
-
-        <div class="diff-grid">
-            <div class="diff-item"><strong>Autonomous, not scripted</strong><span>The robot reasons through a VLM and decides what to do. No pre-written reactions, no button presses from a dashboard.</span></div>
-            <div class="diff-item"><strong>Private by default</strong><span>Every model runs locally. Something around your child should never send data to a third party. What happens at home stays at home.</span></div>
-            <div class="diff-item"><strong>Consumer hardware</strong><span>Mac + $700 Jetson Orin NX. No cloud subscriptions, no per-token billing. That's how robotics reaches homes.</span></div>
-            <div class="diff-item"><strong>Empathy matters</strong><span>A robot that ignores distress has failed. Detecting crying, adjusting tone, soothing &mdash; that's when people accept it.</span></div>
-        </div>
-
         <!-- What makes this different -->
         <div class="section-label">Why it matters</div>
         <div class="section-title">What makes this different</div>
 
         <div class="diff-grid">
-            <div class="diff-item"><strong>Autonomous, not remote-controlled</strong><span>A VLM with tool calling reasons about what to do: hears crying &rarr; soothes; spots a knife &rarr; warns and alerts. No human in the loop.</span></div>
+            <div class="diff-item"><strong>Autonomous, not remote-controlled</strong><span>A VLM with tool calling reasons about what to do: hears crying &rarr; soothes; spots a knife &rarr; warns and alerts. No scripts, no dashboard, no human in the loop.</span></div>
             <div class="diff-item"><strong>Local, not cloud</strong><span>7 AI models on your hardware. No API keys for OpenAI or ElevenLabs. No internet required. Audio and video never leave your home.</span></div>
-            <div class="diff-item"><strong>Affordable, not enterprise</strong><span>A Mac you own + a $700 Jetson Orin NX. No subscriptions, no per-token billing. One-time hardware cost.</span></div>
-            <div class="diff-item"><strong>Safe by design</strong><span>Cry and danger alerts sent directly in code &mdash; guaranteed delivery, never gated on the LLM. No hands, no manipulators.</span></div>
-            <div class="diff-item"><strong>GPU-accelerated on Jetson</strong><span>vLLM on NVIDIA Jetson Orin NX with quantized models. ~4 tok/s real-time inference on consumer edge hardware.</span></div>
-            <div class="diff-item"><strong>Concurrent pipeline</strong><span>100Hz motion, 30Hz camera, speech detection, and safety scanning &mdash; 7 models orchestrated in one async pipeline.</span></div>
-        </div>
-
-        <!-- Features -->
-        <div class="section-label">Features</div>
-        <div class="section-title">What it does for your family</div>
-
-        <div class="feature-grid">
-            <div class="card">
-                <div class="card-icon card-icon-pink">&#x1F476;</div>
-                <h3>Baby Safety Monitor</h3>
-                <p>YAMNet listens for crying, YOLO scans for dangerous objects. Photo alerts are sent directly in code &mdash; guaranteed, not dependent on the LLM. The robot then soothes the baby autonomously with gentle rocking and calming words.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-purple">&#x1F3A4;</div>
-                <h3>Interactive Learning</h3>
-                <p>Teaches your child through natural conversation &mdash; counting, colors, animals, and language practice. The robot listens, responds, and adapts. Screen-free learning through voice alone.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-blue">&#x1F319;</div>
-                <h3>Soothe &amp; Comfort</h3>
-                <p>Speaks gentle, calming words with slow rocking motions to comfort a crying baby. Triggered automatically when crying is detected, or on demand.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-amber">&#x2728;</div>
-                <h3>Story Time</h3>
-                <p>Reads classic children's stories (Three Little Pigs, Goldilocks) with expressive narration and emotional prosody. A screen-free storytime experience.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-green">&#x1F441;</div>
-                <h3>Contextual Awareness</h3>
-                <p>Combines what it hears and sees to understand the situation. Detects crying through audio, spots dangerous objects through its camera, and can describe the world around it when asked.</p>
-            </div>
-            <div class="card">
-                <div class="card-icon card-icon-red">&#x1F57A;</div>
-                <h3>Expressive &amp; Alive</h3>
-                <p>Dances, wiggles its antennas to show emotions, tracks faces, and moves its head while speaking. A companion that feels present and responsive, not a static speaker.</p>
-            </div>
-        </div>
-
-        <!-- Beyond the nursery -->
-        <div class="section-label">Bigger picture</div>
-        <div class="section-title">Beyond the nursery</div>
-
-        <div style="margin-bottom: 1.25rem; font-size: 0.95rem; line-height: 1.6; color: var(--body-text-color-subdued);">
-            The core loop &mdash; <strong>detect &rarr; reason (LLM) &rarr; act (tools) &rarr; alert</strong> &mdash; doesn't know it's watching a baby.
-            Swap the system prompt, detection targets, and tools, and the same pipeline adapts to other scenarios.
-            Creating a new use case is a configuration change, not an engineering effort.
-        </div>
-
-        <div class="diff-grid" style="margin-bottom: 2.5rem;">
-            <div class="diff-item"><strong>Autism support</strong><span>Expressive antennas, predictable behavior, and patient conversation &mdash; tuned for social cue practice and emotional recognition.</span></div>
-            <div class="diff-item"><strong>Elderly companion</strong><span>Listen for falls or calls for help, provide conversational company, notify family members.</span></div>
-            <div class="diff-item"><strong>Pet monitoring</strong><span>Detect barking or distress, watch for escape attempts, alert the owner with a photo.</span></div>
-            <div class="diff-item"><strong>Home security</strong><span>Detect unusual activity, trigger a VLM scene analysis, send alerts.</span></div>
-        </div>
-
-        <!-- Disclaimer -->
-        <div class="callout" style="margin-bottom: 2.5rem;">
-            <strong>Note:</strong> This is a personal project and technology demonstration &mdash; not a finished product.
-            It is not intended to replace parental supervision or serve as a certified childcare device.
-            Always supervise your child around any robotic device.
+            <div class="diff-item"><strong>Affordable, not enterprise</strong><span>Mac + $700 Jetson Orin NX. No subscriptions, no per-token billing. One-time hardware cost. That's how robotics reaches homes.</span></div>
+            <div class="diff-item"><strong>Safe by design</strong><span>Cry and danger alerts sent directly in code &mdash; guaranteed delivery, never gated on the LLM. No hands, no manipulators. Empathy first.</span></div>
         </div>
 
         <!-- Architecture -->
         <div class="section-label">Under the hood</div>
-        <div class="section-title">Architecture</div>
+        <div class="section-title">Architecture &mdash; 7 models, one pipeline</div>
 
     </div>
     """)
