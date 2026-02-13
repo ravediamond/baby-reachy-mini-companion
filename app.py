@@ -226,7 +226,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <div class="section-title">What it actually does</div>
             <div class="demo-grid">
                 <div class="demo-item">
-                    <img src="/file=docs/assets/demo-cry-soothe.gif" alt="Baby cry detection and soothing demo" />
+                    <img src="https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion/resolve/main/docs/assets/demo-cry-soothe.gif" alt="Baby cry detection and soothing demo" />
                     <div class="demo-caption">
                         <h3>Baby Cry Detection &rarr; Soothe &rarr; Alert</h3>
                         <p>YAMNet detects crying, robot soothes with rocking and calming words, photo alert sent to parent via Signal.</p>
@@ -234,7 +234,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
                 </div>
                 <div class="demo-item">
 
-                    <img src="/file=docs/assets/demo-danger.gif" alt="Danger detection demo" />
+                    <img src="https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion/resolve/main/docs/assets/demo-danger.gif" alt="Danger detection demo" />
                     <div class="demo-caption">
                         <h3>Danger Detection &rarr; Instant Alert</h3>
                         <p>YOLO spots scissors or knives, robot speaks a warning, photo sent directly to parent.</p>
@@ -242,7 +242,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
                 </div>
                 <div class="demo-item">
 
-                    <img src="/file=docs/assets/demo-teaching.gif" alt="Interactive teaching demo" />
+                    <img src="https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion/resolve/main/docs/assets/demo-teaching.gif" alt="Interactive teaching demo" />
                     <div class="demo-caption">
                         <h3>Interactive Teaching</h3>
                         <p>Ask anything &mdash; the robot explains concepts at a child's level through natural conversation.</p>
@@ -250,7 +250,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
                 </div>
                 <div class="demo-item">
 
-                    <img src="/file=docs/assets/demo-story.gif" alt="Story time demo" />
+                    <img src="https://huggingface.co/spaces/ravediamond/baby-reachy-mini-companion/resolve/main/docs/assets/demo-story.gif" alt="Story time demo" />
                     <div class="demo-caption">
                         <h3>Story Time</h3>
                         <p>Classic children's stories with expressive narration, head movement, and emotional prosody.</p>
