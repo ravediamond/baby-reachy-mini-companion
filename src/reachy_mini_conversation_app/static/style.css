@@ -394,16 +394,6 @@ button.ghost:hover { border-color: rgba(94, 240, 193, 0.4); }
   box-shadow: 0 0 0 3px rgba(94, 240, 193, 0.15);
 }
 
-/* Stop button */
-.btn-stop {
-  border-color: rgba(255, 92, 112, 0.4) !important;
-  color: var(--error) !important;
-}
-.btn-stop:hover {
-  border-color: rgba(255, 92, 112, 0.7) !important;
-  background: rgba(255, 92, 112, 0.1) !important;
-}
-
 /* Signal warning (more prominent) */
 .signal-warning {
   font-size: 12px !important;

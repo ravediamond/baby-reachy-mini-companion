@@ -70,7 +70,7 @@ class LocalStream:
         self._asyncio_loop = None
         # Gate for local mode: blocks launch() until user clicks "Start" in the UI
         self._start_event = threading.Event()
-        self._pipeline_state = "configuring"  # "configuring" | "running" | "stopping"
+        self._pipeline_state = "configuring"  # "configuring" | "running" | "shutting_down"
         self._mic_device: Optional[int] = None  # SoundDevice index, None = use SDK media
 
         # Register dashboard routes immediately so the UI is available
@@ -501,14 +501,6 @@ class LocalStream:
             self._start_event.set()
             return JSONResponse({"ok": True})
 
-        # POST /stop_app -> stop the pipeline and return to configuring
-        @self._settings_app.post("/stop_app")
-        async def _stop_app() -> JSONResponse:
-            if self._pipeline_state != "running":
-                return JSONResponse({"ok": False, "error": "not_running"}, status_code=400)
-            self._stop_pipeline()
-            return JSONResponse({"ok": True})
-
         # Mount personality routes early so /personalities is available on page load
         # (before the pipeline starts). get_loop returns None until runner() sets
         # self._asyncio_loop; routes that need the loop (apply, voices) handle that
@@ -525,33 +517,6 @@ class LocalStream:
             pass
 
         self._settings_initialized = True
-
-    def _stop_pipeline(self) -> None:
-        """Stop the running pipeline and return to configuring state.
-
-        This method is called from the FastAPI (uvicorn) thread, so it must
-        NOT directly touch asyncio tasks or media streams.  It only sets
-        thread-safe flags and schedules task cancellation on the event loop.
-        Actual media cleanup happens in _main_loop() after tasks exit.
-        """
-        if self._pipeline_state != "running":
-            return
-        self._pipeline_state = "configuring"
-        logger.info("Stopping pipeline...")
-
-        # Signal async loops to exit (threading.Event — thread-safe)
-        self._stop_event.set()
-
-        # Cancel tasks via the event loop thread (thread-safe)
-        loop = self._asyncio_loop
-        if loop is not None and loop.is_running():
-            for task in self._tasks:
-                if not task.done():
-                    loop.call_soon_threadsafe(task.cancel)
-
-        # Reset the start gate so _main_loop waits for user click again
-        self._start_event.clear()
-        logger.info("Pipeline stop requested.")
 
     def launch(self) -> None:
         """Start the recorder/player and run the async processing loops."""

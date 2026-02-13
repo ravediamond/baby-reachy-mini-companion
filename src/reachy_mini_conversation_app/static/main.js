@@ -65,15 +65,6 @@ async function fetchAppState() {
   return { state: "configuring" };
 }
 
-async function stopApp() {
-  const resp = await fetch("/stop_app", { method: "POST" });
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => ({}));
-    throw new Error(data.error || "stop_failed");
-  }
-  return await resp.json();
-}
-
 // ---------- Feature Settings API ----------
 async function fetchFeatureSettings() {
   try {
@@ -250,9 +241,6 @@ async function init() {
   // Hidden tools_text for round-tripping saves (not displayed in UI)
   let _toolsText = "";
 
-  // Stop button
-  const stopLocalBtn = document.getElementById("stop-local-btn");
-
   show(personalityPanel, false);
   show(localLlmPanel, false);
   show(localRunningPanel, false);
@@ -272,18 +260,7 @@ async function init() {
     show(featuresPanel, false);
     show(startPanel, false);
     show(localRunningPanel, true);
-    stopLocalBtn.disabled = false;
     localRunningInfo.textContent = `Model: ${model || "—"} | STT: ${stt || "—"}`;
-  }
-
-  function showConfiguringState() {
-    show(localRunningPanel, false);
-    show(localLlmPanel, true);
-    show(featuresPanel, true);
-    show(startPanel, true);
-    startLocalBtn.disabled = false;
-    localLlmStatus.textContent = "";
-    localLlmStatus.className = "status";
   }
 
   // Check if pipeline is already running (e.g., page refresh after start)
@@ -410,22 +387,11 @@ async function init() {
     });
   }
 
-  // Stop button handler
-  stopLocalBtn.addEventListener("click", async () => {
-    stopLocalBtn.disabled = true;
-    try {
-      await stopApp();
-      showConfiguringState();
-    } catch (e) {
-      stopLocalBtn.disabled = false;
-    }
-  });
-
   // Wait until backend routes are ready before rendering personalities UI
   const list = (await waitForPersonalityData()) || { choices: [] };
   if (!list.choices.length) {
-    statusEl.textContent = "Personality endpoints not ready yet. Retry shortly.";
-    statusEl.className = "status warn";
+    pStatus.textContent = "Personality endpoints not ready yet. Retry shortly.";
+    pStatus.className = "status warn";
     show(loading, false);
     return;
   }
@@ -553,8 +519,8 @@ async function init() {
       }
     });
   } catch (e) {
-    statusEl.textContent = "UI failed to load. Please refresh.";
-    statusEl.className = "status warn";
+    pStatus.textContent = "UI failed to load. Please refresh.";
+    pStatus.className = "status warn";
   } finally {
     // Hide loading when initial setup is done (regardless of key presence)
     show(loading, false);
