@@ -674,6 +674,9 @@ class LocalSessionHandler(AsyncStreamHandler):
             if not signal.available:
                 logger.warning("Signal not available for cry photo alert")
                 return
+            if not config.SIGNAL_USER_PHONE:
+                logger.warning("SIGNAL_USER_PHONE not configured for cry alert")
+                return
 
             if self.deps.camera_worker is None:
                 # No camera — fall back to text-only alert
@@ -721,6 +724,9 @@ class LocalSessionHandler(AsyncStreamHandler):
             signal = get_signal_interface()
             if not signal.available:
                 logger.warning("Signal not available for danger photo alert")
+                return
+            if not config.SIGNAL_USER_PHONE:
+                logger.warning("SIGNAL_USER_PHONE not configured for danger alert")
                 return
 
             if self.deps.camera_worker is None:

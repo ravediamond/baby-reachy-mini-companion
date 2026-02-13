@@ -15,9 +15,10 @@ import asyncio
 import argparse
 
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionToolParam
 
 
-TOOLS = [
+TOOLS: list[ChatCompletionToolParam] = [
     {
         "type": "function",
         "function": {
@@ -44,7 +45,7 @@ async def run_test(client: AsyncOpenAI, model: str, label: str, system: str, use
     t_start = time.monotonic()
     t_first_token = None
     full_text = ""
-    tool_calls = {}
+    tool_calls: dict[int, dict[str, str]] = {}
 
     try:
         stream = await client.chat.completions.create(
@@ -100,8 +101,9 @@ async def run_test(client: AsyncOpenAI, model: str, label: str, system: str, use
                 print(">>> No thinking tags — GOOD")
 
         if tool_calls:
-            for idx, tc in sorted(tool_calls.items()):
-                print(f"TOOL[{idx}]: {tc['name']}({tc['arguments'][:100]})")
+            for idx in sorted(tool_calls):
+                call = tool_calls[idx]
+                print(f"TOOL[{idx}]: {call['name']}({call['arguments'][:100]})")
 
         if not full_text and not tool_calls:
             print("(empty response)")
