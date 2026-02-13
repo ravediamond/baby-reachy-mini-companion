@@ -160,11 +160,13 @@ custom_css = """
 .diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2.5rem; }
 @media (max-width: 700px) { .diff-grid { grid-template-columns: 1fr; } }
 .diff-item {
-    display: flex; flex-direction: column; gap: 0.35rem; padding: 1.1rem 1.25rem;
+    display: flex; flex-direction: column; gap: 0.5rem; padding: 1.35rem 1.5rem;
     background: var(--background-fill-secondary); border: 1px solid var(--border-color-primary);
-    border-radius: 0.75rem; font-size: 0.9rem; line-height: 1.55; color: var(--body-text-color-subdued);
+    border-left: 3px solid #6366f1;
+    border-radius: 0.75rem; font-size: 0.9rem; line-height: 1.6; color: var(--body-text-color-subdued);
+    text-align: justify;
 }
-.diff-item strong { color: var(--body-text-color); font-size: 0.95rem; display: block; }
+.diff-item strong { color: var(--body-text-color); font-size: 1rem; font-weight: 700; display: block; letter-spacing: -0.01em; }
 
 /* ---- Footer ---- */
 .footer {
@@ -266,7 +268,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             open, local, and fully under my control &mdash; than wait for a closed product that may not have
             my son's best interests at heart. And I want to prove it can run on hardware any family can afford,
             not cloud subscriptions and data centers.</p>
-            <p class="signature">&mdash; A new dad exploring AI and robotics for his son</p>
+            <p class="signature">&mdash; A dad, a robot, a baby</p>
         </div>
 
         <!-- What makes this different -->
