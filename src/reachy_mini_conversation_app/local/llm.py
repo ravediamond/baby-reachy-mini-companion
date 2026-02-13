@@ -61,6 +61,15 @@ class LocalLLM:
             messages.extend(tool_outputs)
 
         try:
+            # Disable thinking mode for Qwen3 models (adds latency, not needed for tool calling)
+            system_content = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
+            model_lower = (self.model or "").lower()
+            if "qwen3" in model_lower and "/no_think" not in system_content:
+                if messages and messages[0]["role"] == "system":
+                    messages[0] = {**messages[0], "content": "/no_think\n" + messages[0]["content"]}
+                else:
+                    messages.insert(0, {"role": "system", "content": "/no_think"})
+
             create_kwargs: Dict[str, Any] = {
                 "model": self.model or "",
                 "messages": messages,
