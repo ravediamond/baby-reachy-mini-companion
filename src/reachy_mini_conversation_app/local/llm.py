@@ -50,14 +50,8 @@ class LocalLLM:
         messages = [{"role": "system", "content": self.system_prompt}]
         messages.extend(self.history)
 
-        # Disable thinking mode for Qwen3 models (adds massive TTFT latency).
-        # The /no_think tag must be in the user message (not system prompt) —
-        # Qwen3's chat template checks the last user turn for it.
-        is_qwen3 = "qwen3" in (self.model or "").lower()
-
         if user_text:
-            content = f"/no_think\n{user_text}" if is_qwen3 else user_text
-            messages.append({"role": "user", "content": content})
+            messages.append({"role": "user", "content": user_text})
 
         if tool_outputs:
             messages.extend(tool_outputs)

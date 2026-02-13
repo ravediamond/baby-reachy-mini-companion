@@ -21,7 +21,7 @@ Baby cries → robot soothes → parent gets a Signal photo. It also talks, tell
 
 - **7 AI models running concurrently** — VAD, STT, TTS, YOLO, YAMNet, and a single vision-language model for conversation + sight, all orchestrated in one async pipeline
 - **The robot reasons, not scripts** — a 3B–4B VLM with tool calling autonomously decides what to do: soothe a crying baby, alert you with a photo, describe what it sees, tell a story
-- **~1.5s speech-in → audio-out** — streaming sentence-level TTS, KV cache priming, and 25+ tok/s inference keep the conversation real-time on consumer hardware
+- **~3s speech-in → audio-out** — streaming sentence-level TTS, KV cache priming, and GPU inference on Jetson Orin keep the conversation real-time on consumer hardware
 - **Safety alerts are guaranteed** — cry and danger notifications bypass the LLM and are sent directly in code, because [SLMs can't reliably chain 3+ tool calls](#slm-tool-calling-limits)
 - **Runs on a Mac + $700 Jetson** — no cloud, no data center, no subscription. GPU inference via vLLM on NVIDIA Jetson Orin NX
 
@@ -281,33 +281,39 @@ The entire pipeline runs on-device: audio is captured and processed through VAD,
 
 ## Latency & Performance
 
-Real-time conversation requires **at least 25 tokens per second** from the LLM. Below that, responses feel sluggish and the user experience breaks down — especially when the robot also needs to handle autonomous detection (cry alerts, danger scanning) concurrently with conversation. Every optimization in this project exists to keep the pipeline responsive on consumer hardware.
+Real-time conversation on a robot demands low latency at every stage — STT, LLM inference, and TTS all compete for the same wall-clock time between the user finishing a sentence and the robot starting its reply. Every optimization in this project exists to keep the pipeline responsive on consumer hardware.
 
 ### Measured pipeline latency
 
-The pipeline logs timing at each stage. Here's what a typical conversation turn looks like:
+The pipeline logs timing at each stage. Here's what a typical conversation turn looks like (llama.cpp on Jetson):
 
 ```
-⏱️ STT: 380ms (2.1s audio)
-⏱️ LLM first token: 120ms
-⏱️ First audio queued: 850ms (speech-in → audio-out)
-⏱️ Pipeline total: 2100ms (STT 380ms + LLM+TTS 1720ms)
+⏱️ STT: 1355ms (2.8s audio)
+⏱️ LLM first token: 218ms
+⏱️ TTS: 1096ms (6 chars)
+⏱️ First audio queued: 2860ms (speech-in → audio-out)
+⏱️ BENCHMARK | STT 1355ms | TTFT 218ms | LLM 2065ms (9tok, 4.4tok/s) | First audio 2860ms | Total 3500ms
 ```
 
-| Stage | Typical latency | What happens |
-|-------|----------------|--------------|
-| **STT** (Faster-Whisper) | 300–500ms | Transcribe user speech (int8 quantized, `small.en`) |
-| **LLM first token** | 80–200ms | Time from prompt submission to first generated token |
-| **First audio out** | 800–1500ms | End-to-end: speech stops → robot starts speaking |
-| **Full pipeline** | 1500–3000ms | Complete turn including all TTS synthesis |
+We benchmarked the full end-to-end pipeline (speech-in → audio-out) across three deployment configurations, all saying "Hello" to the robot:
 
-> These numbers are from Ollama on a Mac M1 with `ministral-3:3b`. Jetson vLLM with quantized models produces similar LLM latency (~120ms TTFT) with higher token throughput (~29 tok/s vs ~20 tok/s).
+| Metric | Ollama Mac M1 (ministral-3:3b) | vLLM Jetson NX (qwen3-vl:4b) | llama.cpp Jetson NX (qwen3-vl:4b Q4) |
+|--------|------|------|------|
+| **STT** | ~1,500ms | 1,355ms | ~1,500ms |
+| **TTFT** | 3,254ms | 269ms | **218ms** |
+| **LLM total** | 5,523ms (1.6 tok/s) | 2,218ms (4.1 tok/s) | **2,065ms (4.4 tok/s)** |
+| **First audio** | ~6,000ms | 2,860ms | **~2,800ms** |
+| **Total** | ~7,000ms | 3,574ms | **~3,500ms** |
 
-The critical metric is **first audio out** — the time from when you stop speaking to when the robot starts responding. At 800–1500ms, the conversation feels natural. Above 2s, it starts feeling sluggish.
+> STT and TTS run on the Mac in all configurations (Faster-Whisper `small.en` and Kokoro ONNX). Only the LLM inference differs. Some STT times are inflated when they overlap with model loading during startup — adjusted values shown with `~`.
+
+The critical metric is **first audio out** — the time from when you stop speaking to when the robot starts responding. Both Jetson backends achieve ~3s end-to-end, which feels responsive. Ollama on Mac M1 at ~6s is usable but noticeably slower — the bottleneck is CPU-based LLM inference (1.6 tok/s vs 4+ tok/s on Jetson GPU).
+
+> **Why not Qwen3 on Ollama?** Qwen3-VL is a "thinking" model — Ollama enables thinking mode by default, adding **40+ seconds of TTFT** as the model reasons internally before responding. This makes it unusable for real-time conversation. `ministral-3:3b` doesn't have this issue. On vLLM and llama.cpp, thinking mode is disabled by default, so Qwen3-VL runs fine.
 
 ### Why 3B–4B models
 
-Larger models (7B+) produce better text but are too slow for real-time conversation on consumer hardware. A 7B model on Ollama (Mac M1) generates ~15 tok/s — well below the 25 TPS threshold. On Jetson Orin with vLLM, a 4B quantized model hits ~29 tok/s while a 7B model drops to ~12 tok/s. The 3B–4B range is the sweet spot: fast enough for conversational latency with sufficient reasoning and tool-calling capability.
+Larger models (7B+) produce better text but are too slow for real-time conversation on consumer hardware. On Jetson Orin NX, a 4B quantized model generates at ~4 tok/s (client-side, with tool calling overhead) while a 7B model would drop well below that — too slow for conversational latency. On Ollama (Mac M1), even a 3B model only manages 1.6 tok/s. The 3B–4B range is the sweet spot: fast enough for real-time conversation on GPU-accelerated edge hardware with sufficient reasoning and tool-calling capability.
 
 ### LLM warmup and KV cache priming
 
@@ -505,28 +511,39 @@ curl http://localhost:30000/v1/models
 
 `jtop` is particularly useful for verifying that MAXN power mode is active and that the GPU is actually being utilized during inference. `tegrastats` shows real-time memory bandwidth usage — critical for understanding whether your quantized model is hitting the bandwidth ceiling.
 
-Here's what `jtop` looks like with vLLM serving a 4B quantized model — vLLM's engine core uses 8.5GB of GPU memory (unified), leaving ~3.2GB free out of 15.3GB:
+Here's what `jtop` looks like with each engine serving qwen3-vl:4b on the Jetson Orin NX:
+
+**vLLM** — 8.5GB GPU memory, 12.1GB total, 73% CPU:
 
 <img src="docs/assets/jtop-vllm.png" width="800" alt="jtop showing vLLM running on Jetson Orin NX — 8.5GB GPU memory, MAXN_SUPER power mode" />
 
-### Benchmarks on Jetson Orin NX (16GB)
+**llama.cpp** — 4.2GB GPU memory, 5.4GB total, 0.2% CPU:
 
-| Engine | Model | Quantization | TPS | Notes |
-|--------|-------|-------------|-----|-------|
-| **vLLM v0.11** | Qwen3-4B | W4A16 | ~29 | Docker container, text-only |
-| **vLLM v0.11** | Qwen3-VL-4B | AWQ-4bit | ~28 (text) / ~8 (vision) | Same container, multimodal |
-| **vLLM v0.14** | Qwen3-4B | W4A16 | Better | Latest Jetson build, improved scheduling |
-| **llama.cpp** | Qwen2.5-3B | GGUF Q4_K_M | ~23 | Built natively for Jetson aarch64. Functional but slower than vLLM for equivalent models due to less GPU optimization. |
-| **Ollama** | ministral-3:3b | Q4_K_M | Similar to llama.cpp | Easy install, wraps llama.cpp internally |
+<img src="docs/assets/jtop-llama-cpp.png" width="800" alt="jtop showing llama.cpp running on Jetson Orin NX — 4.2GB GPU memory, MAXN_SUPER power mode" />
 
-### vLLM vs llama.cpp: memory–speed tradeoff
+### vLLM vs llama.cpp: memory–prefill tradeoff
 
-The biggest decision on Jetson is which inference engine to use. It comes down to a memory–speed tradeoff:
+The biggest decision on Jetson is which inference engine to use. Both produce similar generation speed for short prompts, but they have fundamentally different resource profiles and scaling characteristics.
 
-- **vLLM** (Docker container): Uses **8.5GB GPU memory** (measured via `jtop`) of the 15.3GB unified memory, with total system usage at 12.1GB — leaving only ~3.2GB for the OS and other processes. Faster inference (~29 tok/s for a 4B model) thanks to PagedAttention, continuous batching, and deep CUDA optimization — but tight if you want to run anything else on the Jetson.
-- **llama.cpp / Ollama**: Uses **~5GB** for the same model. About **30% slower** (~20–23 tok/s), but leaves 11GB free. This makes it viable to run lightweight companion processes (audio classification, YOLO) alongside the LLM on the same device.
+**Measured on Jetson Orin NX (16GB) with qwen3-vl:4b:**
 
-For a dedicated LLM inference server (our hybrid setup), vLLM is the clear choice — speed matters and nothing else competes for memory. If you want to run more of the stack on-device, llama.cpp's smaller footprint gives you the headroom to do so at the cost of slower generation.
+| Metric | vLLM | llama.cpp |
+|--------|------|-----------|
+| **GPU memory** | 8.5GB | 4.2GB |
+| **Total RAM** | 12.1GB / 15.3GB | 5.4GB / 15.3GB |
+| **CPU usage** | 73% | 0.2% |
+| **TTFT** (short prompt) | 269ms | 218ms |
+| **Generation** | 4.1 tok/s | 4.4 tok/s |
+| **Free memory** | ~3.2GB | ~10GB |
+
+On a short "Hello" prompt, llama.cpp is slightly faster while using half the memory. But this benchmark undersells vLLM's advantage: **prefill throughput**.
+
+vLLM's PagedAttention and CUDA-optimized attention kernels process input tokens much faster than llama.cpp. On a short prompt both engines look similar, but with the full system prompt (~500 tokens) + 12 tool specifications + conversation history, vLLM maintains low TTFT while llama.cpp degrades. For a conversational agent that accumulates context over many turns, vLLM's prefill advantage compounds.
+
+**When to use which:**
+
+- **vLLM**: Dedicated LLM inference server (our hybrid setup). Better prefill for long contexts, PagedAttention for efficient KV cache management. Worth the memory cost when nothing else competes for GPU resources.
+- **llama.cpp**: When you need to run other models alongside the LLM on the same Jetson. Its 4.2GB footprint leaves 10GB free — enough for YOLO, audio classification, and the robot daemon. Slightly slower prefill on long contexts, but generation speed is comparable.
 
 ### RAM management
 
