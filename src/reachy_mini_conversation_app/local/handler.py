@@ -433,7 +433,9 @@ class LocalSessionHandler(AsyncStreamHandler):
         t_pipeline_start = time.monotonic()
         t_first_token = 0.0
         t_first_audio = 0.0
+        t_llm_done = 0.0
         first_token_logged = False
+        llm_token_count = 0
 
         # 1. STT
         transcript = await asyncio.to_thread(self.stt.transcribe, audio)
@@ -481,6 +483,7 @@ class LocalSessionHandler(AsyncStreamHandler):
                         token = event["content"]
                         full_response_text += token
                         current_sentence += token
+                        llm_token_count += 1
 
                         # Track time-to-first-token (first text turn only)
                         if not first_token_logged and turn == 1:
@@ -506,6 +509,13 @@ class LocalSessionHandler(AsyncStreamHandler):
 
                     elif event["type"] == "error":
                         logger.error(f"LLM Error: {event['content']}")
+
+                # Track when LLM finishes generating (first text turn)
+                if turn == 1 and t_llm_done == 0.0:
+                    t_llm_done = time.monotonic()
+                    llm_gen_ms = (t_llm_done - t_stt_done) * 1000
+                    tok_s = llm_token_count / ((t_llm_done - t_stt_done) or 1)
+                    logger.info(f"⏱️ LLM done: {llm_gen_ms:.0f}ms ({llm_token_count} tokens, {tok_s:.1f} tok/s)")
 
                 # Process remaining text
                 if current_sentence.strip():
@@ -544,7 +554,15 @@ class LocalSessionHandler(AsyncStreamHandler):
             # --- Log total pipeline latency ---
             t_pipeline_end = time.monotonic()
             total_ms = (t_pipeline_end - t_pipeline_start) * 1000
-            logger.info(f"⏱️ Pipeline total: {total_ms:.0f}ms (STT {stt_ms:.0f}ms + LLM+TTS {total_ms - stt_ms:.0f}ms)")
+            ttft_ms = (t_first_token - t_stt_done) * 1000 if t_first_token else 0
+            llm_ms = (t_llm_done - t_stt_done) * 1000 if t_llm_done else 0
+            first_audio_ms = (t_first_audio - t_pipeline_start) * 1000 if t_first_audio else 0
+            tok_s = llm_token_count / ((t_llm_done - t_stt_done) or 1) if t_llm_done else 0
+            logger.info(
+                f"⏱️ BENCHMARK | STT {stt_ms:.0f}ms | TTFT {ttft_ms:.0f}ms | "
+                f"LLM {llm_ms:.0f}ms ({llm_token_count}tok, {tok_s:.1f}tok/s) | "
+                f"First audio {first_audio_ms:.0f}ms | Total {total_ms:.0f}ms"
+            )
         finally:
             self._active_pipeline_count -= 1
             if self._active_pipeline_count == 0:
@@ -614,7 +632,10 @@ class LocalSessionHandler(AsyncStreamHandler):
             speed = 0.9
 
         # Synthesize
+        t_tts_start = time.monotonic()
         sr, audio = await self.tts.synthesize(text, voice=voice, speed=speed)
+        tts_ms = (time.monotonic() - t_tts_start) * 1000
+        logger.info(f"⏱️ TTS: {tts_ms:.0f}ms ({len(text)} chars)")
 
         # Convert back to int16 for output
         audio_int16 = (audio * 32767).astype(np.int16)
