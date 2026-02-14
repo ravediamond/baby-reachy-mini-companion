@@ -491,27 +491,46 @@ NVIDIA provides pre-built Docker images for vLLM optimized for Jetson's architec
 
 The official container ships with **vLLM v0.11**. A newer community build with **vLLM v0.14.0** is available from [NVIDIA's Jetson AI containers](https://github.com/dusty-nv/jetson-containers) and provides better performance, improved scheduling, and broader model support. We recommend v0.14.0 when available.
 
-**Text-only (fastest):**
+**vLLM — Qwen3-VL 4B AWQ (vision + text):**
 ```bash
-docker run --rm -it --runtime nvidia --network host \
-  -v ~/.cache/huggingface:/root/.cache/huggingface \
+docker run --runtime nvidia -it --rm --network host \
+  -v /home/jetson/.cache/huggingface/hub/Qwen3-VL-4B-Instruct-AWQ-4bit:/models/qwen3-vl-awq \
   ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin \
-  vllm serve RedHatAI/Qwen3-4B-quantized.w4a16 \
-  --served-model-name qwen --port 30000 --dtype half \
-  --trust-remote-code --gpu-memory-utilization 0.80 \
-  --max-model-len 4096 --max-num-seqs 2
+  python3 -m vllm.entrypoints.openai.api_server \
+  --model /models/qwen3-vl-awq \
+  --served-model-name qwen3-vl \
+  --quantization compressed-tensors \
+  --dtype half \
+  --gpu-memory-utilization 0.75 \
+  --max-model-len 4096 \
+  --disable-log-requests \
+  --trust-remote-code \
+  --limit-mm-per-prompt '{"image": 1}' \
+  --enable-auto-tool-choice \
+  --tool-call-parser hermes
 ```
 
-**Vision + Text (Qwen3-VL):**
+**llama.cpp — Qwen3-VL 4B GGUF Q4 (vision + text, lower memory):**
 ```bash
-docker run --rm -it --runtime nvidia --network host \
-  -v ~/.cache/huggingface:/root/.cache/huggingface \
-  ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin \
-  vllm serve cpatonn/Qwen3-VL-4B-Instruct-AWQ-4bit \
-  --served-model-name qwen --port 30000 --dtype half \
-  --trust-remote-code --gpu-memory-utilization 0.8 \
-  --max-model-len 1024 --limit-mm-per-prompt '{"image": 1}' \
-  --max-num-seqs 1
+./build/bin/llama-server \
+  -m models/Qwen3VL-4B-Instruct-Q4_K_M.gguf \
+  -n -1 \
+  -c 8192 \
+  -b 2048 \
+  -ub 1024 \
+  -t 2 \
+  -ngl 99 \
+  -fa 1 \
+  --no-mmap \
+  --port 8000 \
+  --host 0.0.0.0 \
+  --alias qwen3-vl
+```
+
+**SSH tunnel from Mac to Jetson:**
+```bash
+# Forward the Jetson LLM server port to your Mac
+ssh -L 30000:localhost:8000 user@<jetson-ip>
 ```
 
 ### Why quantized models matter on Jetson
