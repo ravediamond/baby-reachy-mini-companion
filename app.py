@@ -231,7 +231,8 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
             <p style="font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--body-text-color);">
                 Autonomous. Local. Affordable. &mdash; 7 AI models orchestrated on-device.
                 The robot reasons through a vision-language model with tool calling, not pre-written scripts.
-                Runs on consumer hardware. No cloud APIs, no subscriptions, no data leaves your home.
+                Works with just Ollama on a Mac. Add a Jetson for faster inference, but it's optional.
+                No cloud APIs, no subscriptions, no data leaves your home.
             </p>
         </div>
 
@@ -323,7 +324,7 @@ with gr.Blocks(title="Baby Reachy-Mini Companion") as demo:
         <div class="diff-grid">
             <div class="diff-item"><strong>Truly autonomous</strong><span>A VLM with tool calling reasons about what to do: hears crying &rarr; soothes; spots a knife &rarr; warns and alerts. The robot decides and acts on its own.</span></div>
             <div class="diff-item"><strong>Fully local</strong><span>7 AI models on your hardware. No internet required. Audio and video never leave your home.</span></div>
-            <div class="diff-item"><strong>Consumer hardware</strong><span>Mac + $700 Jetson Orin NX. One-time hardware cost, no subscriptions. That's how robotics reaches families.</span></div>
+            <div class="diff-item"><strong>Consumer hardware</strong><span>Works on a Mac with Ollama. Add a Jetson for faster inference, but it's optional. No subscriptions. That's how robotics reaches families.</span></div>
             <div class="diff-item"><strong>Safe by design</strong><span>Cry and danger alerts sent directly in code &mdash; guaranteed delivery, never gated on the LLM. Empathy first.</span></div>
         </div>
 

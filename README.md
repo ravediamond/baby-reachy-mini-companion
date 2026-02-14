@@ -41,7 +41,7 @@ A Reachy Mini that **thinks, decides, and acts on its own**. Baby cries → it s
 
 - **The robot is autonomous** — it doesn't follow scripts or wait for button presses. A 3B–4B vision-language model with tool calling hears, sees, reasons, and decides what to do: soothe a crying baby, warn about a dangerous object, answer a question, tell a story
 - **100% local, 100% private** — 7 AI models (VAD, STT, TTS, YOLO, YAMNet, VLM) run entirely on your hardware. No cloud APIs, no internet required, no data ever leaves your home
-- **Consumer hardware, not a data center** — runs on a Mac + a $700 NVIDIA Jetson Orin NX. GPU inference via vLLM keeps the conversation real-time (~3s speech-in → audio-out) at a fraction of cloud API costs
+- **Works on a Mac alone** — Ollama on your Mac is all you need to get started. Add a $700 NVIDIA Jetson Orin NX for GPU-accelerated inference (~3s end-to-end vs ~6s on Mac), but it's entirely optional
 - **Safety alerts are guaranteed** — cry and danger notifications bypass the LLM and are sent directly in code, because [SLMs can't reliably chain 3+ tool calls](#slm-tool-calling-limits). The robot reasons about what to *say*, but alerts are deterministic
 
 ## See It in Action
@@ -339,7 +339,7 @@ We benchmarked the full end-to-end pipeline (speech-in → audio-out) across thr
 | **First audio** | ~6,000ms | 2,860ms | **~2,800ms** |
 | **Total** | ~7,000ms | 3,574ms | **~3,500ms** |
 
-> STT and TTS run on the Mac in all configurations (Faster-Whisper `small.en` and Kokoro ONNX). Only the LLM inference differs. Some STT times are inflated when they overlap with model loading during startup — adjusted values shown with `~`.
+> **Note on tok/s:** These are **client-side measured** throughputs including tool-calling overhead, streaming parsing, and network latency — not raw model speed. Ollama reports ~20 tok/s server-side for ministral-3:3b; the 1.6 tok/s measured here reflects the full pipeline round-trip. STT and TTS run on the Mac in all configurations (Faster-Whisper `small.en` and Kokoro ONNX). Only the LLM inference differs.
 
 The critical metric is **first audio out** — the time from when you stop speaking to when the robot starts responding. Both Jetson backends achieve ~3s end-to-end, which feels responsive. Ollama on Mac M1 at ~6s is usable but noticeably slower — the bottleneck is CPU-based LLM inference (1.6 tok/s vs 4+ tok/s on Jetson GPU).
 
