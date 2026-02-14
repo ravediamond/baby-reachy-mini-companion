@@ -475,7 +475,15 @@ sudo jetson_clocks
 
 #### Headless operation
 
-The Jetson typically runs headless (no display). Connect via SSH and manage everything from the terminal. If you need to adjust audio levels, note that `alsamixer` requires an interactive terminal — it will block in a non-interactive shell. Use `amixer` for scriptable audio control instead:
+The Jetson runs headless (no display, no desktop environment) to maximize available memory for LLM inference. With 16GB of unified memory shared between CPU and GPU, every megabyte counts — disabling the graphical target frees ~500MB of RAM that would otherwise be consumed by the window manager and display server.
+
+```bash
+# Switch to headless mode (no GUI, frees ~500MB RAM)
+sudo systemctl set-default multi-user.target
+sudo reboot
+```
+
+Connect via SSH and manage everything from the terminal. If you need to adjust audio levels, note that `alsamixer` requires an interactive terminal — it will block in a non-interactive shell. Use `amixer` for scriptable audio control instead:
 
 ```bash
 # Check audio devices
