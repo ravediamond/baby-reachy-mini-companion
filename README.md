@@ -50,25 +50,25 @@ A Reachy Mini that **thinks, decides, and acts on its own**. Baby cries → it s
 
 YAMNet detects crying, the robot soothes with rocking and calming words, and a photo alert is sent to the parent via Signal — all autonomously, no cloud.
 
-<p align="center"><img src="docs/assets/demo-cry-soothe.gif" style="max-width:700px;width:100%;" alt="Demo: baby cry detected, robot soothes, Signal photo alert sent to parent" /></p>
+<p align="center"><img src="docs/assets/demo-cry-soothe.gif" width="600" alt="Demo: baby cry detected, robot soothes, Signal photo alert sent to parent" /></p>
 
 ### Danger detection → instant alert
 
 YOLO spots a dangerous object (scissors, knife), the robot speaks a warning, and a photo is sent directly to the parent — guaranteed delivery, not dependent on the LLM.
 
-<p align="center"><img src="docs/assets/demo-danger.gif" style="max-width:700px;width:100%;" alt="Demo: dangerous object detected by YOLO, Signal photo alert sent" /></p>
+<p align="center"><img src="docs/assets/demo-danger.gif" width="600" alt="Demo: dangerous object detected by YOLO, Signal photo alert sent" /></p>
 
 ### Interactive teaching
 
 Ask the robot anything — it explains concepts at a child's level. Here: "What is NVIDIA?" explained for a kid.
 
-<p align="center"><img src="docs/assets/demo-teaching.gif" style="max-width:700px;width:100%;" alt="Demo: robot teaches a child about NVIDIA in simple terms" /></p>
+<p align="center"><img src="docs/assets/demo-teaching.gif" width="600" alt="Demo: robot teaches a child about NVIDIA in simple terms" /></p>
 
 ### Story time
 
 Classic children's stories with expressive narration, head movement, and emotional prosody. Screen-free entertainment.
 
-<p align="center"><img src="docs/assets/demo-story.gif" style="max-width:700px;width:100%;" alt="Demo: robot tells a children's story with expressive motion" /></p>
+<p align="center"><img src="docs/assets/demo-story.gif" width="600" alt="Demo: robot tells a children's story with expressive motion" /></p>
 
 ## Why I Built This
 
